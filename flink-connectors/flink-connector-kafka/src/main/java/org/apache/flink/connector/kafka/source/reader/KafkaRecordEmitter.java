@@ -43,14 +43,16 @@ public class KafkaRecordEmitter<T>
 
     @Override
     public void emitRecord(
-            ConsumerRecord<byte[], byte[]> consumerRecord,
-            SourceOutput<T> output,
-            KafkaPartitionSplitState splitState)
-            throws Exception {
+            ConsumerRecord<byte[], byte[]> consumerRecord, SourceOutput<T> output,
+            KafkaPartitionSplitState splitState) throws Exception {
         try {
+            // 将SourceOutput设置到SourceOutputWrapper中
             sourceOutputWrapper.setSourceOutput(output);
+            // 将当前ConsumerRecord的时间戳设置到SourceOutputWrapper中
             sourceOutputWrapper.setTimestamp(consumerRecord.timestamp());
+            // 使用反序列化Schema将ConsumerRecord反序列化为输出类型T，调用sourceOutputWrapper的collect方法
             deserializationSchema.deserialize(consumerRecord, sourceOutputWrapper);
+            // 更新splitState的当前偏移量
             splitState.setCurrentOffset(consumerRecord.offset() + 1);
         } catch (Exception e) {
             throw new IOException("Failed to deserialize consumer record due to", e);
@@ -68,7 +70,8 @@ public class KafkaRecordEmitter<T>
         }
 
         @Override
-        public void close() {}
+        public void close() {
+        }
 
         private void setSourceOutput(SourceOutput<T> sourceOutput) {
             this.sourceOutput = sourceOutput;

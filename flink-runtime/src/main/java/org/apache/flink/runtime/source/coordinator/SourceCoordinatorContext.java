@@ -224,7 +224,6 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
 
     void sendEventToSourceOperatorIfTaskReady(int subtaskId, OperatorEvent event) {
         checkSubtaskIndex(subtaskId);
-
         callInCoordinatorThread(
                 () -> {
                     final OperatorCoordinator.SubtaskGateway gateway =
@@ -246,8 +245,7 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
     @Override
     public Map<Integer, ReaderInfo> registeredReaders() {
         final Map<Integer, ReaderInfo> readers = new HashMap<>();
-        for (Map.Entry<Integer, ConcurrentMap<Integer, ReaderInfo>> entry :
-                registeredReaders.entrySet()) {
+        for (Map.Entry<Integer, ConcurrentMap<Integer, ReaderInfo>> entry : registeredReaders.entrySet()) {
             final int subtaskIndex = entry.getKey();
             final Map<Integer, ReaderInfo> attemptReaders = entry.getValue();
             int earliestAttempt = Integer.MAX_VALUE;

@@ -60,11 +60,16 @@ public interface WatermarkStrategy<T>
     //  Methods that implementors need to implement.
     // ------------------------------------------------------------------------
 
-    /** Instantiates a WatermarkGenerator that generates watermarks according to this strategy. */
+    /**
+     * 根据策略实例化一个 watermark 生成器，作用是生产水位线
+     * Instantiates a WatermarkGenerator that generates watermarks according to this strategy.
+     */
     @Override
     WatermarkGenerator<T> createWatermarkGenerator(WatermarkGeneratorSupplier.Context context);
 
     /**
+     * 根据策略实例化一个可分配时间戳的TimestampAssigner，主要为了从元素中的某个字段去访问/提取时间戳
+     *
      * Instantiates a {@link TimestampAssigner} for assigning timestamps according to this strategy.
      */
     @Override

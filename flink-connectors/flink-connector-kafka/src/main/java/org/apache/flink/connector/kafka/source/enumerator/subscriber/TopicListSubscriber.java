@@ -33,6 +33,8 @@ import java.util.Set;
 import static org.apache.flink.connector.kafka.source.enumerator.subscriber.KafkaSubscriberUtils.getTopicMetadata;
 
 /**
+ * 一个订阅固定主题列表的订阅者。所订阅的主题必须已存在于 Kafka 集群中，否则将抛出异常
+ *
  * A subscriber to a fixed list of topics. The subscribed topics must have existed in the Kafka
  * cluster, otherwise an exception will be thrown.
  */
@@ -53,11 +55,13 @@ class TopicListSubscriber implements KafkaSubscriber {
 
         Set<TopicPartition> subscribedPartitions = new HashSet<>();
         for (TopicDescription topic : topicMetadata.values()) {
+            // 遍历所有Topic的所有partitions
             for (TopicPartitionInfo partition : topic.partitions()) {
+                // 将每个Topic的每个分区添加到订阅列表中，将Topic名称和partition的id封装为TopicPartition
                 subscribedPartitions.add(new TopicPartition(topic.name(), partition.partition()));
             }
         }
-
+        // 返回的是所有订阅的Topic的所有分区
         return subscribedPartitions;
     }
 }

@@ -77,9 +77,9 @@ public class KafkaPartitionSplitReader
     private final Set<String> emptySplits = new HashSet<>();
 
     public KafkaPartitionSplitReader(
-            Properties props,
-            SourceReaderContext context,
+            Properties props, SourceReaderContext context,
             KafkaSourceReaderMetrics kafkaSourceReaderMetrics) {
+        // 子任务的id
         this.subtaskId = context.getIndexOfSubtask();
         this.kafkaSourceReaderMetrics = kafkaSourceReaderMetrics;
         Properties consumerProps = new Properties();
@@ -94,39 +94,46 @@ public class KafkaPartitionSplitReader
         this.kafkaSourceReaderMetrics.registerNumBytesIn(consumer);
     }
 
+    // 阻塞式的提取
     @Override
     public RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>> fetch() throws IOException {
         ConsumerRecords<byte[], byte[]> consumerRecords;
         try {
+            // 批量拉取消息
             consumerRecords = consumer.poll(Duration.ofMillis(POLL_TIMEOUT));
         } catch (WakeupException | IllegalStateException e) {
             // IllegalStateException will be thrown if the consumer is not assigned any partitions.
             // This happens if all assigned partitions are invalid or empty (starting offset >=
             // stopping offset). We just mark empty partitions as finished and return an empty
             // record container, and this consumer will be closed by SplitFetcherManager.
-            KafkaPartitionSplitRecords recordsBySplits =
-                    new KafkaPartitionSplitRecords(
-                            ConsumerRecords.empty(), kafkaSourceReaderMetrics);
+            KafkaPartitionSplitRecords recordsBySplits = new KafkaPartitionSplitRecords(ConsumerRecords.empty(), kafkaSourceReaderMetrics);
             markEmptySplitsAsFinished(recordsBySplits);
             return recordsBySplits;
         }
-        KafkaPartitionSplitRecords recordsBySplits =
-                new KafkaPartitionSplitRecords(consumerRecords, kafkaSourceReaderMetrics);
+        // 这里将拉取的消费者记录转换为KafkaPartitionSplitRecords
+        KafkaPartitionSplitRecords recordsBySplits = new KafkaPartitionSplitRecords(consumerRecords, kafkaSourceReaderMetrics);
         List<TopicPartition> finishedPartitions = new ArrayList<>();
+        // 遍历所有的partition
         for (TopicPartition tp : consumerRecords.partitions()) {
+            // 获取停止读取的Offset
             long stoppingOffset = getStoppingOffset(tp);
+            // 返回该分区拉取到的所有记录
             final List<ConsumerRecord<byte[], byte[]>> recordsFromPartition =
                     consumerRecords.records(tp);
 
             if (recordsFromPartition.size() > 0) {
+                // 获取最后一个记录
                 final ConsumerRecord<byte[], byte[]> lastRecord =
                         recordsFromPartition.get(recordsFromPartition.size() - 1);
 
                 // After processing a record with offset of "stoppingOffset - 1", the split reader
                 // should not continue fetching because the record with stoppingOffset may not
                 // exist. Keep polling will just block forever.
+                // 如果最后一条记录的偏移量大于等于停止偏移量 - 1，则认为该分区已经完成
                 if (lastRecord.offset() >= stoppingOffset - 1) {
+                    // 将该分区的停止偏移量设置到recordsBySplits中
                     recordsBySplits.setPartitionStoppingOffset(tp, stoppingOffset);
+                    // 记录该分区已经完成，分别添加到finishedPartitions和recordsBySplits中的finishedSplits
                     finishSplitAtRecord(
                             tp,
                             stoppingOffset,
@@ -144,12 +151,12 @@ public class KafkaPartitionSplitReader
         // Unassign the partitions that has finished.
         if (!finishedPartitions.isEmpty()) {
             finishedPartitions.forEach(kafkaSourceReaderMetrics::removeRecordsLagMetric);
+            // 当前消费者被分配的的主题分区列表，将已经完成的分区从分配列表中移除，重新分配消费者的分区
             unassignPartitions(finishedPartitions);
         }
 
         // Update numBytesIn
         kafkaSourceReaderMetrics.updateNumBytesInCounter();
-
         return recordsBySplits;
     }
 
@@ -162,14 +169,14 @@ public class KafkaPartitionSplitReader
         }
     }
 
+    // 非阻塞式处理分片变动
     @Override
     public void handleSplitsChanges(SplitsChange<KafkaPartitionSplit> splitsChange) {
         // Get all the partition assignments and stopping offsets.
         if (!(splitsChange instanceof SplitsAddition)) {
-            throw new UnsupportedOperationException(
-                    String.format(
-                            "The SplitChange type of %s is not supported.",
-                            splitsChange.getClass()));
+            throw new UnsupportedOperationException(String.format(
+                    "The SplitChange type of %s is not supported.",
+                    splitsChange.getClass()));
         }
 
         // Assignment.
@@ -183,21 +190,17 @@ public class KafkaPartitionSplitReader
         Set<TopicPartition> partitionsStoppingAtCommitted = new HashSet<>();
 
         // Parse the starting and stopping offsets.
-        splitsChange
-                .splits()
-                .forEach(
-                        s -> {
-                            newPartitionAssignments.add(s.getTopicPartition());
-                            parseStartingOffsets(
-                                    s,
-                                    partitionsStartingFromEarliest,
-                                    partitionsStartingFromLatest,
-                                    partitionsStartingFromSpecifiedOffsets);
-                            parseStoppingOffsets(
-                                    s, partitionsStoppingAtLatest, partitionsStoppingAtCommitted);
-                            // Track the new topic partition in metrics
-                            kafkaSourceReaderMetrics.registerTopicPartition(s.getTopicPartition());
-                        });
+        splitsChange.splits().forEach(s -> {
+            newPartitionAssignments.add(s.getTopicPartition());
+            parseStartingOffsets(
+                    s,
+                    partitionsStartingFromEarliest,
+                    partitionsStartingFromLatest,
+                    partitionsStartingFromSpecifiedOffsets);
+            parseStoppingOffsets(s, partitionsStoppingAtLatest, partitionsStoppingAtCommitted);
+            // Track the new topic partition in metrics
+            kafkaSourceReaderMetrics.registerTopicPartition(s.getTopicPartition());
+        });
 
         // Assign new partitions.
         newPartitionAssignments.addAll(consumer.assignment());
@@ -219,6 +222,7 @@ public class KafkaPartitionSplitReader
 
     @Override
     public void wakeUp() {
+        // 中断阻塞的poll操作
         consumer.wakeup();
     }
 
@@ -329,8 +333,8 @@ public class KafkaPartitionSplitReader
         stoppingOffsets.putAll(endOffset);
         if (!partitionsStoppingAtCommitted.isEmpty()) {
             retryOnWakeup(
-                            () -> consumer.committed(partitionsStoppingAtCommitted),
-                            "getting committed offset as stopping offsets")
+                    () -> consumer.committed(partitionsStoppingAtCommitted),
+                    "getting committed offset as stopping offsets")
                     .forEach(
                             (tp, offsetAndMetadata) -> {
                                 Preconditions.checkNotNull(
@@ -349,8 +353,8 @@ public class KafkaPartitionSplitReader
         // If none of the partitions have any records,
         for (TopicPartition tp : consumer.assignment()) {
             if (retryOnWakeup(
-                            () -> consumer.position(tp),
-                            "getting starting offset to check if split is empty")
+                    () -> consumer.position(tp),
+                    "getting starting offset to check if split is empty")
                     >= getStoppingOffset(tp)) {
                 emptyPartitions.add(tp);
             }
@@ -389,8 +393,11 @@ public class KafkaPartitionSplitReader
     }
 
     private void unassignPartitions(Collection<TopicPartition> partitionsToUnassign) {
+        // 当前消费者被分配的的主题分区列表
         Collection<TopicPartition> newAssignment = new HashSet<>(consumer.assignment());
+        // 将已经完成的分区从分配列表中移除
         newAssignment.removeAll(partitionsToUnassign);
+        // 重新分配消费者的分区
         consumer.assign(newAssignment);
     }
 
@@ -411,6 +418,7 @@ public class KafkaPartitionSplitReader
                 stoppingOffset,
                 currentOffset);
         finishedPartitions.add(tp);
+        // 完成的Partition添加到KafkaPartitionSplitRecords中
         recordsBySplits.addFinishedSplit(KafkaPartitionSplit.toSplitId(tp));
     }
 
@@ -481,7 +489,8 @@ public class KafkaPartitionSplitReader
         }
 
         private void setPartitionStoppingOffset(
-                TopicPartition topicPartition, long stoppingOffset) {
+                TopicPartition topicPartition,
+                long stoppingOffset) {
             stoppingOffsets.put(topicPartition, stoppingOffset);
         }
 
@@ -494,7 +503,9 @@ public class KafkaPartitionSplitReader
         public String nextSplit() {
             if (splitIterator.hasNext()) {
                 currentTopicPartition = splitIterator.next();
+                // 从拉取的消息中筛选出特定分区的记录
                 recordIterator = consumerRecords.records(currentTopicPartition).iterator();
+                // 获取当前分区的停止偏移量，默认返回Long.MAX_VALUE
                 currentSplitStoppingOffset =
                         stoppingOffsets.getOrDefault(currentTopicPartition, Long.MAX_VALUE);
                 return currentTopicPartition.toString();
@@ -511,12 +522,13 @@ public class KafkaPartitionSplitReader
         public ConsumerRecord<byte[], byte[]> nextRecordFromSplit() {
             Preconditions.checkNotNull(
                     currentTopicPartition,
-                    "Make sure nextSplit() did not return null before "
-                            + "iterate over the records split.");
+                    "Make sure nextSplit() did not return null before iterate over the records split.");
             if (recordIterator.hasNext()) {
                 final ConsumerRecord<byte[], byte[]> record = recordIterator.next();
                 // Only emit records before stopping offset
+                // 这里是判断是否要结束，默认是Long.MAX_VALUE不会被结束的
                 if (record.offset() < currentSplitStoppingOffset) {
+                    // 这里记录当前分区的偏移量
                     metrics.recordCurrentOffset(currentTopicPartition, record.offset());
                     return record;
                 }

@@ -37,24 +37,22 @@ public interface StreamTaskActionExecutor {
 
     <R> R call(Callable<R> callable) throws Exception;
 
-    StreamTaskActionExecutor IMMEDIATE =
-            new StreamTaskActionExecutor() {
-                @Override
-                public void run(RunnableWithException runnable) throws Exception {
-                    runnable.run();
-                }
+    StreamTaskActionExecutor IMMEDIATE = new StreamTaskActionExecutor() {
+        @Override
+        public void run(RunnableWithException runnable) throws Exception {
+            runnable.run();
+        }
 
-                @Override
-                public <E extends Throwable> void runThrowing(ThrowingRunnable<E> runnable)
-                        throws E {
-                    runnable.run();
-                }
+        @Override
+        public <E extends Throwable> void runThrowing(ThrowingRunnable<E> runnable) throws E {
+            runnable.run();
+        }
 
-                @Override
-                public <R> R call(Callable<R> callable) throws Exception {
-                    return callable.call();
-                }
-            };
+        @Override
+        public <R> R call(Callable<R> callable) throws Exception {
+            return callable.call();
+        }
+    };
 
     /** Returns an ExecutionDecorator that synchronizes each invocation. */
     static SynchronizedStreamTaskActionExecutor synchronizedExecutor() {
@@ -70,7 +68,7 @@ public interface StreamTaskActionExecutor {
      * A {@link StreamTaskActionExecutor} that synchronizes every operation on the provided mutex.
      *
      * @deprecated this class should only be used in {@link SourceStreamTask} which exposes the
-     *     checkpoint lock as part of Public API.
+     *         checkpoint lock as part of Public API.
      */
     @Deprecated
     class SynchronizedStreamTaskActionExecutor implements StreamTaskActionExecutor {
@@ -103,7 +101,7 @@ public interface StreamTaskActionExecutor {
 
         /**
          * @return an object used for mutual exclusion of all operations that involve data and state
-         *     mutation. (a.k.a. checkpoint lock).
+         *         mutation. (a.k.a. checkpoint lock).
          */
         public Object getMutex() {
             return mutex;

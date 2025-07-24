@@ -71,6 +71,7 @@ public class SystemProcessingTimeService implements TimerService {
         this.status = new AtomicInteger(STATUS_ALIVE);
         this.quiesceCompletedFuture = new CompletableFuture<>();
 
+        // 创建一个只有一个线程的线程池
         if (threadFactory == null) {
             this.timerService = new ScheduledTaskExecutor(1);
         } else {
@@ -87,6 +88,7 @@ public class SystemProcessingTimeService implements TimerService {
 
     @Override
     public long getCurrentProcessingTime() {
+        // 返回当前系统时间
         return System.currentTimeMillis();
     }
 
@@ -102,15 +104,14 @@ public class SystemProcessingTimeService implements TimerService {
     @Override
     public ScheduledFuture<?> registerTimer(long timestamp, ProcessingTimeCallback callback) {
 
-        long delay =
-                ProcessingTimeServiceUtil.getProcessingTimeDelay(
-                        timestamp, getCurrentProcessingTime());
+        // 如果timestamp大于当前系统时间，者返回timestamp与当前系统时间的差值，否则返回0
+        long delay = ProcessingTimeServiceUtil.getProcessingTimeDelay(timestamp, getCurrentProcessingTime());
 
         // we directly try to register the timer and only react to the status on exception
         // that way we save unnecessary volatile accesses for each timer
         try {
-            return timerService.schedule(
-                    wrapOnTimerCallback(callback, timestamp), delay, TimeUnit.MILLISECONDS);
+            // 这个就是将执行callback的onProcessingTime方法状态成一个线程，然后让入timerService周期线程池中周期执行
+            return timerService.schedule(wrapOnTimerCallback(callback, timestamp), delay, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException e) {
             final int status = this.status.get();
             if (status == STATUS_QUIESCED) {
@@ -144,11 +145,9 @@ public class SystemProcessingTimeService implements TimerService {
         // we directly try to register the timer and only react to the status on exception
         // that way we save unnecessary volatile accesses for each timer
         try {
-            return fixedDelay
-                    ? timerService.scheduleWithFixedDelay(
-                            task, initialDelay, period, TimeUnit.MILLISECONDS)
-                    : timerService.scheduleAtFixedRate(
-                            task, initialDelay, period, TimeUnit.MILLISECONDS);
+            // fixedDelay为false就是周期执行，否则为延迟执行
+            return fixedDelay ? timerService.scheduleWithFixedDelay(task, initialDelay, period, TimeUnit.MILLISECONDS)
+                    : timerService.scheduleAtFixedRate(task, initialDelay, period, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException e) {
             final int status = this.status.get();
             if (status == STATUS_QUIESCED) {
@@ -305,12 +304,14 @@ public class SystemProcessingTimeService implements TimerService {
             this.exceptionHandler = exceptionHandler;
             this.callback = callback;
             this.nextTimestamp = timestamp;
+            // 默认传入的为0
             this.period = period;
         }
 
         @Override
         public void run() {
             if (serviceStatus.get() != STATUS_ALIVE) {
+                // 如果状态不是STATUS_ALIVE直接返回
                 return;
             }
             try {

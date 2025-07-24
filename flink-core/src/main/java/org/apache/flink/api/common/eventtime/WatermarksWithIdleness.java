@@ -66,14 +66,19 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
         watermarks.onEvent(event, eventTimestamp, output);
+        // 当有数据触发时就将counter++，每条数据都会调用该方法
         idlenessTimer.activity();
         isIdleNow = false;
     }
 
     @Override
     public void onPeriodicEmit(WatermarkOutput output) {
+        // 周期性调用该方法，检查是否有空闲，判断逻辑时如果在两次执行onPeriodicEmit中间执行了onEvent，就会返回false
+        // 否则会在没有执行onEvent的第一次onPeriodicEmit时重置时间，当一直没有调用onEvent就会导致当前时间大于第一次onPeriodicEmit时间
+        // 从而导致返回true，如果为true，就不再是更新水位线
         if (idlenessTimer.checkIfIdle()) {
             if (!isIdleNow) {
+                // TODO  这里的作用
                 output.markIdle();
                 isIdleNow = true;
             }
@@ -110,12 +115,13 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
 
             long idleNanos;
             try {
+                // 转换为纳秒
                 idleNanos = idleTimeout.toNanos();
             } catch (ArithmeticException ignored) {
                 // long integer overflow
                 idleNanos = Long.MAX_VALUE;
             }
-
+            // 转换为纳秒，设置为maxIdleTimeNanos
             this.maxIdleTimeNanos = idleNanos;
         }
 
@@ -127,15 +133,17 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
             if (counter != lastCounter) {
                 // activity since the last check. we reset the timer
                 lastCounter = counter;
+                // 如果lastCounter与counter不相等，说明有活动发生，需要重置startOfInactivityNanos为0
                 startOfInactivityNanos = 0L;
                 return false;
             } else // timer started but has not yet reached idle timeout
             if (startOfInactivityNanos == 0L) {
-                // first time that we see no activity since the last periodic probe
-                // begin the timer
+                // first time that we see no activity since the last periodic probe begin the timer
+                // 第一次会将startOfInactivityNanos设置为当前系统时间
                 startOfInactivityNanos = clock.relativeTimeNanos();
                 return false;
             } else {
+                // 当前系统时间 - startOfInactivityNanos如果大于maxIdleTimeNanos返回ture
                 return clock.relativeTimeNanos() - startOfInactivityNanos > maxIdleTimeNanos;
             }
         }

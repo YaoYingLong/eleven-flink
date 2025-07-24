@@ -94,6 +94,7 @@ public class KafkaSourceBuilder<OUT> {
     private KafkaSubscriber subscriber;
     // Users can specify the starting / stopping offset initializer.
     private OffsetsInitializer startingOffsetsInitializer;
+    // 用来指定 Kafka 消费者在读取 Kafka 分区中的数据时停止消费的偏移量位置，控制 Kafka Source 的读取边界
     private OffsetsInitializer stoppingOffsetsInitializer;
     // Boundedness
     private Boundedness boundedness;
@@ -105,6 +106,7 @@ public class KafkaSourceBuilder<OUT> {
         this.subscriber = null;
         this.startingOffsetsInitializer = OffsetsInitializer.earliest();
         this.stoppingOffsetsInitializer = new NoStoppingOffsetsInitializer();
+        // 无界流
         this.boundedness = Boundedness.CONTINUOUS_UNBOUNDED;
         this.deserializationSchema = null;
         this.props = new Properties();

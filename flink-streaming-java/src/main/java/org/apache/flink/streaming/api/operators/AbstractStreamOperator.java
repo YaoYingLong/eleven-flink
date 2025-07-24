@@ -87,10 +87,10 @@ import static org.apache.flink.util.Preconditions.checkState;
 @PublicEvolving
 public abstract class AbstractStreamOperator<OUT>
         implements StreamOperator<OUT>,
-                SetupableStreamOperator<OUT>,
-                CheckpointedStreamOperator,
-                KeyContextHandler,
-                Serializable {
+        SetupableStreamOperator<OUT>,
+        CheckpointedStreamOperator,
+        KeyContextHandler,
+        Serializable {
     private static final long serialVersionUID = 1L;
 
     /** The logger used by the operator class and its subclasses. */
@@ -161,10 +161,8 @@ public abstract class AbstractStreamOperator<OUT>
         this.container = containingTask;
         this.config = config;
         this.output = output;
-        this.metrics =
-                environment
-                        .getMetricGroup()
-                        .getOrAddOperator(config.getOperatorID(), config.getOperatorName());
+        this.metrics = environment.getMetricGroup()
+                .getOrAddOperator(config.getOperatorID(), config.getOperatorName());
         this.combinedWatermark = IndexedCombinedWatermarkStatus.forInputsCount(2);
 
         try {
@@ -229,7 +227,7 @@ public abstract class AbstractStreamOperator<OUT>
 
     /**
      * @deprecated The {@link ProcessingTimeService} instance should be passed by the operator
-     *     constructor and this method will be removed along with {@link SetupableStreamOperator}.
+     *         constructor and this method will be removed along with {@link SetupableStreamOperator}.
      */
     @Deprecated
     public void setProcessingTimeService(ProcessingTimeService processingTimeService) {
@@ -292,7 +290,7 @@ public abstract class AbstractStreamOperator<OUT>
      * backends.
      *
      * @return flag indicating whether or not this operator is writing to raw keyed state via {@link
-     *     #snapshotState(StateSnapshotContext)}.
+     *         #snapshotState(StateSnapshotContext)}.
      */
     @Internal
     protected boolean isUsingCustomRawKeyedState() {
@@ -308,10 +306,12 @@ public abstract class AbstractStreamOperator<OUT>
      * @throws Exception An exception in this method causes the operator to fail.
      */
     @Override
-    public void open() throws Exception {}
+    public void open() throws Exception {
+    }
 
     @Override
-    public void finish() throws Exception {}
+    public void finish() throws Exception {
+    }
 
     @Override
     public void close() throws Exception {
@@ -351,7 +351,8 @@ public abstract class AbstractStreamOperator<OUT>
      * @param context context that provides information and means required for taking a snapshot
      */
     @Override
-    public void snapshotState(StateSnapshotContext context) throws Exception {}
+    public void snapshotState(StateSnapshotContext context) throws Exception {
+    }
 
     /**
      * Stream operators with state which can be restored need to override this hook method.
@@ -359,7 +360,8 @@ public abstract class AbstractStreamOperator<OUT>
      * @param context context that allows to register different states.
      */
     @Override
-    public void initializeState(StateInitializationContext context) throws Exception {}
+    public void initializeState(StateInitializationContext context) throws Exception {
+    }
 
     @Override
     public void notifyCheckpointComplete(long checkpointId) throws Exception {
@@ -402,7 +404,7 @@ public abstract class AbstractStreamOperator<OUT>
      * subtask index is returned. Otherwise, the simple class name is returned.
      *
      * @return If runtime context is set, then return task name with subtask index. Otherwise return
-     *     simple class name.
+     *         simple class name.
      */
     protected String getOperatorName() {
         if (runtimeContext != null) {
@@ -578,7 +580,7 @@ public abstract class AbstractStreamOperator<OUT>
      * VoidNamespaceSerializer} as the namespace serializer.
      *
      * @param name The name of the requested timer service. If no service exists under the given
-     *     name a new one will be created and returned.
+     *         name a new one will be created and returned.
      * @param namespaceSerializer {@code TypeSerializer} for the timer namespace.
      * @param triggerable The {@link Triggerable} that should be invoked when timers fire
      * @param <N> The type of the timer namespace.

@@ -26,9 +26,12 @@ final class WatermarkStrategyWithTimestampAssigner<T> implements WatermarkStrate
 
     private static final long serialVersionUID = 1L;
 
+    // 该策略一般使用BoundedOutOfOrdernessWatermarks
     private final WatermarkStrategy<T> baseStrategy;
+    // 一般为SupplierFromSerializableTimestampAssigner
     private final TimestampAssignerSupplier<T> timestampAssigner;
 
+    // 做一次嵌套
     WatermarkStrategyWithTimestampAssigner(
             WatermarkStrategy<T> baseStrategy, TimestampAssignerSupplier<T> timestampAssigner) {
         this.baseStrategy = baseStrategy;
@@ -37,6 +40,7 @@ final class WatermarkStrategyWithTimestampAssigner<T> implements WatermarkStrate
 
     @Override
     public TimestampAssigner<T> createTimestampAssigner(TimestampAssignerSupplier.Context context) {
+        // 其实就是返回原始的SerializableTimestampAssigner
         return timestampAssigner.createTimestampAssigner(context);
     }
 

@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
+ * 会请求分片并进行处理，例如读取分片所表示的文件或日志分区。SourceReader在TaskManagers上的SourceOperators并行运行，并产生并行的事件流/记录流。
+ *
  * The interface for a source reader which is responsible for reading the records from the source
  * splits assigned by {@link SplitEnumerator}.
  *

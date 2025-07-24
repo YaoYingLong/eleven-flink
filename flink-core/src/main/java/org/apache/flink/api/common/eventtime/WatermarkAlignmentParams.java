@@ -25,10 +25,14 @@ import java.io.Serializable;
 /** Configuration parameters for watermark alignment. */
 @PublicEvolving
 public final class WatermarkAlignmentParams implements Serializable {
+    // 默认是禁用水位线对齐
     public static final WatermarkAlignmentParams WATERMARK_ALIGNMENT_DISABLED =
             new WatermarkAlignmentParams(Long.MAX_VALUE, "", 0);
+    // 最大允许的水位线的差值，即最小的水位线和最大的水位线的差
     private final long maxAllowedWatermarkDrift;
+    // 更新周期
     private final long updateInterval;
+    // 分组
     private final String watermarkGroup;
 
     public WatermarkAlignmentParams(

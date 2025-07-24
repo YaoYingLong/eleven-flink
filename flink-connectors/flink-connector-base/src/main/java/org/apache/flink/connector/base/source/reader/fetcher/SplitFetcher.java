@@ -95,16 +95,12 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
         this.shutdownHook = checkNotNull(shutdownHook);
         this.allowUnalignedSourceSplits = allowUnalignedSourceSplits;
 
-        this.fetchTask =
-                new FetchTask<>(
-                        splitReader,
-                        elementsQueue,
-                        ids -> {
-                            ids.forEach(assignedSplits::remove);
-                            splitFinishedHook.accept(ids);
-                            LOG.info("Finished reading from splits {}", ids);
-                        },
-                        id);
+        this.fetchTask = new FetchTask<>(
+                splitReader, elementsQueue, ids -> {
+            ids.forEach(assignedSplits::remove);
+            splitFinishedHook.accept(ids);
+            LOG.info("Finished reading from splits {}", ids);
+        }, id);
     }
 
     @Override
@@ -142,13 +138,11 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
             if (closed) {
                 return false;
             }
-
             task = getNextTaskUnsafe();
             if (task == null) {
                 // (spurious) wakeup, so just repeat
                 return true;
             }
-
             LOG.debug("Prepare to run {}", task);
             // store task for #wakeUp
             this.runningTask = task;
@@ -164,8 +158,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
             throw new RuntimeException(
                     String.format(
                             "SplitFetcher thread %d received unexpected exception while polling the records",
-                            id),
-                    e);
+                            id), e);
         }
 
         // re-acquire lock as all post-processing steps, need it
@@ -218,9 +211,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-
-            throw new RuntimeException(
-                    "The thread was interrupted while waiting for a fetcher task.");
+            throw new RuntimeException("The thread was interrupted while waiting for a fetcher task.");
         }
     }
 

@@ -118,8 +118,7 @@ public interface OffsetsInitializer extends Serializable {
      * @return an {@link OffsetsInitializer} which initializes the offsets to the committed offsets.
      */
     static OffsetsInitializer committedOffsets(OffsetResetStrategy offsetResetStrategy) {
-        return new ReaderHandledOffsetsInitializer(
-                KafkaPartitionSplit.COMMITTED_OFFSET, offsetResetStrategy);
+        return new ReaderHandledOffsetsInitializer(KafkaPartitionSplit.COMMITTED_OFFSET, offsetResetStrategy);
     }
 
     /**
@@ -144,8 +143,7 @@ public interface OffsetsInitializer extends Serializable {
      *     offsets.
      */
     static OffsetsInitializer earliest() {
-        return new ReaderHandledOffsetsInitializer(
-                KafkaPartitionSplit.EARLIEST_OFFSET, OffsetResetStrategy.EARLIEST);
+        return new ReaderHandledOffsetsInitializer(KafkaPartitionSplit.EARLIEST_OFFSET, OffsetResetStrategy.EARLIEST);
     }
 
     /**
@@ -155,8 +153,7 @@ public interface OffsetsInitializer extends Serializable {
      * @return an {@link OffsetsInitializer} which initializes the offsets to the latest offsets.
      */
     static OffsetsInitializer latest() {
-        return new ReaderHandledOffsetsInitializer(
-                KafkaPartitionSplit.LATEST_OFFSET, OffsetResetStrategy.LATEST);
+        return new ReaderHandledOffsetsInitializer(KafkaPartitionSplit.LATEST_OFFSET, OffsetResetStrategy.LATEST);
     }
 
     /**
@@ -179,8 +176,7 @@ public interface OffsetsInitializer extends Serializable {
      *     is out of range.
      * @return an {@link OffsetsInitializer} which initializes the offsets to the specified offsets.
      */
-    static OffsetsInitializer offsets(
-            Map<TopicPartition, Long> offsets, OffsetResetStrategy offsetResetStrategy) {
+    static OffsetsInitializer offsets(Map<TopicPartition, Long> offsets, OffsetResetStrategy offsetResetStrategy) {
         return new SpecifiedOffsetsInitializer(offsets, offsetResetStrategy);
     }
 }

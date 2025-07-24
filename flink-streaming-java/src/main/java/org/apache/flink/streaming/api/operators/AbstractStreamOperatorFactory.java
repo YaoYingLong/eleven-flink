@@ -53,6 +53,7 @@ public abstract class AbstractStreamOperatorFactory<OUT>
 
     @Override
     public void setProcessingTimeService(ProcessingTimeService processingTimeService) {
+        // 默认为ProcessingTimeServiceImpl
         this.processingTimeService = processingTimeService;
     }
 

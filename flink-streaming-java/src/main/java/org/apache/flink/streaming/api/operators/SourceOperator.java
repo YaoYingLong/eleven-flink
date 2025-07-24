@@ -513,8 +513,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             return;
         }
         operatorEventGateway.sendEventToCoordinator(
-                new ReportedWatermarkEvent(
-                        idle ? Watermark.MAX_WATERMARK.getTimestamp() : latestWatermark));
+                new ReportedWatermarkEvent(idle ? Watermark.MAX_WATERMARK.getTimestamp() : latestWatermark));
     }
 
     @Override
@@ -693,8 +692,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     private void registerReader() {
         operatorEventGateway.sendEventToCoordinator(
-                new ReaderRegistrationEvent(
-                        getRuntimeContext().getIndexOfThisSubtask(), localHostname));
+                new ReaderRegistrationEvent(getRuntimeContext().getIndexOfThisSubtask(), localHostname));
     }
 
     // --------------- methods for unit tests ------------

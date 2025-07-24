@@ -86,7 +86,7 @@ import java.util.function.Supplier;
 @PublicEvolving
 public class KafkaSource<OUT>
         implements Source<OUT, KafkaPartitionSplit, KafkaSourceEnumState>,
-                ResultTypeQueryable<OUT> {
+        ResultTypeQueryable<OUT> {
     private static final long serialVersionUID = -8755372893283732098L;
     // Users can choose only one of the following ways to specify the topics to consume from.
     private final KafkaSubscriber subscriber;
@@ -130,15 +130,14 @@ public class KafkaSource<OUT>
 
     @Internal
     @Override
-    public SourceReader<OUT, KafkaPartitionSplit> createReader(SourceReaderContext readerContext)
-            throws Exception {
+    public SourceReader<OUT, KafkaPartitionSplit> createReader(SourceReaderContext readerContext) throws Exception {
         return createReader(readerContext, (ignore) -> {});
     }
 
     @VisibleForTesting
     SourceReader<OUT, KafkaPartitionSplit> createReader(
-            SourceReaderContext readerContext, Consumer<Collection<String>> splitFinishedHook)
-            throws Exception {
+            SourceReaderContext readerContext,
+            Consumer<Collection<String>> splitFinishedHook) throws Exception {
         FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
                 elementsQueue = new FutureCompletingBlockingQueue<>();
         deserializationSchema.open(
@@ -162,8 +161,7 @@ public class KafkaSource<OUT>
 
         return new KafkaSourceReader<>(
                 elementsQueue,
-                new KafkaSourceFetcherManager(
-                        elementsQueue, splitReaderSupplier::get, splitFinishedHook),
+                new KafkaSourceFetcherManager(elementsQueue, splitReaderSupplier::get, splitFinishedHook),
                 recordEmitter,
                 toConfiguration(props),
                 readerContext,
@@ -175,11 +173,15 @@ public class KafkaSource<OUT>
     public SplitEnumerator<KafkaPartitionSplit, KafkaSourceEnumState> createEnumerator(
             SplitEnumeratorContext<KafkaPartitionSplit> enumContext) {
         return new KafkaSourceEnumerator(
+                // 订阅者，负责订阅Kafka的topic和分区
                 subscriber,
+                // 读取kafka开始的偏移量
                 startingOffsetsInitializer,
+                // 读取kafka结束的偏移量
                 stoppingOffsetsInitializer,
                 props,
                 enumContext,
+                // 用于表示是批量处理还是流处理
                 boundedness);
     }
 

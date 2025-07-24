@@ -35,7 +35,8 @@ import java.util.concurrent.RejectedExecutionException;
 public final class MailboxExecutorImpl implements MailboxExecutor {
 
     /** The mailbox that manages the submitted runnable objects. */
-    @Nonnull private final TaskMailbox mailbox;
+    @Nonnull
+    private final TaskMailbox mailbox;
 
     private final int priority;
 
@@ -44,7 +45,9 @@ public final class MailboxExecutorImpl implements MailboxExecutor {
     private final MailboxProcessor mailboxProcessor;
 
     public MailboxExecutorImpl(
-            @Nonnull TaskMailbox mailbox, int priority, StreamTaskActionExecutor actionExecutor) {
+            @Nonnull TaskMailbox mailbox,
+            int priority,
+            StreamTaskActionExecutor actionExecutor) {
         this(mailbox, priority, actionExecutor, null);
     }
 
@@ -71,9 +74,8 @@ public final class MailboxExecutorImpl implements MailboxExecutor {
             final String descriptionFormat,
             final Object... descriptionArgs) {
         try {
-            mailbox.put(
-                    new Mail(
-                            command, priority, actionExecutor, descriptionFormat, descriptionArgs));
+            // 将任务提交到邮箱中，等待主线程调度执行
+            mailbox.put(new Mail(command, priority, actionExecutor, descriptionFormat, descriptionArgs));
         } catch (MailboxClosedException mbex) {
             throw new RejectedExecutionException(mbex);
         }

@@ -69,7 +69,9 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
     public TimestampsAndWatermarksOperator(
             WatermarkStrategy<T> watermarkStrategy, boolean emitProgressiveWatermarks) {
         this.watermarkStrategy = checkNotNull(watermarkStrategy);
+        // 默认为true
         this.emitProgressiveWatermarks = emitProgressiveWatermarks;
+        // 表示总是尝试将当前算子与上游算子链在一起，Flink 会尽可能地将多个算子合并到一个任务中，以减少线程间的数据传输
         this.chainingStrategy = ChainingStrategy.DEFAULT_CHAINING_STRATEGY;
     }
 
@@ -78,37 +80,47 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
         super.open();
 
         timestampAssigner = watermarkStrategy.createTimestampAssigner(this::getMetricGroup);
-        watermarkGenerator =
-                emitProgressiveWatermarks
-                        ? watermarkStrategy.createWatermarkGenerator(this::getMetricGroup)
-                        : new NoWatermarksGenerator<>();
+        // emitProgressiveWatermarks默认为true
+        watermarkGenerator = emitProgressiveWatermarks
+                ? watermarkStrategy.createWatermarkGenerator(this::getMetricGroup)
+                : new NoWatermarksGenerator<>();
 
+        // 将output封装为WatermarkEmitter
         wmOutput = new WatermarkEmitter(output);
 
+        // 默认值是200毫秒
         watermarkInterval = getExecutionConfig().getAutoWatermarkInterval();
+        // 如果更新周期大于0，且emitProgressiveWatermarks为true，则注册一个定时器
         if (watermarkInterval > 0 && emitProgressiveWatermarks) {
+            // 这里其实就是获取当前系统时间
             final long now = getProcessingTimeService().getCurrentProcessingTime();
+            // 注册一个定时器，定时器会在watermarkInterval毫秒后触发，调用当前类的onProcessingTime方法
             getProcessingTimeService().registerTimer(now + watermarkInterval, this);
         }
     }
 
     @Override
     public void processElement(final StreamRecord<T> element) throws Exception {
+        // 每条数据的处理都会经过该方法
         final T event = element.getValue();
-        final long previousTimestamp =
-                element.hasTimestamp() ? element.getTimestamp() : Long.MIN_VALUE;
+        final long previousTimestamp = element.hasTimestamp() ? element.getTimestamp() : Long.MIN_VALUE;
+        // 调用我们自己自定义的timestampAssigner的extractTimestamp获取当前的水位时间
         final long newTimestamp = timestampAssigner.extractTimestamp(event, previousTimestamp);
 
+        // 并将时间更新设置到StreamRecord中
         element.setTimestamp(newTimestamp);
         output.collect(element);
+        // 更新水位线
         watermarkGenerator.onEvent(event, newTimestamp, wmOutput);
     }
 
     @Override
     public void onProcessingTime(long timestamp) throws Exception {
+        // 这里最终会调用wmOutput的emitWatermark方法，更新水位线
         watermarkGenerator.onPeriodicEmit(wmOutput);
 
         final long now = getProcessingTimeService().getCurrentProcessingTime();
+        // 注册一个定时器，定时器会在watermarkInterval毫秒后触发，调用当前类的onProcessingTime方法
         getProcessingTimeService().registerTimer(now + watermarkInterval, this);
     }
 
@@ -117,8 +129,7 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
      * except for the "end of time" watermark.
      */
     @Override
-    public void processWatermark(org.apache.flink.streaming.api.watermark.Watermark mark)
-            throws Exception {
+    public void processWatermark(org.apache.flink.streaming.api.watermark.Watermark mark) throws Exception {
         // if we receive a Long.MAX_VALUE watermark we forward it since it is used
         // to signal the end of input and to not block watermark progress downstream
         if (mark.getTimestamp() == Long.MAX_VALUE) {
@@ -128,7 +139,8 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
 
     /** Override the base implementation to completely ignore statuses propagated from upstream. */
     @Override
-    public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {}
+    public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
+    }
 
     @Override
     public void finish() throws Exception {
@@ -157,14 +169,16 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
 
         @Override
         public void emitWatermark(Watermark watermark) {
+            // 当前最新的水位
             final long ts = watermark.getTimestamp();
 
+            // 如果传入的水位比当前水位还低直接退出
             if (ts <= currentWatermark) {
                 return;
             }
-
+            // 更新当前水位为传入的最新水位
             currentWatermark = ts;
-
+            // 判断如果当前的idle为true，则将其设置false，并更新Output中的WatermarkStatus为ACTIVE
             markActive();
 
             output.emitWatermark(new org.apache.flink.streaming.api.watermark.Watermark(ts));

@@ -59,11 +59,14 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
 
     private final long periodicWatermarkInterval;
 
-    @Nullable private SplitLocalOutputs<T> currentPerSplitOutputs;
+    @Nullable
+    private SplitLocalOutputs<T> currentPerSplitOutputs;
 
-    @Nullable private StreamingReaderOutput<T> currentMainOutput;
+    @Nullable
+    private StreamingReaderOutput<T> currentMainOutput;
 
-    @Nullable private ScheduledFuture<?> periodicEmitHandle;
+    @Nullable
+    private ScheduledFuture<?> periodicEmitHandle;
 
     public ProgressiveTimestampsAndWatermarks(
             TimestampAssigner<T> timestampAssigner,
@@ -233,19 +236,16 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
                 return previous;
             }
 
-            watermarkMultiplexer.registerNewOutput(
-                    splitId,
-                    watermark ->
-                            watermarkUpdateListener.updateCurrentSplitWatermark(
-                                    splitId, watermark));
+            watermarkMultiplexer.registerNewOutput(splitId,
+                    watermark -> watermarkUpdateListener.updateCurrentSplitWatermark(
+                            splitId,
+                            watermark));
             final WatermarkOutput onEventOutput = watermarkMultiplexer.getImmediateOutput(splitId);
             final WatermarkOutput periodicOutput = watermarkMultiplexer.getDeferredOutput(splitId);
 
-            final WatermarkGenerator<T> watermarks =
-                    watermarksFactory.createWatermarkGenerator(watermarkContext);
+            final WatermarkGenerator<T> watermarks = watermarksFactory.createWatermarkGenerator(watermarkContext);
 
-            final SourceOutputWithWatermarks<T> localOutput =
-                    SourceOutputWithWatermarks.createWithSeparateOutputs(
+            final SourceOutputWithWatermarks<T> localOutput = SourceOutputWithWatermarks.createWithSeparateOutputs(
                             recordOutput,
                             onEventOutput,
                             periodicOutput,

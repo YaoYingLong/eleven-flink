@@ -35,10 +35,13 @@ import java.util.Set;
 public class KafkaPartitionSplit implements SourceSplit {
     public static final long NO_STOPPING_OFFSET = Long.MIN_VALUE;
     // Indicating the split should consume from the latest.
+    // 从最末尾位点开始消费
     public static final long LATEST_OFFSET = -1;
     // Indicating the split should consume from the earliest.
+    // 从最早位点开始消费
     public static final long EARLIEST_OFFSET = -2;
     // Indicating the split should consume from the last committed offset.
+    // 从消费组提交的位点开始消费，如果提交位点不存在，使用最早位点
     public static final long COMMITTED_OFFSET = -3;
 
     // Valid special starting offsets
@@ -88,6 +91,7 @@ public class KafkaPartitionSplit implements SourceSplit {
 
     @Override
     public String splitId() {
+        // 返回的是Topic_partitionId的字符串表示形式
         return toSplitId(tp);
     }
 

@@ -58,7 +58,10 @@ public final class Watermark implements Serializable {
 
     // ------------------------------------------------------------------------
 
-    /** The timestamp of the watermark in milliseconds. */
+    /**
+     * 当前水位线时间戳
+     * The timestamp of the watermark in milliseconds.
+     */
     private final long timestamp;
 
     /** Creates a new watermark with the given timestamp in milliseconds. */

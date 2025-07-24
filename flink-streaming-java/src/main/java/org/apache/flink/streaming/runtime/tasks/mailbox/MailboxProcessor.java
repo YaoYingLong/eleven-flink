@@ -126,7 +126,8 @@ public class MailboxProcessor implements Closeable {
                 mailbox,
                 actionExecutor,
                 new MailboxMetricsController(
-                        new DescriptiveStatisticsHistogram(10), new SimpleCounter()));
+                        new DescriptiveStatisticsHistogram(10),
+                        new SimpleCounter()));
     }
 
     public MailboxProcessor(
@@ -491,7 +492,8 @@ public class MailboxProcessor implements Closeable {
      * resume execution.
      */
     private final class DefaultActionSuspension implements MailboxDefaultAction.Suspension {
-        @Nullable private final PeriodTimer suspensionTimer;
+        @Nullable
+        private final PeriodTimer suspensionTimer;
 
         public DefaultActionSuspension(@Nullable PeriodTimer suspensionTimer) {
             this.suspensionTimer = suspensionTimer;

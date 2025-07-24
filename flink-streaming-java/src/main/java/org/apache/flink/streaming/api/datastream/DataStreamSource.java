@@ -94,13 +94,12 @@ public class DataStreamSource<T> extends SingleOutputStreamOperator<T> {
             WatermarkStrategy<T> watermarkStrategy,
             TypeInformation<T> outTypeInfo,
             String sourceName) {
-        super(
-                environment,
-                new SourceTransformation<>(
+        super(environment, new SourceTransformation<>(
                         sourceName,
                         source,
                         watermarkStrategy,
                         outTypeInfo,
+                        // 获取并发度，默认为1
                         environment.getParallelism(),
                         false));
         this.isParallel = true;

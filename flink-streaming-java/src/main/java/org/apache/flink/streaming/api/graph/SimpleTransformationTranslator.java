@@ -58,6 +58,8 @@ public abstract class SimpleTransformationTranslator<OUT, T extends Transformati
         checkNotNull(transformation);
         checkNotNull(context);
 
+        // 调用实现的translateForStreamingInternal方法
+        // 比如水位线的TimestampsAndWatermarksTransformationTranslator
         final Collection<Integer> transformedIds =
                 translateForStreamingInternal(transformation, context);
         configure(transformation, context);
@@ -71,9 +73,10 @@ public abstract class SimpleTransformationTranslator<OUT, T extends Transformati
      *
      * @param transformation The transformation to be translated.
      * @param context The translation context.
+     *
      * @return The ids of the "last" {@link StreamNode StreamNodes} in the transformation graph
-     *     corresponding to this transformation. These will be the nodes that a potential following
-     *     transformation will need to connect to.
+     *         corresponding to this transformation. These will be the nodes that a potential following
+     *         transformation will need to connect to.
      */
     protected abstract Collection<Integer> translateForBatchInternal(
             final T transformation, final Context context);
@@ -84,9 +87,10 @@ public abstract class SimpleTransformationTranslator<OUT, T extends Transformati
      *
      * @param transformation The transformation to be translated.
      * @param context The translation context.
+     *
      * @return The ids of the "last" {@link StreamNode StreamNodes} in the transformation graph
-     *     corresponding to this transformation. These will be the nodes that a potential following
-     *     transformation will need to connect to.
+     *         corresponding to this transformation. These will be the nodes that a potential following
+     *         transformation will need to connect to.
      */
     protected abstract Collection<Integer> translateForStreamingInternal(
             final T transformation, final Context context);

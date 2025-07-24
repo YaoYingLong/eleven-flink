@@ -70,11 +70,10 @@ public class SourceTransformationTranslator<OUT, SplitT extends SourceSplit, Enu
         final int transformationId = transformation.getId();
         final ExecutionConfig executionConfig = streamGraph.getExecutionConfig();
 
-        SourceOperatorFactory<OUT> operatorFactory =
-                new SourceOperatorFactory<>(
-                        transformation.getSource(),
-                        transformation.getWatermarkStrategy(),
-                        emitProgressiveWatermarks);
+        SourceOperatorFactory<OUT> operatorFactory = new SourceOperatorFactory<>(
+                transformation.getSource(),
+                transformation.getWatermarkStrategy(),
+                emitProgressiveWatermarks);
 
         operatorFactory.setChainingStrategy(transformation.getChainingStrategy());
         operatorFactory.setCoordinatorListeningID(transformation.getCoordinatorListeningID());

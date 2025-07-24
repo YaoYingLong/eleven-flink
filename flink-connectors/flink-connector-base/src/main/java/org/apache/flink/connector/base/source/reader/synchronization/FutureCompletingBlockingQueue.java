@@ -197,11 +197,14 @@ public class FutureCompletingBlockingQueue<T> {
         lock.lockInterruptibly();
         try {
             while (queue.size() >= capacity) {
+                // 第一次默认是返回false，表示当前线程没有被唤醒过
                 if (getAndResetWakeUpFlag(threadIndex)) {
                     return false;
                 }
+                // 会park等待
                 waitOnPut(threadIndex);
             }
+            // 将元素添加到队列中
             enqueue(element);
             return true;
         } finally {
@@ -362,23 +365,27 @@ public class FutureCompletingBlockingQueue<T> {
     private void waitOnPut(int fetcherIndex) throws InterruptedException {
         maybeCreateCondition(fetcherIndex);
         Condition cond = putConditionAndFlags[fetcherIndex].condition();
+        // 将条件等待添加到等待队列中
         notFull.add(cond);
+        // 阻塞等待，park当前线程
         cond.await();
     }
 
     @GuardedBy("lock")
     private void signalNextPutter() {
         if (!notFull.isEmpty()) {
+            // 将下一个等待的put线程从等待队列中取出，然后换新
             notFull.poll().signal();
         }
     }
 
     @GuardedBy("lock")
     private void maybeCreateCondition(int threadIndex) {
+        // 如果putConditionAndFlags数组长度小于当前线程索引，则扩容
         if (putConditionAndFlags.length < threadIndex + 1) {
             putConditionAndFlags = Arrays.copyOf(putConditionAndFlags, threadIndex + 1);
         }
-
+        // 如果当前线程索引对应的ConditionAndFlag对象为null，则创建一个新的ConditionAndFlag对象
         if (putConditionAndFlags[threadIndex] == null) {
             putConditionAndFlags[threadIndex] = new ConditionAndFlag(lock.newCondition());
         }
@@ -386,8 +393,11 @@ public class FutureCompletingBlockingQueue<T> {
 
     @GuardedBy("lock")
     private boolean getAndResetWakeUpFlag(int threadIndex) {
+        // 确保当前线程索引对应的ConditionAndFlag对象存在，不存在就创建一个添加到putConditionAndFlags数组中
         maybeCreateCondition(threadIndex);
+        // 从putConditionAndFlags数组中获取当前线程索引对应的ConditionAndFlag对象，如果wakeUp为true，则将其设置为false并返回true，
         if (putConditionAndFlags[threadIndex].getWakeUp()) {
+            // wakeUp为默认为false，表示当前线程没有被唤醒过
             putConditionAndFlags[threadIndex].setWakeUp(false);
             return true;
         }

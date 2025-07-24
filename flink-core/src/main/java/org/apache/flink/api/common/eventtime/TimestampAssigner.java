@@ -41,6 +41,10 @@ public interface TimestampAssigner<T> {
     long NO_TIMESTAMP = Long.MIN_VALUE;
 
     /**
+     * 为元素分配一个时间戳，时间戳以毫秒数表示，该时间戳独立于任何特定的时区或日历系统
+     * 此方法会接收元素先前已分配的时间戳。该先前的时间戳可能是由之前的时间戳分配器（assigner）分配的
+     * 如果该元素之前未携带时间戳，则此值为Long.MIN_VALUE
+     *
      * Assigns a timestamp to an element, in milliseconds since the Epoch. This is independent of
      * any particular time zone or calendar.
      *
@@ -49,10 +53,10 @@ public interface TimestampAssigner<T> {
      * timestamp before, this value is {@link #NO_TIMESTAMP} (= {@code Long.MIN_VALUE}: {@value
      * Long#MIN_VALUE}).
      *
-     * @param element The element that the timestamp will be assigned to.
+     * @param element The element that the timestamp will be assigned to. 要分配时间戳的元素
      * @param recordTimestamp The current internal timestamp of the element, or a negative value, if
-     *     no timestamp has been assigned yet.
-     * @return The new timestamp.
+     *     no timestamp has been assigned yet. 元素当前的内部时间戳，如果尚未分配时间戳，则为负值
+     * @return The new timestamp. 新分配的时间戳
      */
     long extractTimestamp(T element, long recordTimestamp);
 }

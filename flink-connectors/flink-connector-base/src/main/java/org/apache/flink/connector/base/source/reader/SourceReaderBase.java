@@ -49,6 +49,11 @@ import java.util.concurrent.CompletableFuture;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
+ * 有一个线程池以阻塞的方式从外部系统提取分片。
+ * 解决内部提取线程与其他方法调用（如 pollNext(ReaderOutput)）之间的同步。
+ * 维护每个分片的水印（watermark）以保证水印对齐。
+ * 维护每个分片的状态以进行 Checkpoint。
+ *
  * An abstract implementation of {@link SourceReader} which provides some synchronization between
  * the mail box main thread and the SourceReader internal threads. This class allows user to just
  * provide a {@link SplitReader} and snapshot the split state.
@@ -60,7 +65,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * </ul>
  *
  * @param <E> The rich element type that contains information for split state update or timestamp
- *     extraction.
+ *         extraction.
  * @param <T> The final element type to emit.
  * @param <SplitT> the immutable split type.
  * @param <SplitStateT> the mutable type of split state.
@@ -94,10 +99,13 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     protected SourceReaderContext context;
 
     /** The latest fetched batch of records-by-split from the split reader. */
-    @Nullable private RecordsWithSplitIds<E> currentFetch;
+    @Nullable
+    private RecordsWithSplitIds<E> currentFetch;
 
-    @Nullable private SplitContext<T, SplitStateT> currentSplitContext;
-    @Nullable private SourceOutput<T> currentSplitOutput;
+    @Nullable
+    private SplitContext<T, SplitStateT> currentSplitContext;
+    @Nullable
+    private SourceOutput<T> currentSplitOutput;
 
     /** Indicating whether the SourceReader will be assigned more splits or not. */
     private boolean noMoreSplitsAssignment;
@@ -121,7 +129,8 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     }
 
     @Override
-    public void start() {}
+    public void start() {
+    }
 
     @Override
     public InputStatus pollNext(ReaderOutput<T> output) throws Exception {
@@ -141,6 +150,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
             if (record != null) {
                 // emit the record.
                 numRecordsInCounter.inc(1);
+                // 调用KafkaRecordEmitter的emitRecord()方法将记录发送到输出
                 recordEmitter.emitRecord(record, currentSplitOutput, currentSplitContext.state);
                 LOG.trace("Emitted record: {}", record);
 
@@ -180,7 +190,8 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     }
 
     private void finishCurrentFetch(
-            final RecordsWithSplitIds<E> fetch, final ReaderOutput<T> output) {
+            final RecordsWithSplitIds<E> fetch,
+            final ReaderOutput<T> output) {
         currentFetch = null;
         currentSplitContext = null;
         currentSplitOutput = null;
@@ -191,7 +202,8 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
             Map<String, SplitStateT> stateOfFinishedSplits = new HashMap<>();
             for (String finishedSplitId : finishedSplits) {
                 stateOfFinishedSplits.put(
-                        finishedSplitId, splitStates.remove(finishedSplitId).state);
+                        finishedSplitId,
+                        splitStates.remove(finishedSplitId).state);
                 output.releaseOutputForSplit(finishedSplitId);
             }
             onSplitFinished(stateOfFinishedSplits);
@@ -202,6 +214,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
 
     private boolean moveToNextSplit(
             RecordsWithSplitIds<E> recordsWithSplitIds, ReaderOutput<T> output) {
+        // 调用KafkaPartitionSplitReader的nextSplit()方法获取下一个分片ID
         final String nextSplitId = recordsWithSplitIds.nextSplit();
         if (nextSplitId == null) {
             LOG.trace("Current fetch is finished.");
@@ -226,6 +239,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     @Override
     public List<SplitT> snapshotState(long checkpointId) {
         List<SplitT> splits = new ArrayList<>();
+        // toSplitType返回的是当前消费到的offset，保持保存点，将每个分片的状态转换为不可变的SplitT类型
         splitStates.forEach((id, context) -> splits.add(toSplitType(id, context.state)));
         return splits;
     }
@@ -234,10 +248,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     public void addSplits(List<SplitT> splits) {
         LOG.info("Adding split(s) to reader: {}", splits);
         // Initialize the state for each split.
-        splits.forEach(
-                s ->
-                        splitStates.put(
-                                s.splitId(), new SplitContext<>(s.splitId(), initializedState(s))));
+        splits.forEach(s -> splitStates.put(s.splitId(), new SplitContext<>(s.splitId(), initializedState(s))));
         // Hand over the splits to the split fetcher to start fetch.
         splitFetcherManager.addSplits(splits);
     }
@@ -278,6 +289,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     }
 
     // -------------------- Abstract method to allow different implementations ------------------
+
     /** Handles the finished splits to clean the state if needed. */
     protected abstract void onSplitFinished(Map<String, SplitStateT> finishedSplitIds);
 
@@ -292,6 +304,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
      * Convert a mutable SplitStateT to immutable SplitT.
      *
      * @param splitState splitState.
+     *
      * @return an immutable Split state.
      */
     protected abstract SplitT toSplitType(String splitId, SplitStateT splitState);
@@ -321,7 +334,8 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
 
         final String splitId;
         final SplitStateT state;
-        @Nullable SourceOutput<T> sourceOutput;
+        @Nullable
+        SourceOutput<T> sourceOutput;
 
         private SplitContext(String splitId, SplitStateT state) {
             this.state = state;

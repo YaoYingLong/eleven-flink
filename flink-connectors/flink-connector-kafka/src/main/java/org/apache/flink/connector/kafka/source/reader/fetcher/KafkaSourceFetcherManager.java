@@ -57,56 +57,53 @@ public class KafkaSourceFetcherManager
      * Creates a new SplitFetcherManager with a single I/O threads.
      *
      * @param elementsQueue The queue that is used to hand over data from the I/O thread (the
-     *     fetchers) to the reader (which emits the records and book-keeps the state. This must be
-     *     the same queue instance that is also passed to the {@link SourceReaderBase}.
+     *         fetchers) to the reader (which emits the records and book-keeps the state. This must be
+     *         the same queue instance that is also passed to the {@link SourceReaderBase}.
      * @param splitReaderSupplier The factory for the split reader that connects to the source
-     *     system.
+     *         system.
      * @param splitFinishedHook Hook for handling finished splits in split fetchers.
      */
     public KafkaSourceFetcherManager(
-            FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
-                    elementsQueue,
-            Supplier<SplitReader<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit>>
-                    splitReaderSupplier,
+            FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>> elementsQueue,
+            Supplier<SplitReader<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit>> splitReaderSupplier,
             Consumer<Collection<String>> splitFinishedHook) {
         super(elementsQueue, splitReaderSupplier, new Configuration(), splitFinishedHook);
     }
 
     public void commitOffsets(
-            Map<TopicPartition, OffsetAndMetadata> offsetsToCommit, OffsetCommitCallback callback) {
+            Map<TopicPartition, OffsetAndMetadata> offsetsToCommit,
+            OffsetCommitCallback callback) {
         LOG.debug("Committing offsets {}", offsetsToCommit);
         if (offsetsToCommit.isEmpty()) {
             return;
         }
-        SplitFetcher<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit> splitFetcher =
-                fetchers.get(0);
+        SplitFetcher<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit> splitFetcher = fetchers.get(0);
         if (splitFetcher != null) {
             // The fetcher thread is still running. This should be the majority of the cases.
             enqueueOffsetsCommitTask(splitFetcher, offsetsToCommit, callback);
         } else {
             splitFetcher = createSplitFetcher();
             enqueueOffsetsCommitTask(splitFetcher, offsetsToCommit, callback);
+            // 将splitFetcher提交到线程池中执行
             startFetcher(splitFetcher);
         }
     }
 
     private void enqueueOffsetsCommitTask(
             SplitFetcher<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit> splitFetcher,
-            Map<TopicPartition, OffsetAndMetadata> offsetsToCommit,
-            OffsetCommitCallback callback) {
-        KafkaPartitionSplitReader kafkaReader =
-                (KafkaPartitionSplitReader) splitFetcher.getSplitReader();
+            Map<TopicPartition, OffsetAndMetadata> offsetsToCommit, OffsetCommitCallback callback) {
+        KafkaPartitionSplitReader kafkaReader = (KafkaPartitionSplitReader) splitFetcher.getSplitReader();
 
-        splitFetcher.enqueueTask(
-                new SplitFetcherTask() {
-                    @Override
-                    public boolean run() throws IOException {
-                        kafkaReader.notifyCheckpointComplete(offsetsToCommit, callback);
-                        return true;
-                    }
-
-                    @Override
-                    public void wakeUp() {}
-                });
+        // 将提交offset的任务放入到splitFetcher的任务队列中
+        splitFetcher.enqueueTask(new SplitFetcherTask() {
+            @Override
+            public boolean run() throws IOException {
+                kafkaReader.notifyCheckpointComplete(offsetsToCommit, callback);
+                return true;
+            }
+            @Override
+            public void wakeUp() {
+            }
+        });
     }
 }

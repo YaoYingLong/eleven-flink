@@ -43,8 +43,7 @@ public interface ProcessingTimeService
      * @param period after the initial delay after which the callback is executed
      * @return Scheduled future representing the task to be executed repeatedly
      */
-    ScheduledFuture<?> scheduleAtFixedRate(
-            ProcessingTimeCallback callback, long initialDelay, long period);
+    ScheduledFuture<?> scheduleAtFixedRate(ProcessingTimeCallback callback, long initialDelay, long period);
 
     /**
      * Registers a task to be executed repeatedly with a fixed delay.
@@ -57,8 +56,7 @@ public interface ProcessingTimeService
      * @param period after the initial delay after which the callback is executed
      * @return Scheduled future representing the task to be executed repeatedly
      */
-    ScheduledFuture<?> scheduleWithFixedDelay(
-            ProcessingTimeCallback callback, long initialDelay, long period);
+    ScheduledFuture<?> scheduleWithFixedDelay(ProcessingTimeCallback callback, long initialDelay, long period);
 
     /**
      * This method puts the service into a state where it does not register new timers, but returns

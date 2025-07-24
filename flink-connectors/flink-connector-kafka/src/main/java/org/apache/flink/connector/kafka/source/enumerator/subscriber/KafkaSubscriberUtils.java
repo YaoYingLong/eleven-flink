@@ -41,10 +41,10 @@ class KafkaSubscriberUtils {
     static Map<String, TopicDescription> getTopicMetadata(
             AdminClient adminClient, Set<String> topicNames) {
         try {
+            // 通过describeTopics方法获取分区的详细信，返回Topic名称与TopicDescription映射
             return adminClient.describeTopics(topicNames).allTopicNames().get();
         } catch (Exception e) {
-            throw new RuntimeException(
-                    String.format("Failed to get metadata for topics %s.", topicNames), e);
+            throw new RuntimeException(String.format("Failed to get metadata for topics %s.", topicNames), e);
         }
     }
 }

@@ -183,8 +183,8 @@ public class StreamGraphGenerator {
 
     @SuppressWarnings("rawtypes")
     private static final Map<
-                    Class<? extends Transformation>,
-                    TransformationTranslator<?, ? extends Transformation>>
+            Class<? extends Transformation>,
+            TransformationTranslator<?, ? extends Transformation>>
             translatorMap;
 
     static {
@@ -351,8 +351,8 @@ public class StreamGraphGenerator {
         boolean dynamic =
                 shouldExecuteInBatchMode
                         && schedulerTypeOptional.orElse(
-                                        JobManagerOptions.SchedulerType.AdaptiveBatch)
-                                == JobManagerOptions.SchedulerType.AdaptiveBatch;
+                        JobManagerOptions.SchedulerType.AdaptiveBatch)
+                        == JobManagerOptions.SchedulerType.AdaptiveBatch;
         graph.setDynamic(dynamic);
     }
 
@@ -507,7 +507,7 @@ public class StreamGraphGenerator {
                         transformation ->
                                 isUnboundedSource(transformation)
                                         || transformation.getTransitivePredecessors().stream()
-                                                .anyMatch(this::isUnboundedSource));
+                                        .anyMatch(this::isUnboundedSource));
     }
 
     private boolean isUnboundedSource(final Transformation<?> transformation) {
@@ -539,38 +539,34 @@ public class StreamGraphGenerator {
             }
         }
 
-        transform
-                .getSlotSharingGroup()
-                .ifPresent(
-                        slotSharingGroup -> {
-                            final ResourceSpec resourceSpec =
-                                    SlotSharingGroupUtils.extractResourceSpec(slotSharingGroup);
-                            if (!resourceSpec.equals(ResourceSpec.UNKNOWN)) {
-                                slotSharingGroupResources.compute(
-                                        slotSharingGroup.getName(),
-                                        (name, profile) -> {
-                                            if (profile == null) {
-                                                return ResourceProfile.fromResourceSpec(
-                                                        resourceSpec, MemorySize.ZERO);
-                                            } else if (!ResourceProfile.fromResourceSpec(
-                                                            resourceSpec, MemorySize.ZERO)
-                                                    .equals(profile)) {
-                                                throw new IllegalArgumentException(
-                                                        "The slot sharing group "
-                                                                + slotSharingGroup.getName()
-                                                                + " has been configured with two different resource spec.");
-                                            } else {
-                                                return profile;
-                                            }
-                                        });
+        transform.getSlotSharingGroup().ifPresent(slotSharingGroup -> {
+            final ResourceSpec resourceSpec =
+                    SlotSharingGroupUtils.extractResourceSpec(slotSharingGroup);
+            if (!resourceSpec.equals(ResourceSpec.UNKNOWN)) {
+                slotSharingGroupResources.compute(
+                        slotSharingGroup.getName(), (name, profile) -> {
+                            if (profile == null) {
+                                return ResourceProfile.fromResourceSpec(
+                                        resourceSpec,
+                                        MemorySize.ZERO);
+                            } else if (!ResourceProfile
+                                    .fromResourceSpec(resourceSpec, MemorySize.ZERO)
+                                    .equals(profile)) {
+                                throw new IllegalArgumentException(
+                                        "The slot sharing group " + slotSharingGroup.getName()
+                                                + " has been configured with two different resource spec.");
+                            } else {
+                                return profile;
                             }
                         });
+            }
+        });
 
         // call at least once to trigger exceptions about MissingTypeInfo
         transform.getOutputType();
 
-        @SuppressWarnings("unchecked")
-        final TransformationTranslator<?, Transformation<?>> translator =
+        @SuppressWarnings("unchecked") final TransformationTranslator<?, Transformation<?>>
+                translator =
                 (TransformationTranslator<?, Transformation<?>>)
                         translatorMap.get(transform.getClass());
 
@@ -856,8 +852,9 @@ public class StreamGraphGenerator {
      * <p>Parent transformations will be translated if they are not already translated.
      *
      * @param parentTransformations the transformations whose node ids to return.
+     *
      * @return the nodeIds per transformation or an empty list if the {@code parentTransformations}
-     *     are empty.
+     *         are empty.
      */
     private List<Collection<Integer>> getParentInputIds(
             @Nullable final Collection<Transformation<?>> parentTransformations) {

@@ -32,12 +32,12 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A {@link TransformationTranslator} for the {@link TimestampsAndWatermarksTransformation}.
  *
  * @param <IN> The type of the elements in the input {@code Transformation} of the transformation to
- *     translate.
+ *         translate.
  */
 @Internal
 public class TimestampsAndWatermarksTransformationTranslator<IN>
         extends AbstractOneInputTransformationTranslator<
-                IN, IN, TimestampsAndWatermarksTransformation<IN>> {
+        IN, IN, TimestampsAndWatermarksTransformation<IN>> {
 
     @Override
     protected Collection<Integer> translateForBatchInternal(
@@ -59,9 +59,10 @@ public class TimestampsAndWatermarksTransformationTranslator<IN>
         checkNotNull(transformation);
         checkNotNull(context);
 
-        TimestampsAndWatermarksOperator<IN> operator =
-                new TimestampsAndWatermarksOperator<>(
-                        transformation.getWatermarkStrategy(), emitProgressiveWatermarks);
+        // emitProgressiveWatermarks默认为true
+        // transformation猜测是数据源，比如kafka source
+        TimestampsAndWatermarksOperator<IN> operator = new TimestampsAndWatermarksOperator<>(
+                transformation.getWatermarkStrategy(), emitProgressiveWatermarks);
         SimpleOperatorFactory<IN> operatorFactory = SimpleOperatorFactory.of(operator);
         operatorFactory.setChainingStrategy(transformation.getChainingStrategy());
         return translateInternal(

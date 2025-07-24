@@ -19,14 +19,24 @@ package org.apache.flink.streaming.connectors.kafka.config;
 
 import org.apache.flink.annotation.Internal;
 
-/** End modes for the Kafka Consumer. */
+/**
+ * Kafka 消费者的结束模式
+ * End modes for the Kafka Consumer.
+ */
 @Internal
 public enum BoundedMode {
 
-    /** Do not end consuming. */
+    /**
+     * 不停止消费
+     * Do not end consuming.
+     */
     UNBOUNDED,
 
     /**
+     *
+     * 从特定消费者组在 Zookeeper（ZK）或 Kafka broker 中的已提交偏移量开始结束消费
+     * 这一操作会在开始消费指定分区时进行评估。
+     *
      * End from committed offsets in ZK / Kafka brokers of a specific consumer group. This is
      * evaluated at the start of consumption from a given partition.
      */

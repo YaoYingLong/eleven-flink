@@ -20,7 +20,11 @@ package org.apache.flink.api.connector.source;
 
 import org.apache.flink.annotation.Public;
 
-/** An interface for all the Split types to extend. */
+/**
+ * 一个供所有Split类型扩展的接口，是对一部分 source 数据的包装
+ * 如一个文件或者日志分区。分片是 source 进行任务分配和数据并行读取的基本粒度
+ * An interface for all the Split types to extend.
+ */
 @Public
 public interface SourceSplit {
 

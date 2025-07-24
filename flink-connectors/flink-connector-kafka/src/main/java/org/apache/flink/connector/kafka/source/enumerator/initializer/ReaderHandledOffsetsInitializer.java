@@ -40,7 +40,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  */
 class ReaderHandledOffsetsInitializer implements OffsetsInitializer, OffsetsInitializerValidator {
     private static final long serialVersionUID = 172938052008787981L;
+    // -1: 从最新位点开始消费
+    // -2: 从最早位点开始消费
+    // -3: 从消费组提交的位点开始消费
     private final long startingOffset;
+    // 重置策略
     private final OffsetResetStrategy offsetResetStrategy;
 
     /**

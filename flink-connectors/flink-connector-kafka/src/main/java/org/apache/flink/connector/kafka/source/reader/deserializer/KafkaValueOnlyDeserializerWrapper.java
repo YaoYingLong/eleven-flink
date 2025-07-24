@@ -39,8 +39,7 @@ class KafkaValueOnlyDeserializerWrapper<T> implements KafkaRecordDeserialization
 
     private static final long serialVersionUID = 5409547407386004054L;
 
-    private static final Logger LOG =
-            LoggerFactory.getLogger(KafkaValueOnlyDeserializerWrapper.class);
+    private static final Logger LOG = LoggerFactory.getLogger(KafkaValueOnlyDeserializerWrapper.class);
 
     private final Class<? extends Deserializer<T>> deserializerClass;
 
@@ -58,14 +57,12 @@ class KafkaValueOnlyDeserializerWrapper<T> implements KafkaRecordDeserialization
     @SuppressWarnings("unchecked")
     public void open(DeserializationSchema.InitializationContext context) throws Exception {
         ClassLoader userCodeClassLoader = context.getUserCodeClassLoader().asClassLoader();
-        try (TemporaryClassLoaderContext ignored =
-                TemporaryClassLoaderContext.of(userCodeClassLoader)) {
-            deserializer =
-                    (Deserializer<T>)
-                            InstantiationUtil.instantiate(
-                                    deserializerClass.getName(),
-                                    Deserializer.class,
-                                    getClass().getClassLoader());
+        try (TemporaryClassLoaderContext ignored = TemporaryClassLoaderContext.of(
+                userCodeClassLoader)) {
+            deserializer = (Deserializer<T>) InstantiationUtil.instantiate(
+                    deserializerClass.getName(),
+                    Deserializer.class,
+                    getClass().getClassLoader());
 
             if (deserializer instanceof Configurable) {
                 ((Configurable) deserializer).configure(config);
@@ -84,18 +81,13 @@ class KafkaValueOnlyDeserializerWrapper<T> implements KafkaRecordDeserialization
             throws IOException {
         if (deserializer == null) {
             throw new IllegalStateException(
-                    "The deserializer has not been created. Make sure the open() method has been "
-                            + "invoked.");
+                    "The deserializer has not been created. Make sure the open() method has been invoked.");
         }
 
         T value = deserializer.deserialize(record.topic(), record.value());
         LOG.trace(
                 "Deserialized [partition: {}-{}, offset: {}, timestamp: {}, value: {}]",
-                record.topic(),
-                record.partition(),
-                record.offset(),
-                record.timestamp(),
-                value);
+                record.topic(), record.partition(), record.offset(), record.timestamp(), value);
         collector.collect(value);
     }
 

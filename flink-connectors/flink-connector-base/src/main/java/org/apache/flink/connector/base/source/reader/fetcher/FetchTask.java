@@ -55,17 +55,20 @@ class FetchTask<E, SplitT extends SourceSplit> implements SplitFetcherTask {
     public boolean run() throws IOException {
         try {
             if (!isWakenUp() && lastRecords == null) {
+                // 若是kafka会调用KafkaPartitionSplitReader的fetch方法
                 lastRecords = splitReader.fetch();
             }
-
+            // isWakenUp默认是返回false
             if (!isWakenUp()) {
                 // The order matters here. We must first put the last records into the queue.
                 // This ensures the handling of the fetched records is atomic to wakeup.
+                // 将拉取到的记录放入队列，可能会被阻塞等待
                 if (elementsQueue.put(fetcherIndex, lastRecords)) {
                     if (!lastRecords.finishedSplits().isEmpty()) {
                         // The callback does not throw InterruptedException.
                         splitFinishedCallback.accept(lastRecords.finishedSplits());
                     }
+                    // 添加完成后，清空lastRecords，继续拉去数据
                     lastRecords = null;
                 }
             }

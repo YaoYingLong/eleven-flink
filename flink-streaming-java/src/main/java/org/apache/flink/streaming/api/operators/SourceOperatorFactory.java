@@ -91,31 +91,31 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
     }
 
     @Override
-    public <T extends StreamOperator<OUT>> T createStreamOperator(
-            StreamOperatorParameters<OUT> parameters) {
+    public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
         final OperatorID operatorId = parameters.getStreamConfig().getOperatorID();
-        final OperatorEventGateway gateway =
-                parameters.getOperatorEventDispatcher().getOperatorEventGateway(operatorId);
+        final OperatorEventGateway gateway = parameters.getOperatorEventDispatcher()
+                .getOperatorEventGateway(operatorId);
 
-        final SourceOperator<OUT, ?> sourceOperator =
-                instantiateSourceOperator(
-                        source::createReader,
-                        gateway,
-                        source.getSplitSerializer(),
-                        watermarkStrategy,
-                        parameters.getProcessingTimeService(),
-                        parameters
-                                .getContainingTask()
-                                .getEnvironment()
-                                .getTaskManagerInfo()
-                                .getConfiguration(),
-                        parameters
-                                .getContainingTask()
-                                .getEnvironment()
-                                .getTaskManagerInfo()
-                                .getTaskManagerExternalAddress(),
-                        emitProgressiveWatermarks,
-                        parameters.getContainingTask().getCanEmitBatchOfRecords());
+        // 以Kafka为例
+        final SourceOperator<OUT, ?> sourceOperator = instantiateSourceOperator(
+                // 创建KafkaSourceReader
+                source::createReader,
+                gateway,
+                source.getSplitSerializer(),
+                watermarkStrategy,
+                parameters.getProcessingTimeService(),
+                parameters
+                        .getContainingTask()
+                        .getEnvironment()
+                        .getTaskManagerInfo()
+                        .getConfiguration(),
+                parameters
+                        .getContainingTask()
+                        .getEnvironment()
+                        .getTaskManagerInfo()
+                        .getTaskManagerExternalAddress(),
+                emitProgressiveWatermarks,
+                parameters.getContainingTask().getCanEmitBatchOfRecords());
 
         sourceOperator.setup(
                 parameters.getContainingTask(),
@@ -124,8 +124,7 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
         parameters.getOperatorEventDispatcher().registerEventHandler(operatorId, sourceOperator);
 
         // today's lunch is generics spaghetti
-        @SuppressWarnings("unchecked")
-        final T castedOperator = (T) sourceOperator;
+        @SuppressWarnings("unchecked") final T castedOperator = (T) sourceOperator;
 
         return castedOperator;
     }
@@ -161,25 +160,25 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
      */
     @SuppressWarnings("unchecked")
     private static <T, SplitT extends SourceSplit>
-            SourceOperator<T, SplitT> instantiateSourceOperator(
-                    FunctionWithException<SourceReaderContext, SourceReader<T, ?>, Exception>
-                            readerFactory,
-                    OperatorEventGateway eventGateway,
-                    SimpleVersionedSerializer<?> splitSerializer,
-                    WatermarkStrategy<T> watermarkStrategy,
-                    ProcessingTimeService timeService,
-                    Configuration config,
-                    String localHostName,
-                    boolean emitProgressiveWatermarks,
-                    CanEmitBatchOfRecordsChecker canEmitBatchOfRecords) {
+    SourceOperator<T, SplitT> instantiateSourceOperator(
+            FunctionWithException<SourceReaderContext, SourceReader<T, ?>, Exception>
+                    readerFactory,
+            OperatorEventGateway eventGateway,
+            SimpleVersionedSerializer<?> splitSerializer,
+            WatermarkStrategy<T> watermarkStrategy,
+            ProcessingTimeService timeService,
+            Configuration config,
+            String localHostName,
+            boolean emitProgressiveWatermarks,
+            CanEmitBatchOfRecordsChecker canEmitBatchOfRecords) {
 
         // jumping through generics hoops: cast the generics away to then cast them back more
         // strictly typed
         final FunctionWithException<SourceReaderContext, SourceReader<T, SplitT>, Exception>
                 typedReaderFactory =
-                        (FunctionWithException<
-                                        SourceReaderContext, SourceReader<T, SplitT>, Exception>)
-                                (FunctionWithException<?, ?, ?>) readerFactory;
+                (FunctionWithException<
+                        SourceReaderContext, SourceReader<T, SplitT>, Exception>)
+                        (FunctionWithException<?, ?, ?>) readerFactory;
 
         final SimpleVersionedSerializer<SplitT> typedSplitSerializer =
                 (SimpleVersionedSerializer<SplitT>) splitSerializer;

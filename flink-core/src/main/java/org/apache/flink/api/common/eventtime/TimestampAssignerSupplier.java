@@ -35,7 +35,10 @@ import java.io.Serializable;
 @FunctionalInterface
 public interface TimestampAssignerSupplier<T> extends Serializable {
 
-    /** Instantiates a {@link TimestampAssigner}. */
+    /**
+     * 根据策略实例化一个可分配时间戳的TimestampAssigner，主要为了从元素中的某个字段去访问/提取时间戳
+     * Instantiates a {@link TimestampAssigner}.
+     */
     TimestampAssigner<T> createTimestampAssigner(Context context);
 
     static <T> TimestampAssignerSupplier<T> of(SerializableTimestampAssigner<T> assigner) {

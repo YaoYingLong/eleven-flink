@@ -41,9 +41,9 @@ public final class IndexedCombinedWatermarkStatus {
 
     public static IndexedCombinedWatermarkStatus forInputsCount(int inputsCount) {
         CombinedWatermarkStatus.PartialWatermark[] partialWatermarks =
-                IntStream.range(0, inputsCount)
-                        .mapToObj(
-                                i -> new CombinedWatermarkStatus.PartialWatermark(watermark -> {}))
+                IntStream.range(0, inputsCount).mapToObj(
+                                i -> new CombinedWatermarkStatus.PartialWatermark(watermark -> {
+                                }))
                         .toArray(CombinedWatermarkStatus.PartialWatermark[]::new);
         CombinedWatermarkStatus combinedWatermarkStatus = new CombinedWatermarkStatus();
         for (CombinedWatermarkStatus.PartialWatermark partialWatermark : partialWatermarks) {
@@ -57,7 +57,7 @@ public final class IndexedCombinedWatermarkStatus {
      * well as the combined watermark value.
      *
      * @return true, if the combined watermark value changed. The global idleness needs to be
-     *     checked separately via {@link #isIdle()}
+     *         checked separately via {@link #isIdle()}
      */
     public boolean updateWatermark(int index, long timestamp) {
         checkArgument(index < partialWatermarks.length);
@@ -74,7 +74,7 @@ public final class IndexedCombinedWatermarkStatus {
      * well as the combined watermark value.
      *
      * @return true, if the combined watermark value changed. The global idleness needs to be
-     *     checked separately via {@link #isIdle()}
+     *         checked separately via {@link #isIdle()}
      */
     public boolean updateStatus(int index, boolean idle) {
         checkArgument(index < partialWatermarks.length);

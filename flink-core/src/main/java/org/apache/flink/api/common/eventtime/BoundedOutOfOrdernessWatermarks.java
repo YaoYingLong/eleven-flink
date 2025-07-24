@@ -51,6 +51,7 @@ public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T>
         checkNotNull(maxOutOfOrderness, "maxOutOfOrderness");
         checkArgument(!maxOutOfOrderness.isNegative(), "maxOutOfOrderness cannot be negative");
 
+        // 最大允许的乱序时间
         this.outOfOrdernessMillis = maxOutOfOrderness.toMillis();
 
         // start so that our lowest watermark would be Long.MIN_VALUE.
@@ -61,11 +62,13 @@ public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T>
 
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
+        // 每条数据中提取的时间戳
         maxTimestamp = Math.max(maxTimestamp, eventTimestamp);
     }
 
     @Override
     public void onPeriodicEmit(WatermarkOutput output) {
+        // 定时更新最新的水位线
         output.emitWatermark(new Watermark(maxTimestamp - outOfOrdernessMillis - 1));
     }
 }

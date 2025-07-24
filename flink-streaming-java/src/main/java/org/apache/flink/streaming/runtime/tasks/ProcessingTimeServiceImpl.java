@@ -42,8 +42,7 @@ class ProcessingTimeServiceImpl implements ProcessingTimeService {
 
     ProcessingTimeServiceImpl(
             TimerService timerService,
-            Function<ProcessingTimeCallback, ProcessingTimeCallback>
-                    processingTimeCallbackWrapper) {
+            Function<ProcessingTimeCallback, ProcessingTimeCallback> processingTimeCallbackWrapper) {
         this.timerService = timerService;
         this.processingTimeCallbackWrapper = processingTimeCallbackWrapper;
 
@@ -114,12 +113,10 @@ class ProcessingTimeServiceImpl implements ProcessingTimeService {
     }
 
     private ProcessingTimeCallback addQuiesceProcessingToCallback(ProcessingTimeCallback callback) {
-
         return timestamp -> {
             if (isQuiesced()) {
                 return;
             }
-
             numRunningTimers.incrementAndGet();
             try {
                 // double check to deal with the race condition:

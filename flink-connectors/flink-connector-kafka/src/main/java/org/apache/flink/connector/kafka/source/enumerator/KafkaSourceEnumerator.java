@@ -57,12 +57,16 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-/** The enumerator class for Kafka source. */
+/**
+ * SplitEnumerator可以将分片分配到SourceReader从而响应各种事件，包括发现新的分片，新SourceReader的注册，SourceReader的失败处理等
+ * The enumerator class for Kafka source.
+ */
 @Internal
 public class KafkaSourceEnumerator
         implements SplitEnumerator<KafkaPartitionSplit, KafkaSourceEnumState> {
     private static final Logger LOG = LoggerFactory.getLogger(KafkaSourceEnumerator.class);
     private final KafkaSubscriber subscriber;
+    // 传入的是ReaderHandledOffsetsInitializer
     private final OffsetsInitializer startingOffsetInitializer;
     private final OffsetsInitializer stoppingOffsetInitializer;
     private final Properties properties;
@@ -83,6 +87,7 @@ public class KafkaSourceEnumerator
     private final String consumerGroupId;
 
     // Lazily instantiated or mutable fields.
+    // 用于操作和管理Kafka集群的客户端工具，在调用start方法时被初始化
     private AdminClient adminClient;
 
     // This flag will be marked as true if periodically partition discovery is disabled AND the
@@ -114,20 +119,22 @@ public class KafkaSourceEnumerator
             SplitEnumeratorContext<KafkaPartitionSplit> context,
             Boundedness boundedness,
             Set<TopicPartition> assignedPartitions) {
+        // 默认传入的是TopicListSubscriber
         this.subscriber = subscriber;
         this.startingOffsetInitializer = startingOffsetInitializer;
         this.stoppingOffsetInitializer = stoppingOffsetInitializer;
         this.properties = properties;
         this.context = context;
         this.boundedness = boundedness;
-
+        // 固定传入的是一个空集合
         this.assignedPartitions = new HashSet<>(assignedPartitions);
         this.pendingPartitionSplitAssignment = new HashMap<>();
-        this.partitionDiscoveryIntervalMs =
-                KafkaSourceOptions.getOption(
-                        properties,
-                        KafkaSourceOptions.PARTITION_DISCOVERY_INTERVAL_MS,
-                        Long::parseLong);
+        // 检查一次新分区的时间间隔
+        this.partitionDiscoveryIntervalMs = KafkaSourceOptions.getOption(
+                properties,
+                KafkaSourceOptions.PARTITION_DISCOVERY_INTERVAL_MS,
+                Long::parseLong);
+        // 消费者组ID
         this.consumerGroupId = properties.getProperty(ConsumerConfig.GROUP_ID_CONFIG);
     }
 
@@ -156,9 +163,13 @@ public class KafkaSourceEnumerator
                     consumerGroupId,
                     partitionDiscoveryIntervalMs);
             context.callAsync(
+                    // 获取订阅的Topic分区列表，放到单独的线程中执行
                     this::getSubscribedTopicPartitions,
+                    // 将上面getSubscribedTopicPartitions方法的结果作为参数传入到checkPartitionChanges方法中
                     this::checkPartitionChanges,
+                    // 周期任务初始延迟
                     0,
+                    // 周期任务间隔
                     partitionDiscoveryIntervalMs);
         } else {
             LOG.info(
@@ -234,7 +245,9 @@ public class KafkaSourceEnumerator
             throw new FlinkRuntimeException(
                     "Failed to list subscribed topic partitions due to ", t);
         }
+        // 获取分区变化
         final PartitionChange partitionChange = getPartitionChange(fetchedPartitions);
+        // 如果没有分区变化，直接返回
         if (partitionChange.isEmpty()) {
             return;
         }
@@ -260,24 +273,28 @@ public class KafkaSourceEnumerator
      * potentially requires network I/O with Kafka brokers for fetching offsets.
      *
      * @param partitionChange Newly discovered and removed partitions
+     *
      * @return {@link KafkaPartitionSplit} of new partitions and {@link TopicPartition} of removed
-     *     partitions
+     *         partitions
      */
     private PartitionSplitChange initializePartitionSplits(PartitionChange partitionChange) {
+        // 新增的partition
         Set<TopicPartition> newPartitions =
                 Collections.unmodifiableSet(partitionChange.getNewPartitions());
         OffsetsInitializer.PartitionOffsetsRetriever offsetsRetriever = getOffsetsRetriever();
 
+        // 传入的是ReaderHandledOffsetsInitializer
         Map<TopicPartition, Long> startingOffsets =
                 startingOffsetInitializer.getPartitionOffsets(newPartitions, offsetsRetriever);
+        // 一般是NoStoppingOffsetsInitializer，所以一般返回空列表
         Map<TopicPartition, Long> stoppingOffsets =
                 stoppingOffsetInitializer.getPartitionOffsets(newPartitions, offsetsRetriever);
 
         Set<KafkaPartitionSplit> partitionSplits = new HashSet<>(newPartitions.size());
         for (TopicPartition tp : newPartitions) {
             Long startingOffset = startingOffsets.get(tp);
-            long stoppingOffset =
-                    stoppingOffsets.getOrDefault(tp, KafkaPartitionSplit.NO_STOPPING_OFFSET);
+            // 如果不存在返回Long.MIN_VALUE
+            long stoppingOffset = stoppingOffsets.getOrDefault(tp, KafkaPartitionSplit.NO_STOPPING_OFFSET);
             partitionSplits.add(new KafkaPartitionSplit(tp, startingOffset, stoppingOffset));
         }
         return new PartitionSplitChange(partitionSplits, partitionChange.getRemovedPartitions());
@@ -294,7 +311,8 @@ public class KafkaSourceEnumerator
      * @param t Exception in worker thread
      */
     private void handlePartitionSplitChanges(
-            PartitionSplitChange partitionSplitChange, Throwable t) {
+            PartitionSplitChange partitionSplitChange,
+            Throwable t) {
         if (t != null) {
             throw new FlinkRuntimeException("Failed to initialize partition splits due to ", t);
         }
@@ -308,13 +326,11 @@ public class KafkaSourceEnumerator
     }
 
     // This method should only be invoked in the coordinator executor thread.
-    private void addPartitionSplitChangeToPendingAssignments(
-            Collection<KafkaPartitionSplit> newPartitionSplits) {
+    private void addPartitionSplitChangeToPendingAssignments(Collection<KafkaPartitionSplit> newPartitionSplits) {
         int numReaders = context.currentParallelism();
         for (KafkaPartitionSplit split : newPartitionSplits) {
             int ownerReader = getSplitOwner(split.getTopicPartition(), numReaders);
-            pendingPartitionSplitAssignment
-                    .computeIfAbsent(ownerReader, r -> new HashSet<>())
+            pendingPartitionSplitAssignment.computeIfAbsent(ownerReader, r -> new HashSet<>())
                     .add(split);
         }
         LOG.debug(
@@ -376,19 +392,19 @@ public class KafkaSourceEnumerator
     @VisibleForTesting
     PartitionChange getPartitionChange(Set<TopicPartition> fetchedPartitions) {
         final Set<TopicPartition> removedPartitions = new HashSet<>();
-        Consumer<TopicPartition> dedupOrMarkAsRemoved =
-                (tp) -> {
-                    if (!fetchedPartitions.remove(tp)) {
-                        removedPartitions.add(tp);
-                    }
-                };
+        Consumer<TopicPartition> dedupOrMarkAsRemoved = (tp) -> {
+            // 将传入的TopicPartition从最新拉取到的分区列表中删除，如果删除成功，表示分区未发生变化
+            if (!fetchedPartitions.remove(tp)) {
+                // 如果删除失败，说明新拉取到的分区不包含该分区，说明该分区已被删除
+                removedPartitions.add(tp);
+            }
+        };
 
         assignedPartitions.forEach(dedupOrMarkAsRemoved);
-        pendingPartitionSplitAssignment.forEach(
-                (reader, splits) ->
-                        splits.forEach(
-                                split -> dedupOrMarkAsRemoved.accept(split.getTopicPartition())));
+        pendingPartitionSplitAssignment.forEach((reader, splits) ->
+                splits.forEach(split -> dedupOrMarkAsRemoved.accept(split.getTopicPartition())));
 
+        // 如果fetchedPartitions中还有分区，说明是新发现的分区
         if (!fetchedPartitions.isEmpty()) {
             LOG.info("Discovered new partitions: {}", fetchedPartitions);
         }
@@ -431,6 +447,7 @@ public class KafkaSourceEnumerator
      *
      * @param tp the Kafka partition to assign.
      * @param numReaders the total number of readers.
+     *
      * @return the id of the subtask that owns the split.
      */
     @VisibleForTesting
@@ -502,33 +519,28 @@ public class KafkaSourceEnumerator
 
         @Override
         public Map<TopicPartition, Long> committedOffsets(Collection<TopicPartition> partitions) {
-            ListConsumerGroupOffsetsOptions options =
-                    new ListConsumerGroupOffsetsOptions()
-                            .topicPartitions(new ArrayList<>(partitions));
+            ListConsumerGroupOffsetsOptions options = new ListConsumerGroupOffsetsOptions()
+                    .topicPartitions(new ArrayList<>(partitions));
             try {
-                return adminClient
-                        .listConsumerGroupOffsets(groupId, options)
+                return adminClient.listConsumerGroupOffsets(groupId, options)
                         .partitionsToOffsetAndMetadata()
-                        .thenApply(
-                                result -> {
-                                    Map<TopicPartition, Long> offsets = new HashMap<>();
-                                    result.forEach(
-                                            (tp, oam) -> {
-                                                if (oam != null) {
-                                                    offsets.put(tp, oam.offset());
-                                                }
-                                            });
-                                    return offsets;
-                                })
-                        .get();
+                        .thenApply(result -> {
+                            Map<TopicPartition, Long> offsets = new HashMap<>();
+                            result.forEach((tp, oam) -> {
+                                if (oam != null) {
+                                    offsets.put(tp, oam.offset());
+                                }
+                            });
+                            return offsets;
+                        }).get();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new FlinkRuntimeException(
-                        "Interrupted while listing offsets for consumer group " + groupId, e);
+                        "Interrupted while listing offsets for consumer group " + groupId,
+                        e);
             } catch (ExecutionException e) {
                 throw new FlinkRuntimeException(
-                        "Failed to fetch committed offsets for consumer group "
-                                + groupId
+                        "Failed to fetch committed offsets for consumer group " + groupId
                                 + " due to",
                         e);
             }
@@ -539,9 +551,11 @@ public class KafkaSourceEnumerator
          * the beginning offset, end offset as well as the offset matching a timestamp in
          * partitions.
          *
-         * @see KafkaAdminClient#listOffsets(Map)
          * @param topicPartitionOffsets The mapping from partition to the OffsetSpec to look up.
+         *
          * @return The list offsets result.
+         *
+         * @see KafkaAdminClient#listOffsets(Map)
          */
         private Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo> listOffsets(
                 Map<TopicPartition, OffsetSpec> topicPartitionOffsets) {
@@ -580,10 +594,10 @@ public class KafkaSourceEnumerator
         private Map<TopicPartition, Long> listOffsets(
                 Collection<TopicPartition> partitions, OffsetSpec offsetSpec) {
             return listOffsets(
-                            partitions.stream()
-                                    .collect(
-                                            Collectors.toMap(
-                                                    partition -> partition, __ -> offsetSpec)))
+                    partitions.stream()
+                            .collect(
+                                    Collectors.toMap(
+                                            partition -> partition, __ -> offsetSpec)))
                     .entrySet().stream()
                     .collect(
                             Collectors.toMap(
@@ -604,13 +618,13 @@ public class KafkaSourceEnumerator
         public Map<TopicPartition, OffsetAndTimestamp> offsetsForTimes(
                 Map<TopicPartition, Long> timestampsToSearch) {
             return listOffsets(
-                            timestampsToSearch.entrySet().stream()
-                                    .collect(
-                                            Collectors.toMap(
-                                                    Map.Entry::getKey,
-                                                    entry ->
-                                                            OffsetSpec.forTimestamp(
-                                                                    entry.getValue()))))
+                    timestampsToSearch.entrySet().stream()
+                            .collect(
+                                    Collectors.toMap(
+                                            Map.Entry::getKey,
+                                            entry ->
+                                                    OffsetSpec.forTimestamp(
+                                                            entry.getValue()))))
                     .entrySet().stream()
                     // OffsetAndTimestamp cannot be initialized with a negative offset, which is
                     // possible if the timestamp does not correspond to an offset and the topic

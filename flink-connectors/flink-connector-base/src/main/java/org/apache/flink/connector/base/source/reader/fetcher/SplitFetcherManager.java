@@ -47,8 +47,18 @@ import java.util.function.Supplier;
 import static org.apache.flink.configuration.PipelineOptions.ALLOW_UNALIGNED_SOURCE_SPLITS;
 
 /**
+ * 负责启动并管理SplitFetcher的生命周期
+ *
+ * 支持几个开箱即用（out-of-the-box）的线程模型，取决于 SplitFetcherManager 的行为模式
+ * SplitFetcherManager创建和维护一个分片提取器SplitFetchers池，同时每个分片提取器使用一个SplitReader进行提取
+ * 它还决定如何分配分片给分片提取器。
+ *
  * A class responsible for starting the {@link SplitFetcher} and manage the life cycles of them.
  * This class works with the {@link SourceReaderBase}.
+ *
+ * 通过以不同方式实现 {@link #addSplits(List)} 方法，分片抓取器管理器（split fetcher manager）
+ * 可以支持不同的线程模型。例如，单线程的分片抓取器管理器只会启动一个抓取器，并将所有分片分配给它。
+ * 而每分片一个线程的抓取器则会在每次分配新的分片时启动一个新线程。
  *
  * <p>The split fetcher manager could be used to support different threading models by implementing
  * the {@link #addSplits(List)} method differently. For example, a single thread split fetcher
@@ -122,19 +132,18 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
             Configuration configuration,
             Consumer<Collection<String>> splitFinishedHook) {
         this.elementsQueue = elementsQueue;
-        this.errorHandler =
-                new Consumer<Throwable>() {
-                    @Override
-                    public void accept(Throwable t) {
-                        LOG.error("Received uncaught exception.", t);
-                        if (!uncaughtFetcherException.compareAndSet(null, t)) {
-                            // Add the exception to the exception list.
-                            uncaughtFetcherException.get().addSuppressed(t);
-                        }
-                        // Wake up the main thread to let it know the exception.
-                        elementsQueue.notifyAvailable();
-                    }
-                };
+        this.errorHandler = new Consumer<Throwable>() {
+            @Override
+            public void accept(Throwable t) {
+                LOG.error("Received uncaught exception.", t);
+                if (!uncaughtFetcherException.compareAndSet(null, t)) {
+                    // Add the exception to the exception list.
+                    uncaughtFetcherException.get().addSuppressed(t);
+                }
+                // Wake up the main thread to let it know the exception.
+                elementsQueue.notifyAvailable();
+            }
+        };
         this.splitReaderFactory = splitReaderFactory;
         this.splitFinishedHook = splitFinishedHook;
         this.uncaughtFetcherException = new AtomicReference<>(null);
@@ -145,9 +154,8 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
         // Create the executor with a thread factory that fails the source reader if one of
         // the fetcher thread exits abnormally.
         final String taskThreadName = Thread.currentThread().getName();
-        this.executors =
-                Executors.newCachedThreadPool(
-                        r -> new Thread(r, "Source Data Fetcher for " + taskThreadName));
+        this.executors = Executors.newCachedThreadPool(r -> new Thread(
+                r, "Source Data Fetcher for " + taskThreadName));
         this.closed = false;
     }
 
@@ -186,6 +194,7 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
      * closed.
      *
      * @return the created split fetcher.
+     *
      * @throws IllegalStateException if the split fetcher manager has closed.
      */
     protected synchronized SplitFetcher<E, SplitT> createSplitFetcher() {
@@ -193,11 +202,11 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
             throw new IllegalStateException("The split fetcher manager has closed.");
         }
         // Create SplitReader.
+        // 如果是kafka数据源创建的是KafkaPartitionSplitReader
         SplitReader<E, SplitT> splitReader = splitReaderFactory.get();
 
         int fetcherId = fetcherIdGenerator.getAndIncrement();
-        SplitFetcher<E, SplitT> splitFetcher =
-                new SplitFetcher<>(
+        SplitFetcher<E, SplitT> splitFetcher = new SplitFetcher<>(
                         fetcherId,
                         elementsQueue,
                         splitReader,
@@ -240,6 +249,7 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
      * Close the split fetcher manager.
      *
      * @param timeoutMs the max time in milliseconds to wait.
+     *
      * @throws Exception when failed to close the split fetcher manager.
      */
     public synchronized void close(long timeoutMs) throws Exception {

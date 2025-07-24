@@ -27,6 +27,10 @@ import java.io.IOException;
 import java.util.List;
 
 /**
+ * 分片枚举器，负责发现源分片，并将它们分配给 {@link SourceReader}。
+ *
+ * 会生成分片并将它们分配给SourceReader。该组件在JobManager上以单并行度运行，负责对未分配的分片进行维护，并以均衡的方式将其分配给reader。
+ *
  * The interface for a split enumerator responsible for discovering the source splits, and assigning
  * them to the {@link SourceReader}.
  */

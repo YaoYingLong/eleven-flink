@@ -187,10 +187,10 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
 @Internal
 public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         implements TaskInvokable,
-                CheckpointableTask,
-                CoordinatedTask,
-                AsyncExceptionHandler,
-                ContainingTaskDetails {
+        CheckpointableTask,
+        CoordinatedTask,
+        AsyncExceptionHandler,
+        ContainingTaskDetails {
 
     /** The thread group that holds all trigger timer threads. */
     public static final ThreadGroup TRIGGER_THREAD_GROUP = new ThreadGroup("Triggers");
@@ -213,7 +213,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private final StreamTaskActionExecutor actionExecutor;
 
     /** The input processor. Initialized in {@link #init()} method. */
-    @Nullable protected StreamInputProcessor inputProcessor;
+    @Nullable
+    protected StreamInputProcessor inputProcessor;
 
     /** the main operator that consumes the input streams of this task. */
     protected OP mainOperator;
@@ -309,7 +310,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     @GuardedBy("shouldInterruptOnCancelLock")
     private boolean shouldInterruptOnCancel = true;
 
-    @Nullable private final AvailabilityProvider changelogWriterAvailabilityProvider;
+    @Nullable
+    private final AvailabilityProvider changelogWriterAvailabilityProvider;
 
     // ------------------------------------------------------------------------
 
@@ -354,9 +356,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * @param environment The task environment for this task.
      * @param timerService Optionally, a specific timer service to use.
      * @param uncaughtExceptionHandler to handle uncaught exceptions in the async operations thread
-     *     pool
+     *         pool
      * @param actionExecutor a mean to wrap all actions performed by this task thread. Currently,
-     *     only SynchronizedActionExecutor can be used to preserve locking semantics.
+     *         only SynchronizedActionExecutor can be used to preserve locking semantics.
      */
     protected StreamTask(
             Environment environment,
@@ -393,14 +395,15 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                                     .getMetricGroup()
                                     .getIOMetricGroup()
                                     .getNumMailsProcessedCounter());
-            environment
-                    .getMetricGroup()
+            environment.getMetricGroup()
                     .getIOMetricGroup()
                     .registerMailboxSizeSupplier(() -> mailbox.size());
-
-            this.mailboxProcessor =
-                    new MailboxProcessor(
-                            this::processInput, mailbox, actionExecutor, mailboxMetricsControl);
+            // actionExecutor一般默认为StreamTaskActionExecutor.IMMEDIATE
+            this.mailboxProcessor = new MailboxProcessor(
+                    this::processInput,
+                    mailbox,
+                    actionExecutor,
+                    mailboxMetricsControl);
 
             // Should be closed last.
             resourceCloser.registerCloseable(mailboxProcessor);
@@ -438,9 +441,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                     environment.getTaskStateManager().getStateChangelogStorage() == null
                             ? null
                             : environment
-                                    .getTaskStateManager()
-                                    .getStateChangelogStorage()
-                                    .getAvailabilityProvider();
+                            .getTaskStateManager()
+                            .getStateChangelogStorage()
+                            .getAvailabilityProvider();
 
             CheckpointStorageAccess checkpointStorageAccess =
                     checkpointStorage.createCheckpointStorage(getEnvironment().getJobID());
@@ -449,6 +452,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
             // if the clock is not already set, then assign a default TimeServiceProvider
             if (timerService == null) {
+                // 一般传入的为null，这里设置为SystemProcessingTimeService
                 this.timerService = createTimerService("Time Trigger for " + getName());
             } else {
                 this.timerService = timerService;
@@ -456,26 +460,23 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
             this.systemTimerService = createTimerService("System Time Trigger for " + getName());
 
-            this.subtaskCheckpointCoordinator =
-                    new SubtaskCheckpointCoordinatorImpl(
-                            checkpointStorage,
-                            checkpointStorageAccess,
-                            getName(),
-                            actionExecutor,
-                            getAsyncOperationsThreadPool(),
-                            environment,
-                            this,
-                            configuration.isUnalignedCheckpointsEnabled(),
-                            configuration
-                                    .getConfiguration()
-                                    .get(
-                                            ExecutionCheckpointingOptions
-                                                    .ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH),
-                            this::prepareInputSnapshot,
-                            configuration.getMaxConcurrentCheckpoints(),
-                            BarrierAlignmentUtil.createRegisterTimerCallback(
-                                    mainMailboxExecutor, systemTimerService),
-                            configuration.getMaxSubtasksPerChannelStateFile());
+            this.subtaskCheckpointCoordinator = new SubtaskCheckpointCoordinatorImpl(
+                    checkpointStorage,
+                    checkpointStorageAccess,
+                    getName(),
+                    actionExecutor,
+                    getAsyncOperationsThreadPool(),
+                    environment,
+                    this,
+                    configuration.isUnalignedCheckpointsEnabled(),
+                    configuration.getConfiguration().get(
+                            ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH),
+                    this::prepareInputSnapshot,
+                    configuration.getMaxConcurrentCheckpoints(),
+                    BarrierAlignmentUtil.createRegisterTimerCallback(
+                            mainMailboxExecutor,
+                            systemTimerService),
+                    configuration.getMaxSubtasksPerChannelStateFile());
             resourceCloser.registerCloseable(subtaskCheckpointCoordinator::close);
 
             // Register to stop all timers and threads. Should be closed first.
@@ -536,14 +537,16 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
     protected abstract void init() throws Exception;
 
-    protected void cancelTask() throws Exception {}
+    protected void cancelTask() throws Exception {
+    }
 
     /**
      * This method implements the default action of the task (e.g. processing one event from the
      * input). Implementations should (in general) be non-blocking.
      *
      * @param controller controller object for collaborative interaction between the action and the
-     *     stream task.
+     *         stream task.
+     *
      * @throws Exception on any problems in the action.
      */
     protected void processInput(MailboxDefaultAction.Controller controller) throws Exception {
@@ -643,7 +646,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      *
      * <p>For tasks other than the source task, this method does nothing.
      */
-    protected void advanceToEndOfEventTime() throws Exception {}
+    protected void advanceToEndOfEventTime() throws Exception {
+    }
 
     // ------------------------------------------------------------------------
     //  Core work methods of the Stream Task
@@ -802,9 +806,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         // especially visible in batch, with disabled checkpointing and no processing time timers.
         if (getEnvironment().getAllInputGates().length == 0
                 || !environment
-                        .getTaskManagerInfo()
-                        .getConfiguration()
-                        .getBoolean(TaskManagerOptions.BUFFER_DEBLOAT_ENABLED)) {
+                .getTaskManagerInfo()
+                .getConfiguration()
+                .getBoolean(TaskManagerOptions.BUFFER_DEBLOAT_ENABLED)) {
             return;
         }
         systemTimerService.registerTimer(
@@ -913,8 +917,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
     private boolean areCheckpointsWithFinishedTasksEnabled() {
         return configuration
-                        .getConfiguration()
-                        .get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH)
+                .getConfiguration()
+                .get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH)
                 && configuration.isCheckpointingEnabled();
     }
 
@@ -1000,7 +1004,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private boolean taskIsAvailable() {
         return recordWriter.isAvailable()
                 && (changelogWriterAvailabilityProvider == null
-                        || changelogWriterAvailabilityProvider.isAvailable());
+                || changelogWriterAvailabilityProvider.isAvailable());
     }
 
     public CanEmitBatchOfRecordsChecker getCanEmitBatchOfRecords() {
@@ -1155,8 +1159,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             latestAsyncCheckpointStartDelayNanos =
                     1_000_000
                             * Math.max(
-                                    0,
-                                    System.currentTimeMillis() - checkpointMetaData.getTimestamp());
+                            0,
+                            System.currentTimeMillis() - checkpointMetaData.getTimestamp());
 
             // No alignment if we inject a checkpoint
             CheckpointMetricsBuilder checkpointMetrics =
@@ -1536,10 +1540,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     }
 
     public ProcessingTimeServiceFactory getProcessingTimeServiceFactory() {
-        return mailboxExecutor ->
-                new ProcessingTimeServiceImpl(
-                        timerService,
-                        callback -> deferCallbackToMailbox(mailboxExecutor, callback));
+        // timerService一般为SystemProcessingTimeService
+        return mailboxExecutor -> new ProcessingTimeServiceImpl(
+                timerService, callback -> deferCallbackToMailbox(mailboxExecutor, callback));
     }
 
     /**
@@ -1595,9 +1598,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
     @VisibleForTesting
     public static <OUT>
-            RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>>
-                    createRecordWriterDelegate(
-                            StreamConfig configuration, Environment environment) {
+    RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>>
+    createRecordWriterDelegate(
+            StreamConfig configuration, Environment environment) {
         List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWrites =
                 createRecordWriters(configuration, environment);
         if (recordWrites.size() == 1) {
@@ -1610,8 +1613,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     }
 
     private static <OUT>
-            List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> createRecordWriters(
-                    StreamConfig configuration, Environment environment) {
+    List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> createRecordWriters(
+            StreamConfig configuration, Environment environment) {
         List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWriters =
                 new ArrayList<>();
         List<NonChainedOutput> outputsInOrder =
@@ -1637,7 +1640,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             Environment environment, NonChainedOutput streamOutput, int outputIndex) {
         if (streamOutput.getPartitioner() instanceof ForwardPartitioner
                 && environment.getWriter(outputIndex).getNumberOfSubpartitions()
-                        != environment.getTaskInfo().getNumberOfParallelSubtasks()) {
+                != environment.getTaskInfo().getNumberOfParallelSubtasks()) {
             LOG.debug(
                     "Replacing forward partitioner with rebalance for {}",
                     environment.getTaskInfo().getTaskNameWithSubtasks());
@@ -1698,14 +1701,14 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
     @VisibleForTesting
     ProcessingTimeCallback deferCallbackToMailbox(
-            MailboxExecutor mailboxExecutor, ProcessingTimeCallback callback) {
-        return timestamp -> {
-            mailboxExecutor.execute(
-                    () -> invokeProcessingTimeCallback(callback, timestamp),
-                    "Timer callback for %s @ %d",
-                    callback,
-                    timestamp);
-        };
+            MailboxExecutor mailboxExecutor,
+            ProcessingTimeCallback callback) {
+        return timestamp -> mailboxExecutor.execute(
+                // 调用ProcessingTimeCallback的onProcessingTime方法
+                () -> invokeProcessingTimeCallback(callback, timestamp),
+                "Timer callback for %s @ %d",
+                callback,
+                timestamp);
     }
 
     private void invokeProcessingTimeCallback(ProcessingTimeCallback callback, long timestamp) {
@@ -1722,7 +1725,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
     private static class ResumeWrapper implements Runnable {
         private final Suspension suspendedDefaultAction;
-        @Nullable private final PeriodTimer timer;
+        @Nullable
+        private final PeriodTimer timer;
 
         public ResumeWrapper(Suspension suspendedDefaultAction, @Nullable PeriodTimer timer) {
             this.suspendedDefaultAction = suspendedDefaultAction;

@@ -36,6 +36,7 @@ final class WatermarksWithWatermarkAlignment<T> implements WatermarkStrategy<T> 
 
     private final Duration updateInterval;
 
+    // 又嵌套一层
     public WatermarksWithWatermarkAlignment(
             WatermarkStrategy<T> strategy,
             String watermarkGroup,
@@ -60,7 +61,7 @@ final class WatermarksWithWatermarkAlignment<T> implements WatermarkStrategy<T> 
 
     @Override
     public WatermarkAlignmentParams getAlignmentParameters() {
-        return new WatermarkAlignmentParams(
-                maxAllowedWatermarkDrift.toMillis(), watermarkGroup, updateInterval.toMillis());
+        // 唯一的变化，覆写了getAlignmentParameters方法，返回我们设置传入的参数
+        return new WatermarkAlignmentParams(maxAllowedWatermarkDrift.toMillis(), watermarkGroup, updateInterval.toMillis());
     }
 }

@@ -137,10 +137,8 @@ public class DataStream<T> {
      * @param environment The StreamExecutionEnvironment
      */
     public DataStream(StreamExecutionEnvironment environment, Transformation<T> transformation) {
-        this.environment =
-                Preconditions.checkNotNull(environment, "Execution Environment must not be null.");
-        this.transformation =
-                Preconditions.checkNotNull(
+        this.environment = Preconditions.checkNotNull(environment, "Execution Environment must not be null.");
+        this.transformation = Preconditions.checkNotNull(
                         transformation, "Stream Transformation must not be null.");
     }
 
