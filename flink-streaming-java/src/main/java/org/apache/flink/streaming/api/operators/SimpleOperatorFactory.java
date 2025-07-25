@@ -43,18 +43,17 @@ public class SimpleOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
         if (operator == null) {
             return null;
         } else if (operator instanceof StreamSource
-                && ((StreamSource) operator).getUserFunction()
-                        instanceof InputFormatSourceFunction) {
+                && ((StreamSource) operator).getUserFunction() instanceof InputFormatSourceFunction) {
+            // SimpleInputFormatOperatorFactory是SimpleOperatorFactory的子类，且实现了InputFormatOperatorFactory接口
             return new SimpleInputFormatOperatorFactory<OUT>((StreamSource) operator);
-        } else if (operator instanceof UserFunctionProvider
-                && (((UserFunctionProvider<Function>) operator).getUserFunction()
-                        instanceof OutputFormatSinkFunction)) {
+        } else if (operator instanceof UserFunctionProvider &&
+                (((UserFunctionProvider<Function>) operator).getUserFunction() instanceof OutputFormatSinkFunction)) {
+            // SimpleOutputFormatOperatorFactory是SimpleOperatorFactory的子类，且实现了OutputFormatOperatorFactory接口
             return new SimpleOutputFormatOperatorFactory<>(
-                    (((OutputFormatSinkFunction<?>)
-                                    ((UserFunctionProvider<Function>) operator).getUserFunction())
-                            .getFormat()),
+                    (((OutputFormatSinkFunction<?>) ((UserFunctionProvider<Function>) operator).getUserFunction()).getFormat()),
                     operator);
         } else if (operator instanceof AbstractUdfStreamOperator) {
+            // SimpleUdfStreamOperatorFactory是SimpleOperatorFactory的子类，且实现了UdfStreamOperatorFactory接口
             return new SimpleUdfStreamOperatorFactory<OUT>((AbstractUdfStreamOperator) operator);
         } else {
             return new SimpleOperatorFactory<>(operator);
@@ -74,17 +73,15 @@ public class SimpleOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
 
     @SuppressWarnings("unchecked")
     @Override
-    public <T extends StreamOperator<OUT>> T createStreamOperator(
-            StreamOperatorParameters<OUT> parameters) {
+    public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
         if (operator instanceof AbstractStreamOperator) {
             ((AbstractStreamOperator) operator).setProcessingTimeService(processingTimeService);
         }
         if (operator instanceof SetupableStreamOperator) {
-            ((SetupableStreamOperator) operator)
-                    .setup(
-                            parameters.getContainingTask(),
-                            parameters.getStreamConfig(),
-                            parameters.getOutput());
+            ((SetupableStreamOperator) operator).setup(
+                    parameters.getContainingTask(),
+                    parameters.getStreamConfig(),
+                    parameters.getOutput());
         }
         return (T) operator;
     }

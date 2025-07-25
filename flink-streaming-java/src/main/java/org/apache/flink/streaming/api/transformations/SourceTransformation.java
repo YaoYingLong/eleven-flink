@@ -88,6 +88,7 @@ public class SourceTransformation<OUT, SplitT extends SourceSplit, EnumChkT>
 
     @Override
     public Boundedness getBoundedness() {
+        // 返回处理模式，是批处理还是流处理
         return source.getBoundedness();
     }
 
@@ -103,10 +104,12 @@ public class SourceTransformation<OUT, SplitT extends SourceSplit, EnumChkT>
 
     @Override
     public void setChainingStrategy(ChainingStrategy chainingStrategy) {
+        // 设置算子链的策略
         this.chainingStrategy = checkNotNull(chainingStrategy);
     }
 
     public ChainingStrategy getChainingStrategy() {
+        // 返回的chainingStrategy是一个枚举类型，表示算子链的策略，如是否允许合并算子链
         return chainingStrategy;
     }
 

@@ -40,37 +40,37 @@ public class DataStreamSource<T> extends SingleOutputStreamOperator<T> {
     private final boolean isParallel;
 
     public DataStreamSource(
-            StreamExecutionEnvironment environment,
-            TypeInformation<T> outTypeInfo,
-            StreamSource<T, ?> operator,
-            boolean isParallel,
-            String sourceName) {
+        StreamExecutionEnvironment environment,
+        TypeInformation<T> outTypeInfo,
+        StreamSource<T, ?> operator,
+        boolean isParallel,
+        String sourceName) {
         this(
-                environment,
-                outTypeInfo,
-                operator,
-                isParallel,
-                sourceName,
-                Boundedness.CONTINUOUS_UNBOUNDED);
+            environment,
+            outTypeInfo,
+            operator,
+            isParallel,
+            sourceName,
+            Boundedness.CONTINUOUS_UNBOUNDED);
     }
 
-    /** The constructor used to create legacy sources. */
+    /**
+     * The constructor used to create legacy sources.
+     */
     public DataStreamSource(
-            StreamExecutionEnvironment environment,
-            TypeInformation<T> outTypeInfo,
-            StreamSource<T, ?> operator,
-            boolean isParallel,
-            String sourceName,
-            Boundedness boundedness) {
-        super(
-                environment,
-                new LegacySourceTransformation<>(
-                        sourceName,
-                        operator,
-                        outTypeInfo,
-                        environment.getParallelism(),
-                        boundedness,
-                        false));
+        StreamExecutionEnvironment environment,
+        TypeInformation<T> outTypeInfo,
+        StreamSource<T, ?> operator,
+        boolean isParallel,
+        String sourceName,
+        Boundedness boundedness) {
+        super(environment, new LegacySourceTransformation<>(
+            sourceName,
+            operator,  // 例子：SocketTextStreamFunction封装的StreamSource
+            outTypeInfo,
+            environment.getParallelism(),
+            boundedness,
+            false));
 
         this.isParallel = isParallel;
         if (!isParallel) {
@@ -87,21 +87,23 @@ public class DataStreamSource<T> extends SingleOutputStreamOperator<T> {
         this.isParallel = true;
     }
 
-    /** Constructor for new Sources (FLIP-27). */
+    /**
+     * Constructor for new Sources (FLIP-27).
+     */
     public DataStreamSource(
-            StreamExecutionEnvironment environment,
-            Source<T, ?, ?> source,
-            WatermarkStrategy<T> watermarkStrategy,
-            TypeInformation<T> outTypeInfo,
-            String sourceName) {
+        StreamExecutionEnvironment environment,
+        Source<T, ?, ?> source,
+        WatermarkStrategy<T> watermarkStrategy,
+        TypeInformation<T> outTypeInfo,
+        String sourceName) {
         super(environment, new SourceTransformation<>(
-                        sourceName,
-                        source,
-                        watermarkStrategy,
-                        outTypeInfo,
-                        // 获取并发度，默认为1
-                        environment.getParallelism(),
-                        false));
+            sourceName,
+            source,
+            watermarkStrategy,
+            outTypeInfo,
+            // 获取并发度，默认为1
+            environment.getParallelism(),
+            false));
         this.isParallel = true;
     }
 

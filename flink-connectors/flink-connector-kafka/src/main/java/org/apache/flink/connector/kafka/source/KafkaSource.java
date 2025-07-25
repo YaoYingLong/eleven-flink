@@ -84,8 +84,7 @@ import java.util.function.Supplier;
  * @param <OUT> the output type of the source.
  */
 @PublicEvolving
-public class KafkaSource<OUT>
-        implements Source<OUT, KafkaPartitionSplit, KafkaSourceEnumState>,
+public class KafkaSource<OUT> implements Source<OUT, KafkaPartitionSplit, KafkaSourceEnumState>,
         ResultTypeQueryable<OUT> {
     private static final long serialVersionUID = -8755372893283732098L;
     // Users can choose only one of the following ways to specify the topics to consume from.
@@ -93,7 +92,7 @@ public class KafkaSource<OUT>
     // Users can specify the starting / stopping offset initializer.
     private final OffsetsInitializer startingOffsetsInitializer;
     private final OffsetsInitializer stoppingOffsetsInitializer;
-    // Boundedness
+    // 用于表示是批量处理还是流处理
     private final Boundedness boundedness;
     private final KafkaRecordDeserializationSchema<OUT> deserializationSchema;
     // The configurations.
@@ -125,6 +124,7 @@ public class KafkaSource<OUT>
 
     @Override
     public Boundedness getBoundedness() {
+        // 返回当前KafkaSource的处理模式，批处理还是流处理
         return this.boundedness;
     }
 
@@ -161,7 +161,10 @@ public class KafkaSource<OUT>
 
         return new KafkaSourceReader<>(
                 elementsQueue,
-                new KafkaSourceFetcherManager(elementsQueue, splitReaderSupplier::get, splitFinishedHook),
+                new KafkaSourceFetcherManager(
+                        elementsQueue,
+                        splitReaderSupplier::get,
+                        splitFinishedHook),
                 recordEmitter,
                 toConfiguration(props),
                 readerContext,

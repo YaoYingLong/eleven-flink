@@ -206,9 +206,11 @@ public abstract class Transformation<T> {
             TypeInformation<T> outputType,
             int parallelism,
             boolean parallelismConfigured) {
+        // 自增id
         this.id = getNewNodeId();
         this.name = Preconditions.checkNotNull(name);
         this.outputType = outputType;
+        // 并行度
         this.parallelism = parallelism;
         this.slotSharingGroup = Optional.empty();
         this.parallelismConfigured =

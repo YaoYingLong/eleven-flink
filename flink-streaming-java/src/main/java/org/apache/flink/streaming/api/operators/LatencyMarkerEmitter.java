@@ -36,29 +36,26 @@ class LatencyMarkerEmitter<OUT> {
             long latencyTrackingInterval,
             OperatorID operatorId,
             int subtaskIndex) {
-        latencyMarkTimer =
-                processingTimeService.scheduleWithFixedDelay(
-                        new ProcessingTimeCallback() {
-                            @Override
-                            public void onProcessingTime(long timestamp) {
-                                try {
-                                    emitAction.emitLatencyMarker(
-                                            new LatencyMarker(
-                                                    processingTimeService
-                                                            .getCurrentProcessingTime(),
-                                                    operatorId,
-                                                    subtaskIndex));
-                                } catch (Throwable t) {
-                                    // we catch the Throwables here so that we don't trigger the
-                                    // processing
-                                    // timer services async exception handler
-                                    AbstractStreamOperator.LOG.warn(
-                                            "Error while emitting latency marker.", t);
-                                }
-                            }
-                        },
-                        0L,
-                        latencyTrackingInterval);
+        // 周期执行
+        latencyMarkTimer = processingTimeService.scheduleWithFixedDelay(
+                new ProcessingTimeCallback() {
+                    @Override
+                    public void onProcessingTime(long timestamp) {
+                        try {
+                            emitAction.emitLatencyMarker(new LatencyMarker(
+                                    processingTimeService.getCurrentProcessingTime(),
+                                    operatorId,
+                                    subtaskIndex));
+                        } catch (Throwable t) {
+                            // we catch the Throwables here so that we don't trigger the
+                            // processing
+                            // timer services async exception handler
+                            AbstractStreamOperator.LOG.warn("Error while emitting latency marker.", t);
+                        }
+                    }
+                },
+                0L,
+                latencyTrackingInterval);
     }
 
     public void close() {

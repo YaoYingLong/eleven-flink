@@ -65,6 +65,7 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
 
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
+        // 将事件传递给原始的水位线生成器，用于提取时间戳和生成水位线
         watermarks.onEvent(event, eventTimestamp, output);
         // 当有数据触发时就将counter++，每条数据都会调用该方法
         idlenessTimer.activity();
@@ -78,7 +79,7 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
         // 从而导致返回true，如果为true，就不再是更新水位线
         if (idlenessTimer.checkIfIdle()) {
             if (!isIdleNow) {
-                // TODO  这里的作用
+                // 将当前Output标记为idle状态，即空闲状态
                 output.markIdle();
                 isIdleNow = true;
             }

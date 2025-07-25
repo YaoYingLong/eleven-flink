@@ -58,9 +58,8 @@ public class CollectorOutput<T> implements Output<StreamRecord<T>> {
     public void collect(StreamRecord<T> record) {
         try {
             ClassLoader cl = record.getClass().getClassLoader();
-            T copied =
-                    InstantiationUtil.deserializeObject(
-                            InstantiationUtil.serializeObject(record.getValue()), cl);
+            T copied = InstantiationUtil.deserializeObject(
+                    InstantiationUtil.serializeObject(record.getValue()), cl);
             list.add(record.copy(copied));
         } catch (IOException | ClassNotFoundException ex) {
             throw new RuntimeException("Unable to deserialize record: " + record, ex);
@@ -73,5 +72,6 @@ public class CollectorOutput<T> implements Output<StreamRecord<T>> {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+    }
 }

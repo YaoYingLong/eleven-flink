@@ -38,6 +38,7 @@ public class StreamFlatMap<IN, OUT> extends AbstractUdfStreamOperator<OUT, FlatM
     @Override
     public void open() throws Exception {
         super.open();
+        // 将输出收集器初始化为TimestampedCollector
         collector = new TimestampedCollector<>(output);
     }
 

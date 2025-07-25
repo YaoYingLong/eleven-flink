@@ -106,8 +106,7 @@ public class ClosureCleaner {
                     f.setAccessible(true);
                     fieldObject = f.get(func);
                 } catch (IllegalAccessException e) {
-                    throw new RuntimeException(
-                            String.format(
+                    throw new RuntimeException(String.format(
                                     "Can not access to the %s field in Class %s",
                                     f.getName(), func.getClass()));
                 }

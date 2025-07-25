@@ -28,13 +28,11 @@ import org.apache.flink.streaming.api.functions.source.InputFormatSourceFunction
  * @param <OUT> The output type of the operator
  */
 @Internal
-public class SimpleInputFormatOperatorFactory<OUT> extends SimpleOperatorFactory<OUT>
-        implements InputFormatOperatorFactory<OUT> {
+public class SimpleInputFormatOperatorFactory<OUT> extends SimpleOperatorFactory<OUT> implements InputFormatOperatorFactory<OUT> {
 
     private final StreamSource<OUT, InputFormatSourceFunction<OUT>> operator;
 
-    public SimpleInputFormatOperatorFactory(
-            StreamSource<OUT, InputFormatSourceFunction<OUT>> operator) {
+    public SimpleInputFormatOperatorFactory(StreamSource<OUT, InputFormatSourceFunction<OUT>> operator) {
         super(operator);
         this.operator = operator;
     }

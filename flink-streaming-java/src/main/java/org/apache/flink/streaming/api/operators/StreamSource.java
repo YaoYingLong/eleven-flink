@@ -47,12 +47,13 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
 
     public StreamSource(SRC sourceFunction, boolean emitProgressiveWatermarks) {
         super(sourceFunction);
-
+        // 表示当前算子是一个链的起点（链的头部），当前算子不会与上游算子链在一起，但下游算子可以与它链在一起
         this.chainingStrategy = ChainingStrategy.HEAD;
         this.emitProgressiveWatermarks = emitProgressiveWatermarks;
     }
 
     public StreamSource(SRC sourceFunction) {
+        // 例子：sourceFunction为SocketTextStreamFunction
         this(sourceFunction, true);
     }
 
@@ -63,7 +64,6 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
 
     public void run(final Object lockingObject, final OperatorChain<?, ?> operatorChain)
             throws Exception {
-
         run(lockingObject, output, operatorChain);
     }
 
@@ -73,38 +73,40 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
             final OperatorChain<?, ?> operatorChain)
             throws Exception {
 
+        // 获取时间类型，事件时间、处理时间或无时间特性
         final TimeCharacteristic timeCharacteristic = getOperatorConfig().getTimeCharacteristic();
 
         final Configuration configuration =
                 this.getContainingTask().getEnvironment().getTaskManagerInfo().getConfiguration();
-        final long latencyTrackingInterval =
-                getExecutionConfig().isLatencyTrackingConfigured()
-                        ? getExecutionConfig().getLatencyTrackingInterval()
-                        : configuration.getLong(MetricOptions.LATENCY_INTERVAL);
+        // 默认值是0
+        final long latencyTrackingInterval = getExecutionConfig().isLatencyTrackingConfigured()
+                ? getExecutionConfig().getLatencyTrackingInterval()
+                : configuration.getLong(MetricOptions.LATENCY_INTERVAL);
 
         LatencyMarkerEmitter<OUT> latencyEmitter = null;
         if (latencyTrackingInterval > 0) {
-            latencyEmitter =
-                    new LatencyMarkerEmitter<>(
-                            getProcessingTimeService(),
-                            collector::emitLatencyMarker,
-                            latencyTrackingInterval,
-                            this.getOperatorID(),
-                            getRuntimeContext().getIndexOfThisSubtask());
+            // 其实就是周期执行collector::emitLatencyMarker，new一个LatencyMarker传入emitLatencyMarker中
+            latencyEmitter = new LatencyMarkerEmitter<>(
+                    getProcessingTimeService(),
+                    collector::emitLatencyMarker,
+                    latencyTrackingInterval,
+                    this.getOperatorID(),
+                    getRuntimeContext().getIndexOfThisSubtask());
         }
 
+        // 水位线间隔，默认200毫秒
         final long watermarkInterval =
                 getRuntimeContext().getExecutionConfig().getAutoWatermarkInterval();
 
-        this.ctx =
-                StreamSourceContexts.getSourceContext(
-                        timeCharacteristic,
-                        getProcessingTimeService(),
-                        lockingObject,
-                        collector,
-                        watermarkInterval,
-                        -1,
-                        emitProgressiveWatermarks);
+        this.ctx = StreamSourceContexts.getSourceContext(
+                timeCharacteristic,
+                getProcessingTimeService(),
+                lockingObject,
+                collector,
+                watermarkInterval,
+                -1,
+                // emitProgressiveWatermarks默认为true
+                emitProgressiveWatermarks);
 
         try {
             userFunction.run(ctx);

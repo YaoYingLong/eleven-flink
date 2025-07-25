@@ -66,8 +66,7 @@ public class SocketTextStreamFunction implements SourceFunction<String> {
 
     private volatile boolean isRunning = true;
 
-    public SocketTextStreamFunction(
-            String hostname, int port, String delimiter, long maxNumRetries) {
+    public SocketTextStreamFunction(String hostname, int port, String delimiter, long maxNumRetries) {
         this(hostname, port, delimiter, maxNumRetries, DEFAULT_CONNECTION_RETRY_SLEEP);
     }
 
@@ -78,8 +77,7 @@ public class SocketTextStreamFunction implements SourceFunction<String> {
             long maxNumRetries,
             long delayBetweenRetries) {
         checkArgument(isValidClientPort(port), "port is out of range");
-        checkArgument(
-                maxNumRetries >= -1,
+        checkArgument(maxNumRetries >= -1,
                 "maxNumRetries must be zero or larger (num retries), or -1 (infinite retries)");
         checkArgument(delayBetweenRetries >= 0, "delayBetweenRetries must be zero or positive");
 
@@ -94,24 +92,18 @@ public class SocketTextStreamFunction implements SourceFunction<String> {
     public void run(SourceContext<String> ctx) throws Exception {
         final StringBuilder buffer = new StringBuilder();
         long attempt = 0;
-
         while (isRunning) {
-
             try (Socket socket = new Socket()) {
                 currentSocket = socket;
-
                 LOG.info("Connecting to server socket " + hostname + ':' + port);
                 socket.connect(new InetSocketAddress(hostname, port), CONNECTION_TIMEOUT_TIME);
-                try (BufferedReader reader =
-                        new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                     char[] cbuf = new char[8192];
                     int bytesRead;
                     while (isRunning && (bytesRead = reader.read(cbuf)) != -1) {
                         buffer.append(cbuf, 0, bytesRead);
                         int delimPos;
-                        while (buffer.length() >= delimiter.length()
-                                && (delimPos = buffer.indexOf(delimiter)) != -1) {
+                        while (buffer.length() >= delimiter.length() && (delimPos = buffer.indexOf(delimiter)) != -1) {
                             String record = buffer.substring(0, delimPos);
                             // truncate trailing carriage return
                             if (delimiter.equals("\n") && record.endsWith("\r")) {
@@ -128,10 +120,7 @@ public class SocketTextStreamFunction implements SourceFunction<String> {
             if (isRunning) {
                 attempt++;
                 if (maxNumRetries == -1 || attempt < maxNumRetries) {
-                    LOG.warn(
-                            "Lost connection to server socket. Retrying in "
-                                    + delayBetweenRetries
-                                    + " msecs...");
+                    LOG.warn("Lost connection to server socket. Retrying in " + delayBetweenRetries + " msecs...");
                     Thread.sleep(delayBetweenRetries);
                 } else {
                     // this should probably be here, but some examples expect simple exists of the

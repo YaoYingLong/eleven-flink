@@ -75,11 +75,30 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask;
  * longer send any more elements, the source should still send a {@link Watermark#MAX_WATERMARK}
  * instead of {@link WatermarkStatus#IDLE}. Watermark Status elements only serve as markers for
  * temporary status.
+ *
+ * 水印状态元素用于通知流任务（stream tasks）是否应该继续期待来自输入流发送的水印。水印状态分为两种类型，
+ * 分别是 {@link WatermarkStatus#IDLE} 和 {@link WatermarkStatus#ACTIVE}。水印状态元素在数据源处生成，
+ * 并可以在拓扑中的任务间传播。它直接反映了当前任务的状态：如果一个 {@link SourceStreamTask} 或 {@link StreamTask}
+ * 暂时停止发送任何水印（即处于空闲状态），它将发送 {@link WatermarkStatus#IDLE}；一旦任务恢复发送水印（即处于活跃状态），
+ * 它将发送 {@link WatermarkStatus#ACTIVE}。任务在状态切换（空闲与活跃之间）时负责将其状态进一步传播到下游。
+ *
+ * 源任务被认为是空闲状态的条件：如果其头部操作符（即 {@link StreamSource}）在一段时间内不会发送任何水印。
+ * 例如，对于 Flink 的 Kafka 消费者（Kafka Consumer），当源任务没有分配任何分区读取数据，或无法从分配的分区中读取记录时，
+ * 任务会被认为是空闲状态。
+ *
+ * 当头部的 {@link StreamSource} 操作符检测到将恢复发送数据时，源任务会被认为是活跃状态
+ *
+ * {@link StreamSource} 负责切换包含的源任务的状态，并确保在任务处于空闲状态时不会发送任何水印。
+ * 此保证应通过 {@link org.apache.flink.streaming.api.functions.source.SourceFunction.SourceContext}
+ * 的实现在源任务中强制执行。
+ *
  */
 @Internal
 public final class WatermarkStatus extends StreamElement {
 
+    // 空闲状态
     public static final int IDLE_STATUS = -1;
+    // 活跃状态
     public static final int ACTIVE_STATUS = 0;
 
     public static final WatermarkStatus IDLE = new WatermarkStatus(IDLE_STATUS);

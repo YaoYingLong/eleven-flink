@@ -45,6 +45,7 @@ public class LegacySourceTransformation<T> extends PhysicalTransformation<T>
 
     private final StreamOperatorFactory<T> operatorFactory;
 
+    // 批处理还是流处理
     private Boundedness boundedness;
 
     /**
@@ -67,7 +68,9 @@ public class LegacySourceTransformation<T> extends PhysicalTransformation<T>
             Boundedness boundedness,
             boolean parallelismConfigured) {
         super(name, outputType, parallelism, parallelismConfigured);
+        // 将StreamSource封装成StreamOperatorFactory
         this.operatorFactory = checkNotNull(SimpleOperatorFactory.of(operator));
+        // 批处理还是流处理
         this.boundedness = checkNotNull(boundedness);
     }
 

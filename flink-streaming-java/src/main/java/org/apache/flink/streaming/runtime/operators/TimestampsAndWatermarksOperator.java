@@ -117,6 +117,7 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
     @Override
     public void onProcessingTime(long timestamp) throws Exception {
         // 这里最终会调用wmOutput的emitWatermark方法，更新水位线
+        // 被周期执行，如果添加了WatermarksWithIdleness，如果处于空闲状态，则不会更新水位线
         watermarkGenerator.onPeriodicEmit(wmOutput);
 
         final long now = getProcessingTimeService().getCurrentProcessingTime();
@@ -158,18 +159,21 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
 
         private final Output<?> output;
 
+        // 当前水位线
         private long currentWatermark;
 
+        // idle状态，表示当前算子处于空闲状态
         private boolean idle;
 
         public WatermarkEmitter(Output<?> output) {
             this.output = output;
+            // 初始化当前水位线为最小值
             this.currentWatermark = Long.MIN_VALUE;
         }
 
         @Override
         public void emitWatermark(Watermark watermark) {
-            // 当前最新的水位
+            // 传入的最新的水位
             final long ts = watermark.getTimestamp();
 
             // 如果传入的水位比当前水位还低直接退出
@@ -186,6 +190,7 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
 
         @Override
         public void markIdle() {
+            // 如果当前的idle为false，则将其设置true，并更新Output中的WatermarkStatus为IDLE
             if (!idle) {
                 idle = true;
                 output.emitWatermarkStatus(WatermarkStatus.IDLE);
@@ -194,6 +199,7 @@ public class TimestampsAndWatermarksOperator<T> extends AbstractStreamOperator<T
 
         @Override
         public void markActive() {
+            // 如果当前的idle为true，则将其设置false，并更新Output中的WatermarkStatus为ACTIVE
             if (idle) {
                 idle = false;
                 output.emitWatermarkStatus(WatermarkStatus.ACTIVE);

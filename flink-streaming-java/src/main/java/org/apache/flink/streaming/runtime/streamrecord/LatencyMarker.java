@@ -27,6 +27,11 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
  *
  * <p>At sinks, the marker can be used to approximate the time a record needs to travel through the
  * dataflow.
+ *
+ * 用于测量和监控数据流中记录的端到端延迟，LatencyMarker在数据流的source源处生成并携带一个时间戳表示该标记生成的时间
+ * 当LatencyMarker经过整个数据流的拓扑并到达sink汇点时，可以通过对比当前时间和标记时间戳，计算出从源到汇的延迟时间
+ *
+ * 可以实时监控数据在流式作业中的延迟。通过收集这些标记的信息，可以了解作业在不同时间点的性能表现。
  */
 @PublicEvolving
 public final class LatencyMarker extends StreamElement {
@@ -34,10 +39,13 @@ public final class LatencyMarker extends StreamElement {
     // ------------------------------------------------------------------------
 
     /** The time the latency mark is denoting. */
+    // 标记生成的时间
     private final long markedTime;
 
+    // 操作符的唯一标识符
     private final OperatorID operatorId;
 
+    // 操作符的并行子任务索引
     private final int subtaskIndex;
 
     /** Creates a latency mark with the given timestamp. */

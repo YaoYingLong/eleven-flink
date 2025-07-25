@@ -56,6 +56,7 @@ public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
     protected final F userFunction;
 
     public AbstractUdfStreamOperator(F userFunction) {
+        // 这里的userFunction，可以以SocketTextStreamFunction为例子
         this.userFunction = requireNonNull(userFunction);
         checkUdfCheckpointingPreconditions();
     }
@@ -78,6 +79,7 @@ public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
             StreamTask<?, ?> containingTask,
             StreamConfig config,
             Output<StreamRecord<OUT>> output) {
+        // 调用超类AbstractStreamOperator的setup方法，设置当前算子的配置
         super.setup(containingTask, config, output);
         FunctionUtils.setFunctionRuntimeContext(userFunction, getRuntimeContext());
     }

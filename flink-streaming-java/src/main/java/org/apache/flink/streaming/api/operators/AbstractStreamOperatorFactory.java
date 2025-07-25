@@ -32,9 +32,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * ProcessingTimeService}.
  */
 @Experimental
-public abstract class AbstractStreamOperatorFactory<OUT>
-        implements StreamOperatorFactory<OUT>, ProcessingTimeServiceAware {
+public abstract class AbstractStreamOperatorFactory<OUT> implements StreamOperatorFactory<OUT>, ProcessingTimeServiceAware {
 
+    // 默认的链式策略为ALWAYS，会尽可能地将多个算子合并到一个任务中
     protected ChainingStrategy chainingStrategy = ChainingStrategy.DEFAULT_CHAINING_STRATEGY;
 
     protected transient ProcessingTimeService processingTimeService;
@@ -65,7 +65,6 @@ public abstract class AbstractStreamOperatorFactory<OUT>
      * Provides the mailbox executor iff this factory implements {@link YieldingOperatorFactory}.
      */
     protected MailboxExecutor getMailboxExecutor() {
-        return checkNotNull(
-                mailboxExecutor, "Factory does not implement %s", YieldingOperatorFactory.class);
+        return checkNotNull(mailboxExecutor, "Factory does not implement %s", YieldingOperatorFactory.class);
     }
 }

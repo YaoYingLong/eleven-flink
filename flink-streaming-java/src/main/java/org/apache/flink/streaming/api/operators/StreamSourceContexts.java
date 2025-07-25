@@ -53,14 +53,14 @@ public class StreamSourceContexts {
 
         final SourceFunction.SourceContext<OUT> ctx;
         switch (timeCharacteristic) {
+            // 事件时间
             case EventTime:
-                ctx =
-                        new ManualWatermarkContext<>(
-                                output,
-                                processingTimeService,
-                                checkpointLock,
-                                idleTimeout,
-                                emitProgressiveWatermarks);
+                ctx = new ManualWatermarkContext<>(
+                        output,
+                        processingTimeService,
+                        checkpointLock,
+                        idleTimeout,
+                        emitProgressiveWatermarks);
 
                 break;
             case IngestionTime:
@@ -68,13 +68,12 @@ public class StreamSourceContexts {
                         emitProgressiveWatermarks,
                         "Ingestion time is not available when emitting progressive watermarks "
                                 + "is disabled.");
-                ctx =
-                        new AutomaticWatermarkContext<>(
-                                output,
-                                watermarkInterval,
-                                processingTimeService,
-                                checkpointLock,
-                                idleTimeout);
+                ctx = new AutomaticWatermarkContext<>(
+                        output,
+                        watermarkInterval,
+                        processingTimeService,
+                        checkpointLock,
+                        idleTimeout);
                 break;
             case ProcessingTime:
                 ctx = new NonTimestampContext<>(checkpointLock, output);
@@ -184,9 +183,8 @@ public class StreamSourceContexts {
         private final StreamRecord<T> reuse;
 
         private NonTimestampContext(Object checkpointLock, Output<StreamRecord<T>> output) {
-            this.lock =
-                    Preconditions.checkNotNull(
-                            checkpointLock, "The checkpoint lock cannot be null.");
+            this.lock = Preconditions.checkNotNull(
+                    checkpointLock, "The checkpoint lock cannot be null.");
             this.output = Preconditions.checkNotNull(output, "The output cannot be null.");
             this.reuse = new StreamRecord<>(null);
         }
@@ -220,7 +218,8 @@ public class StreamSourceContexts {
         }
 
         @Override
-        public void close() {}
+        public void close() {
+        }
     }
 
     /**
@@ -261,10 +260,9 @@ public class StreamSourceContexts {
             this.lastRecordTime = Long.MIN_VALUE;
 
             long now = this.timeService.getCurrentProcessingTime();
-            this.nextWatermarkTimer =
-                    this.timeService.registerTimer(
-                            now + watermarkInterval,
-                            new WatermarkEmittingTask(this.timeService, checkpointLock, output));
+            this.nextWatermarkTimer = this.timeService.registerTimer(
+                    now + watermarkInterval,
+                    new WatermarkEmittingTask(this.timeService, checkpointLock, output));
         }
 
         @Override
@@ -391,6 +389,8 @@ public class StreamSourceContexts {
      *
      * <p>Streaming topologies can use timestamp assigner functions to override the timestamps
      * assigned here.
+     * <p>
+     * 处理事件时间的SourceContext
      */
     private static class ManualWatermarkContext<T> extends WatermarkContext<T> {
 
@@ -415,11 +415,13 @@ public class StreamSourceContexts {
 
         @Override
         protected void processAndCollect(T element) {
+            // 这里其实就是把当前的element包装成StreamRecord对象，然后传入Output都collect
             output.collect(reuse.replace(element));
         }
 
         @Override
         protected void processAndCollectWithTimestamp(T element, long timestamp) {
+            // 这里其实就是把当前的element包装成StreamRecord对象，然后传入Output都collect
             output.collect(reuse.replace(element, timestamp));
         }
 
