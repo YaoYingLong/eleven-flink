@@ -43,7 +43,9 @@ public class AkkaBootstrapTools {
      * @param externalAddress The external address to access the ActorSystem.
      * @param externalPortRange The choosing range of the external port to access the ActorSystem.
      * @param logger The logger to output log information.
+     *
      * @return The ActorSystem which has been started
+     *
      * @throws Exception Thrown when actor system cannot be started in specified port range
      */
     @VisibleForTesting
@@ -75,13 +77,15 @@ public class AkkaBootstrapTools {
      * @param externalPortRange The choosing range of the external port to access the ActorSystem.
      * @param bindAddress The local address to bind to.
      * @param bindPort The local port to bind to. If not present, then the external port will be
-     *     used.
+     *         used.
      * @param logger The logger to output log information.
      * @param actorSystemExecutorConfiguration configuration for the ActorSystem's underlying
-     *     executor
+     *         executor
      * @param customConfig Custom Akka config to be combined with the config derived from Flink
-     *     configuration.
+     *         configuration.
+     *
      * @return The ActorSystem which has been started
+     *
      * @throws Exception Thrown when actor system cannot be started in specified port range
      */
     public static ActorSystem startRemoteActorSystem(
@@ -145,10 +149,12 @@ public class AkkaBootstrapTools {
      * @param bindPort The local port to bind to.
      * @param logger the logger to output log information.
      * @param actorSystemExecutorConfiguration configuration for the ActorSystem's underlying
-     *     executor
+     *         executor
      * @param customConfig Custom Akka config to be combined with the config derived from Flink
-     *     configuration.
+     *         configuration.
+     *
      * @return The ActorSystem which has been started.
+     *
      * @throws Exception
      */
     private static ActorSystem startRemoteActorSystem(
@@ -173,8 +179,7 @@ public class AkkaBootstrapTools {
                 bindHostPortUrl);
 
         try {
-            Config akkaConfig =
-                    AkkaUtils.getAkkaConfig(
+            Config akkaConfig = AkkaUtils.getAkkaConfig(
                             configuration,
                             new HostAndPort(externalAddress, externalPort),
                             new HostAndPort(bindAddress, bindPort),
@@ -208,10 +213,12 @@ public class AkkaBootstrapTools {
      * @param actorSystemName Name of the started ActorSystem.
      * @param logger The logger to output log information.
      * @param actorSystemExecutorConfiguration Configuration for the ActorSystem's underlying
-     *     executor.
+     *         executor.
      * @param customConfig Custom Akka config to be combined with the config derived from Flink
-     *     configuration.
+     *         configuration.
+     *
      * @return The ActorSystem which has been started.
+     *
      * @throws Exception
      */
     public static ActorSystem startLocalActorSystem(
@@ -225,9 +232,8 @@ public class AkkaBootstrapTools {
         logger.info("Trying to start local actor system");
 
         try {
-            Config akkaConfig =
-                    AkkaUtils.getAkkaConfig(
-                            configuration, null, null, actorSystemExecutorConfiguration);
+            Config akkaConfig = AkkaUtils.getAkkaConfig(
+                    configuration, null, null, actorSystemExecutorConfiguration);
 
             if (customConfig != null) {
                 akkaConfig = customConfig.withFallback(akkaConfig);
@@ -245,6 +251,7 @@ public class AkkaBootstrapTools {
      * @param akkaConfig Config of the started ActorSystem.
      * @param actorSystemName Name of the started ActorSystem.
      * @param logger The logger to output log information.
+     *
      * @return The ActorSystem which has been started.
      */
     private static ActorSystem startActorSystem(
@@ -259,7 +266,8 @@ public class AkkaBootstrapTools {
     // ------------------------------------------------------------------------
 
     /** Private constructor to prevent instantiation. */
-    private AkkaBootstrapTools() {}
+    private AkkaBootstrapTools() {
+    }
 
     /** Configuration interface for {@link ActorSystem} underlying executor. */
     public interface ActorSystemExecutorConfiguration {

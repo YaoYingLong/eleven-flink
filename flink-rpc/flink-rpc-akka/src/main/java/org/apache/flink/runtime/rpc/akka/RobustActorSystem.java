@@ -75,14 +75,10 @@ public abstract class RobustActorSystem extends ActorSystemImpl {
             Thread.UncaughtExceptionHandler uncaughtExceptionHandler) {
         final Optional<BootstrapSetup> bootstrapSettings = setup.get(BootstrapSetup.class);
         final ClassLoader classLoader = RobustActorSystem.class.getClassLoader();
-        final Config appConfig =
-                bootstrapSettings
-                        .map(BootstrapSetup::config)
-                        .flatMap(RobustActorSystem::toJavaOptional)
-                        .orElseGet(() -> ConfigFactory.load(classLoader));
-        final Option<ExecutionContext> defaultEC =
-                toScalaOption(
-                        bootstrapSettings
+        final Config appConfig = bootstrapSettings.map(BootstrapSetup::config)
+                .flatMap(RobustActorSystem::toJavaOptional)
+                .orElseGet(() -> ConfigFactory.load(classLoader));
+        final Option<ExecutionContext> defaultEC = toScalaOption(bootstrapSettings
                                 .map(BootstrapSetup::defaultExecutionContext)
                                 .flatMap(RobustActorSystem::toJavaOptional));
 

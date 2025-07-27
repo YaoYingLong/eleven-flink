@@ -39,23 +39,28 @@ public class StandaloneSessionClusterEntrypoint extends SessionClusterEntrypoint
                 StandaloneResourceManagerFactory.getInstance());
     }
 
+    // 入口
     public static void main(String[] args) {
         // startup checks and logging
+        // 提供对JVM执行环境的访问的实用程序类，如执行用户getHadoopUser()、启动选项或JVM版本
         EnvironmentInformation.logEnvironmentInfo(
                 LOG, StandaloneSessionClusterEntrypoint.class.getSimpleName(), args);
+        // 注册一些信号处理
         SignalHandler.register(LOG);
+        // 安装安全关闭的钩子
         JvmShutdownSafeguard.installAsShutdownHook(LOG);
 
+        // 解析main方法传入的参数
         final EntrypointClusterConfiguration entrypointClusterConfiguration =
                 ClusterEntrypointUtils.parseParametersOrExit(
                         args,
                         new EntrypointClusterConfigurationParserFactory(),
                         StandaloneSessionClusterEntrypoint.class);
+        // 解析配置参数，解析flink配置文件：fink-conf.yaml
         Configuration configuration = loadConfiguration(entrypointClusterConfiguration);
 
-        StandaloneSessionClusterEntrypoint entrypoint =
-                new StandaloneSessionClusterEntrypoint(configuration);
-
+        StandaloneSessionClusterEntrypoint entrypoint = new StandaloneSessionClusterEntrypoint(configuration);
+        // 启动集群的entrypoint，该方法接受的父类ClusterEntrypoint
         ClusterEntrypoint.runClusterEntrypoint(entrypoint);
     }
 }

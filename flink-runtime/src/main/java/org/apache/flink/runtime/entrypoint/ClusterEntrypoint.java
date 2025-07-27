@@ -219,31 +219,33 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
         try {
             FlinkSecurityManager.setFromConfiguration(configuration);
+            // 负责管理集群的插件，这些插件是使用单独的类加载器加载的，以便他们的依赖关系，不要干扰flink的依赖关系
             PluginManager pluginManager =
                     PluginUtils.createPluginManagerFromRootFolder(configuration);
+            // 根据配置初始化文件系统
             configureFileSystems(configuration, pluginManager);
-
+            // 配置安全相关的配置，securityContext = NoOpSecurityContext
             SecurityContext securityContext = installSecurityContext(configuration);
 
             ClusterEntrypointUtils.configureUncaughtExceptionHandler(configuration);
             securityContext.runSecured(
                     (Callable<Void>)
                             () -> {
+                                // 集群启动入口
                                 runCluster(configuration, pluginManager);
-
                                 return null;
                             });
         } catch (Throwable t) {
-            final Throwable strippedThrowable =
-                    ExceptionUtils.stripException(t, UndeclaredThrowableException.class);
-
+            final Throwable strippedThrowable = ExceptionUtils.stripException(
+                    t,
+                    UndeclaredThrowableException.class);
             try {
                 // clean up any partial state
                 shutDownAsync(
-                                ApplicationStatus.FAILED,
-                                ShutdownBehaviour.GRACEFUL_SHUTDOWN,
-                                ExceptionUtils.stringifyException(strippedThrowable),
-                                false)
+                        ApplicationStatus.FAILED,
+                        ShutdownBehaviour.GRACEFUL_SHUTDOWN,
+                        ExceptionUtils.stringifyException(strippedThrowable),
+                        false)
                         .get(
                                 INITIALIZATION_SHUTDOWN_TIMEOUT.toMilliseconds(),
                                 TimeUnit.MILLISECONDS);
@@ -276,18 +278,30 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
         return SecurityUtils.getInstalledContext();
     }
 
-    private void runCluster(Configuration configuration, PluginManager pluginManager)
-            throws Exception {
+    private void runCluster(
+            Configuration configuration,
+            PluginManager pluginManager) throws Exception {
         synchronized (lock) {
+            /**
+             * 初始化服务，如JobManager的Akka RPC服务，HA服务，心跳检查服务，metric service
+             * 这些服务都是Master节点要使用到的一些服务为
+             * 1、commonRpcService：基于Akka的RpcService实现，RPC服务启动Akka参与者来接收从RpcGeteway调用RPC
+             * 2、haService：提供对高可用性所需的所有服务的访问注册，分布式计数器和领导人选举
+             * 3、blobServer：负责监听传入的请求生成线程来处理这些请求，它还负责创建要存储的目录结构blob或临时缓存
+             * 4、heartbeatServices：提供心跳所需的所有服务，包括创建心跳接收器和心跳发送者
+             * 5、metricRegistry：跟踪所有已注册的Metric，它作为链接MetricGroup和MetricReporter
+             * 6、archivedExecutionGraphStore：存储执行图ExecutionGraph的可序列化形式
+             */
             initializeServices(configuration, pluginManager);
 
             // write host information into configuration
+            // 将jobManager地址写入配置
             configuration.setString(JobManagerOptions.ADDRESS, commonRpcService.getAddress());
             configuration.setInteger(JobManagerOptions.PORT, commonRpcService.getPort());
 
             final DispatcherResourceManagerComponentFactory
                     dispatcherResourceManagerComponentFactory =
-                            createDispatcherResourceManagerComponentFactory(configuration);
+                    createDispatcherResourceManagerComponentFactory(configuration);
 
             clusterComponent =
                     dispatcherResourceManagerComponentFactory.create(
@@ -335,33 +349,24 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
         LOG.info("Initializing cluster services.");
 
         synchronized (lock) {
-            resourceId =
-                    configuration
-                            .getOptional(JobManagerOptions.JOB_MANAGER_RESOURCE_ID)
-                            .map(
-                                    value ->
-                                            DeterminismEnvelope.deterministicValue(
-                                                    new ResourceID(value)))
-                            .orElseGet(
-                                    () ->
-                                            DeterminismEnvelope.nondeterministicValue(
-                                                    ResourceID.generate()));
-
+            resourceId = configuration.getOptional(JobManagerOptions.JOB_MANAGER_RESOURCE_ID)
+                    .map(value -> DeterminismEnvelope.deterministicValue(
+                            new ResourceID(value)))
+                    .orElseGet(() -> DeterminismEnvelope.nondeterministicValue(
+                            ResourceID.generate()));
             LOG.debug(
                     "Initialize cluster entrypoint {} with resource id {}.",
                     getClass().getSimpleName(),
                     resourceId);
 
-            workingDirectory =
-                    ClusterEntrypointUtils.createJobManagerWorkingDirectory(
-                            configuration, resourceId);
+            workingDirectory = ClusterEntrypointUtils.createJobManagerWorkingDirectory(
+                    configuration, resourceId);
 
             LOG.info("Using working directory: {}.", workingDirectory);
 
             rpcSystem = RpcSystem.load(configuration);
 
-            commonRpcService =
-                    RpcUtils.createRemoteRpcService(
+            commonRpcService = RpcUtils.createRemoteRpcService(
                             rpcSystem,
                             configuration,
                             configuration.getString(JobManagerOptions.ADDRESS),
@@ -375,12 +380,10 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             configuration.setString(JobManagerOptions.ADDRESS, commonRpcService.getAddress());
             configuration.setInteger(JobManagerOptions.PORT, commonRpcService.getPort());
 
-            ioExecutor =
-                    Executors.newFixedThreadPool(
+            ioExecutor = Executors.newFixedThreadPool(
                             ClusterEntrypointUtils.getPoolSize(configuration),
                             new ExecutorThreadFactory("cluster-io"));
-            delegationTokenManager =
-                    DefaultDelegationTokenManagerFactory.create(
+            delegationTokenManager = DefaultDelegationTokenManagerFactory.create(
                             configuration,
                             pluginManager,
                             commonRpcService.getScheduledExecutor(),
@@ -389,8 +392,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             // one-time fashion is required because BlobServer may connect to external file systems
             delegationTokenManager.obtainDelegationTokens();
             haServices = createHaServices(configuration, ioExecutor, rpcSystem);
-            blobServer =
-                    BlobUtils.createBlobServer(
+            blobServer = BlobUtils.createBlobServer(
                             configuration,
                             Reference.borrowed(workingDirectory.unwrap().getBlobStorageDirectory()),
                             haServices.createBlobStore());
@@ -426,6 +428,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
      * Returns the port range for the common {@link RpcService}.
      *
      * @param configuration to extract the port range from
+     *
      * @return Port range for the common {@link RpcService}
      */
     protected String getRPCPortRange(Configuration configuration) {
@@ -466,11 +469,12 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
         ShutdownHookUtil.removeShutdownHook(shutDownHook, getClass().getSimpleName(), LOG);
 
         return shutDownAsync(
-                        ApplicationStatus.UNKNOWN,
-                        ShutdownBehaviour.PROCESS_FAILURE,
-                        "Cluster entrypoint has been closed externally.",
-                        false)
-                .thenAccept(ignored -> {});
+                ApplicationStatus.UNKNOWN,
+                ShutdownBehaviour.PROCESS_FAILURE,
+                "Cluster entrypoint has been closed externally.",
+                false)
+                .thenAccept(ignored -> {
+                });
     }
 
     protected CompletableFuture<Void> stopClusterServices(boolean cleanupHaData) {
@@ -613,6 +617,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
      * @param applicationStatus to terminate the application with
      * @param shutdownBehaviour shutdown behaviour
      * @param diagnostics additional information about the shut down, can be {@code null}
+     *
      * @return Future which is completed once the shut down
      */
     private CompletableFuture<Void> closeClusterComponent(
@@ -638,6 +643,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
      * Clean up of temporary directories created by the {@link ClusterEntrypoint}.
      *
      * @param shutdownBehaviour specifying the shutdown behaviour
+     *
      * @throws IOException if the temporary directories could not be cleaned up
      */
     protected void cleanupDirectories(ShutdownBehaviour shutdownBehaviour) throws IOException {
@@ -677,8 +683,8 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
     // --------------------------------------------------
 
     protected abstract DispatcherResourceManagerComponentFactory
-            createDispatcherResourceManagerComponentFactory(Configuration configuration)
-                    throws IOException;
+    createDispatcherResourceManagerComponentFactory(Configuration configuration)
+            throws IOException;
 
     protected abstract ExecutionGraphInfoStore createSerializableExecutionGraphStore(
             Configuration configuration, ScheduledExecutor scheduledExecutor) throws IOException;

@@ -115,8 +115,9 @@ public class AkkaRpcServiceUtils {
      * @param port The port where the target RPC service is listening.
      * @param endpointName The name of the RPC endpoint.
      * @param addressResolution Whether to try address resolution of the given hostname or not. This
-     *     allows to fail fast in case that the hostname cannot be resolved.
+     *         allows to fail fast in case that the hostname cannot be resolved.
      * @param config The configuration from which to deduce further settings.
+     *
      * @return The RPC URL of the specified RPC endpoint.
      */
     public static String getRpcUrl(
@@ -146,8 +147,9 @@ public class AkkaRpcServiceUtils {
      * @param port The port where the target RPC service is listening.
      * @param endpointName The name of the RPC endpoint.
      * @param addressResolution Whether to try address resolution of the given hostname or not. This
-     *     allows to fail fast in case that the hostname cannot be resolved.
+     *         allows to fail fast in case that the hostname cannot be resolved.
      * @param akkaProtocol True, if security/encryption is enabled, false otherwise.
+     *
      * @return The RPC URL of the specified RPC endpoint.
      */
     public static String getRpcUrl(
@@ -248,16 +250,21 @@ public class AkkaRpcServiceUtils {
 
         private final Configuration configuration;
         private final Logger logger;
-        @Nullable private final String externalAddress;
-        @Nullable private final String externalPortRange;
+        @Nullable
+        private final String externalAddress;
+        @Nullable
+        private final String externalPortRange;
 
         private String actorSystemName = AkkaUtils.getFlinkActorSystemName();
 
-        @Nullable private Config actorSystemExecutorConfiguration = null;
+        @Nullable
+        private Config actorSystemExecutorConfiguration = null;
 
-        @Nullable private Config customConfig = null;
+        @Nullable
+        private Config customConfig = null;
         private String bindAddress = NetUtils.getWildcardIPAddress();
-        @Nullable private Integer bindPort = null;
+        @Nullable
+        private Integer bindPort = null;
 
         /** Builder for creating a remote RPC service. */
         private AkkaRpcServiceBuilder(
@@ -328,25 +335,20 @@ public class AkkaRpcServiceUtils {
         }
 
         public AkkaRpcService createAndStart(
-                TriFunction<ActorSystem, AkkaRpcServiceConfiguration, ClassLoader, AkkaRpcService>
-                        constructor)
-                throws Exception {
+                TriFunction<ActorSystem, AkkaRpcServiceConfiguration, ClassLoader, AkkaRpcService> constructor) throws Exception {
             if (actorSystemExecutorConfiguration == null) {
-                actorSystemExecutorConfiguration =
-                        AkkaUtils.getForkJoinExecutorConfig(
-                                AkkaBootstrapTools.getForkJoinExecutorConfiguration(configuration));
+                actorSystemExecutorConfiguration = AkkaUtils.getForkJoinExecutorConfig(
+                        AkkaBootstrapTools.getForkJoinExecutorConfiguration(configuration));
             }
 
             final ActorSystem actorSystem;
 
             // akka internally caches the context class loader
             // make sure it uses the plugin class loader
-            try (TemporaryClassLoaderContext ignored =
-                    TemporaryClassLoaderContext.of(getClass().getClassLoader())) {
+            try (TemporaryClassLoaderContext ignored = TemporaryClassLoaderContext.of(getClass().getClassLoader())) {
                 if (externalAddress == null) {
                     // create local actor system
-                    actorSystem =
-                            AkkaBootstrapTools.startLocalActorSystem(
+                    actorSystem = AkkaBootstrapTools.startLocalActorSystem(
                                     configuration,
                                     actorSystemName,
                                     logger,
@@ -354,8 +356,7 @@ public class AkkaRpcServiceUtils {
                                     customConfig);
                 } else {
                     // create remote actor system
-                    actorSystem =
-                            AkkaBootstrapTools.startRemoteActorSystem(
+                    actorSystem = AkkaBootstrapTools.startRemoteActorSystem(
                                     configuration,
                                     actorSystemName,
                                     externalAddress,
@@ -378,5 +379,6 @@ public class AkkaRpcServiceUtils {
     // ------------------------------------------------------------------------
 
     /** This class is not meant to be instantiated. */
-    private AkkaRpcServiceUtils() {}
+    private AkkaRpcServiceUtils() {
+    }
 }
