@@ -293,30 +293,28 @@ public class AkkaRpcService implements RpcService {
 
         if (rpcEndpoint instanceof FencedRpcEndpoint) {
             // a FencedRpcEndpoint needs a FencedAkkaInvocationHandler
-            akkaInvocationHandler =
-                    new FencedAkkaInvocationHandler<>(
-                            akkaAddress,
-                            hostname,
-                            actorRef,
-                            configuration.getTimeout(),
-                            configuration.getMaximumFramesize(),
-                            configuration.isForceRpcInvocationSerialization(),
-                            actorTerminationFuture,
-                            ((FencedRpcEndpoint<?>) rpcEndpoint)::getFencingToken,
-                            captureAskCallstacks,
-                            flinkClassLoader);
+            akkaInvocationHandler = new FencedAkkaInvocationHandler<>(
+                    akkaAddress,
+                    hostname,
+                    actorRef,
+                    configuration.getTimeout(),
+                    configuration.getMaximumFramesize(),
+                    configuration.isForceRpcInvocationSerialization(),
+                    actorTerminationFuture,
+                    ((FencedRpcEndpoint<?>) rpcEndpoint)::getFencingToken,
+                    captureAskCallstacks,
+                    flinkClassLoader);
         } else {
-            akkaInvocationHandler =
-                    new AkkaInvocationHandler(
-                            akkaAddress,
-                            hostname,
-                            actorRef,
-                            configuration.getTimeout(),
-                            configuration.getMaximumFramesize(),
-                            configuration.isForceRpcInvocationSerialization(),
-                            actorTerminationFuture,
-                            captureAskCallstacks,
-                            flinkClassLoader);
+            akkaInvocationHandler = new AkkaInvocationHandler(
+                    akkaAddress,
+                    hostname,
+                    actorRef,
+                    configuration.getTimeout(),
+                    configuration.getMaximumFramesize(),
+                    configuration.isForceRpcInvocationSerialization(),
+                    actorTerminationFuture,
+                    captureAskCallstacks,
+                    flinkClassLoader);
         }
 
         // Rather than using the System ClassLoader directly, we derive the ClassLoader
@@ -337,7 +335,7 @@ public class AkkaRpcService implements RpcService {
     }
 
     private <C extends RpcEndpoint & RpcGateway>
-            SupervisorActor.ActorRegistration registerAkkaRpcActor(C rpcEndpoint) {
+    SupervisorActor.ActorRegistration registerAkkaRpcActor(C rpcEndpoint) {
         final Class<? extends AbstractActor> akkaRpcActorType;
 
         if (rpcEndpoint instanceof FencedRpcEndpoint) {

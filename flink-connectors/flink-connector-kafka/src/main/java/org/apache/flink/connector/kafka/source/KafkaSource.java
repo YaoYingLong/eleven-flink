@@ -88,6 +88,7 @@ public class KafkaSource<OUT> implements Source<OUT, KafkaPartitionSplit, KafkaS
         ResultTypeQueryable<OUT> {
     private static final long serialVersionUID = -8755372893283732098L;
     // Users can choose only one of the following ways to specify the topics to consume from.
+    // 默认为TopicListSubscriber
     private final KafkaSubscriber subscriber;
     // Users can specify the starting / stopping offset initializer.
     private final OffsetsInitializer startingOffsetsInitializer;
@@ -105,6 +106,7 @@ public class KafkaSource<OUT> implements Source<OUT, KafkaPartitionSplit, KafkaS
             Boundedness boundedness,
             KafkaRecordDeserializationSchema<OUT> deserializationSchema,
             Properties props) {
+        // 如果是KafkaSource则subscriber默认为TopicListSubscriber
         this.subscriber = subscriber;
         this.startingOffsetsInitializer = startingOffsetsInitializer;
         this.stoppingOffsetsInitializer = stoppingOffsetsInitializer;
@@ -130,16 +132,22 @@ public class KafkaSource<OUT> implements Source<OUT, KafkaPartitionSplit, KafkaS
 
     @Internal
     @Override
-    public SourceReader<OUT, KafkaPartitionSplit> createReader(SourceReaderContext readerContext) throws Exception {
-        return createReader(readerContext, (ignore) -> {});
+    public SourceReader<OUT, KafkaPartitionSplit> createReader(SourceReaderContext readerContext)
+            throws Exception {
+        // 这里的readerContext是SourceReaderContext
+        return createReader(
+                readerContext, (ignore) -> {
+                });
     }
 
     @VisibleForTesting
     SourceReader<OUT, KafkaPartitionSplit> createReader(
             SourceReaderContext readerContext,
             Consumer<Collection<String>> splitFinishedHook) throws Exception {
+        // FutureCompletingBlockingQueue默认长度为2，通过source.reader.element.queue.capacity配置
         FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
                 elementsQueue = new FutureCompletingBlockingQueue<>();
+        // 一般是我们自定义并设置的，如LogKafkaDeserializationSchema
         deserializationSchema.open(
                 new DeserializationSchema.InitializationContext() {
                     @Override
@@ -155,16 +163,22 @@ public class KafkaSource<OUT> implements Source<OUT, KafkaPartitionSplit, KafkaS
         final KafkaSourceReaderMetrics kafkaSourceReaderMetrics =
                 new KafkaSourceReaderMetrics(readerContext.metricGroup());
 
+        // 这里其实就是new的一个KafkaPartitionSplitReader，该类是拉取数据的关键类
         Supplier<KafkaPartitionSplitReader> splitReaderSupplier =
                 () -> new KafkaPartitionSplitReader(props, readerContext, kafkaSourceReaderMetrics);
+        // 创建KafkaRecordEmitter，用于将ConsumerRecord反序列化为OUT类型
         KafkaRecordEmitter<OUT> recordEmitter = new KafkaRecordEmitter<>(deserializationSchema);
 
         return new KafkaSourceReader<>(
                 elementsQueue,
+                // 作用是帮助提交offset
                 new KafkaSourceFetcherManager(
                         elementsQueue,
+                        // 真正的new KafkaPartitionSplitReader
                         splitReaderSupplier::get,
+                        // 该hook是一个空实现
                         splitFinishedHook),
+                // 反序列化
                 recordEmitter,
                 toConfiguration(props),
                 readerContext,
@@ -176,7 +190,7 @@ public class KafkaSource<OUT> implements Source<OUT, KafkaPartitionSplit, KafkaS
     public SplitEnumerator<KafkaPartitionSplit, KafkaSourceEnumState> createEnumerator(
             SplitEnumeratorContext<KafkaPartitionSplit> enumContext) {
         return new KafkaSourceEnumerator(
-                // 订阅者，负责订阅Kafka的topic和分区
+                // 订阅者，负责订阅Kafka的topic和分区，默认为TopicListSubscriber
                 subscriber,
                 // 读取kafka开始的偏移量
                 startingOffsetsInitializer,

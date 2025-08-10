@@ -84,6 +84,7 @@ public class GeneratedWatermarkGeneratorSupplier implements WatermarkGeneratorSu
 
         @Override
         public void onEvent(RowData event, long eventTimestamp, WatermarkOutput output) {
+            // output是将splitId生成的对应的PartialWatermark封装成ImmediateOutput
             try {
                 Long watermark = innerWatermarkGenerator.currentWatermark(event);
                 if (watermark != null) {

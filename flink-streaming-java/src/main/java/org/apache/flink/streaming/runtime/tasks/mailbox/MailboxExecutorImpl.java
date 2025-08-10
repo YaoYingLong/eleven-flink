@@ -48,6 +48,7 @@ public final class MailboxExecutorImpl implements MailboxExecutor {
             @Nonnull TaskMailbox mailbox,
             int priority,
             StreamTaskActionExecutor actionExecutor) {
+        // mailbox为TaskMailboxImpl，priority为-1，actionExecutor为StreamTaskActionExecutor.IMMEDIATE
         this(mailbox, priority, actionExecutor, null);
     }
 
@@ -56,9 +57,11 @@ public final class MailboxExecutorImpl implements MailboxExecutor {
             int priority,
             StreamTaskActionExecutor actionExecutor,
             MailboxProcessor mailboxProcessor) {
+        // mailbox为TaskMailboxImpl，priority为-1，actionExecutor为StreamTaskActionExecutor.IMMEDIATE
         this.mailbox = mailbox;
         this.priority = priority;
         this.actionExecutor = Preconditions.checkNotNull(actionExecutor);
+        // mailboxProcessor为null
         this.mailboxProcessor = mailboxProcessor;
     }
 
@@ -83,8 +86,10 @@ public final class MailboxExecutorImpl implements MailboxExecutor {
 
     @Override
     public void yield() throws InterruptedException {
+        // 阻塞从邮箱中获取一个任务
         Mail mail = mailbox.take(priority);
         try {
+            // 执行任务
             mail.run();
         } catch (Exception ex) {
             throw WrappingRuntimeException.wrapIfNecessary(ex);
@@ -93,9 +98,11 @@ public final class MailboxExecutorImpl implements MailboxExecutor {
 
     @Override
     public boolean tryYield() {
+        // 非阻塞地从邮箱中获取一个任务
         Optional<Mail> optionalMail = mailbox.tryTake(priority);
         if (optionalMail.isPresent()) {
             try {
+                // 执行任务
                 optionalMail.get().run();
             } catch (Exception ex) {
                 throw WrappingRuntimeException.wrapIfNecessary(ex);

@@ -154,11 +154,10 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
         this.subtaskHasNoMoreSplits = new boolean[parallelism];
         Arrays.fill(subtaskHasNoMoreSplits, false);
 
-        final Executor errorHandlingCoordinatorExecutor =
-                (runnable) ->
-                        coordinatorExecutor.execute(
-                                new ThrowableCatchingRunnable(
-                                        this::handleUncaughtExceptionFromAsyncCall, runnable));
+        final Executor errorHandlingCoordinatorExecutor = (runnable) ->
+                coordinatorExecutor.execute(
+                        new ThrowableCatchingRunnable(
+                                this::handleUncaughtExceptionFromAsyncCall, runnable));
 
         this.notifier = new ExecutorNotifier(workerExecutor, errorHandlingCoordinatorExecutor);
     }
@@ -278,7 +277,8 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
                                             throw new IllegalArgumentException(
                                                     String.format(
                                                             "Cannot assign splits %s to subtask %d because the subtask is not registered.",
-                                                            splits, id));
+                                                            splits,
+                                                            id));
                                         }
                                     });
 
@@ -456,6 +456,7 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
      *
      * @param subtaskId the failed subtask id.
      * @param restoredCheckpointId the checkpoint that the task is recovered to.
+     *
      * @return A list of splits that needs to be added back to the {@link SplitEnumerator}.
      */
     List<SplitT> getAndRemoveUncheckpointedAssignment(int subtaskId, long restoredCheckpointId) {

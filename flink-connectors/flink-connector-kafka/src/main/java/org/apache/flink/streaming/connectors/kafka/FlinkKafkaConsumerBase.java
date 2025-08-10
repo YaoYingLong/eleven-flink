@@ -239,7 +239,7 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
      * @param topicPattern the topic pattern to subscribe to (null, if using fixed topics)
      * @param deserializer The deserializer to turn raw byte messages into Java/Scala objects.
      * @param discoveryIntervalMillis the topic / partition discovery interval, in milliseconds (0
-     *     if discovery is disabled).
+     *         if discovery is disabled).
      */
     public FlinkKafkaConsumerBase(
             List<String> topics,
@@ -334,9 +334,11 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
      * interfaces support watermark idleness and no longer need to differentiate between "periodic"
      * and "punctuated" watermarks.
      *
-     * @deprecated Please use {@link #assignTimestampsAndWatermarks(WatermarkStrategy)} instead.
      * @param assigner The timestamp assigner / watermark generator to use.
+     *
      * @return The consumer object, to allow function chaining.
+     *
+     * @deprecated Please use {@link #assignTimestampsAndWatermarks(WatermarkStrategy)} instead.
      */
     @Deprecated
     public FlinkKafkaConsumerBase<T> assignTimestampsAndWatermarks(
@@ -380,9 +382,11 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
      * interfaces support watermark idleness and no longer need to differentiate between "periodic"
      * and "punctuated" watermarks.
      *
-     * @deprecated Please use {@link #assignTimestampsAndWatermarks(WatermarkStrategy)} instead.
      * @param assigner The timestamp assigner / watermark generator to use.
+     *
      * @return The consumer object, to allow function chaining.
+     *
+     * @deprecated Please use {@link #assignTimestampsAndWatermarks(WatermarkStrategy)} instead.
      */
     @Deprecated
     public FlinkKafkaConsumerBase<T> assignTimestampsAndWatermarks(
@@ -466,6 +470,7 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
      * only the offsets in the restored state will be used.
      *
      * @param startupOffsetsTimestamp timestamp for the startup offsets, as milliseconds from epoch.
+     *
      * @return The consumer object, to allow function chaining.
      */
     public FlinkKafkaConsumerBase<T> setStartFromTimestamp(long startupOffsetsTimestamp) {
@@ -559,18 +564,16 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
     @Override
     public void open(Configuration configuration) throws Exception {
         // determine the offset commit mode
-        this.offsetCommitMode =
-                OffsetCommitModes.fromConfiguration(
-                        getIsAutoCommitEnabled(),
-                        enableCommitOnCheckpoints,
-                        ((StreamingRuntimeContext) getRuntimeContext()).isCheckpointingEnabled());
+        this.offsetCommitMode = OffsetCommitModes.fromConfiguration(
+                getIsAutoCommitEnabled(),
+                enableCommitOnCheckpoints,
+                ((StreamingRuntimeContext) getRuntimeContext()).isCheckpointingEnabled());
 
         // create the partition discoverer
-        this.partitionDiscoverer =
-                createPartitionDiscoverer(
-                        topicsDescriptor,
-                        getRuntimeContext().getIndexOfThisSubtask(),
-                        getRuntimeContext().getNumberOfParallelSubtasks());
+        this.partitionDiscoverer = createPartitionDiscoverer(
+                topicsDescriptor,
+                getRuntimeContext().getIndexOfThisSubtask(),
+                getRuntimeContext().getNumberOfParallelSubtasks());
         this.partitionDiscoverer.open();
 
         subscribedPartitionsToStartOffsets = new HashMap<>();
@@ -587,28 +590,26 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
                 // seed the partition discoverer with the union state while filtering out
                 // restored partitions that should not be subscribed by this subtask
                 if (KafkaTopicPartitionAssigner.assign(
-                                restoredStateEntry.getKey(),
-                                getRuntimeContext().getNumberOfParallelSubtasks())
+                        restoredStateEntry.getKey(),
+                        getRuntimeContext().getNumberOfParallelSubtasks())
                         == getRuntimeContext().getIndexOfThisSubtask()) {
                     subscribedPartitionsToStartOffsets.put(
-                            restoredStateEntry.getKey(), restoredStateEntry.getValue());
+                            restoredStateEntry.getKey(),
+                            restoredStateEntry.getValue());
                 }
             }
 
             if (filterRestoredPartitionsWithCurrentTopicsDescriptor) {
-                subscribedPartitionsToStartOffsets
-                        .entrySet()
-                        .removeIf(
-                                entry -> {
-                                    if (!topicsDescriptor.isMatchingTopic(
-                                            entry.getKey().getTopic())) {
-                                        LOG.warn(
-                                                "{} is removed from subscribed partitions since it is no longer associated with topics descriptor of current execution.",
-                                                entry.getKey());
-                                        return true;
-                                    }
-                                    return false;
-                                });
+                subscribedPartitionsToStartOffsets.entrySet().removeIf(
+                        entry -> {
+                            if (!topicsDescriptor.isMatchingTopic(entry.getKey().getTopic())) {
+                                LOG.warn(
+                                        "{} is removed from subscribed partitions since it is no longer associated with topics descriptor of current execution.",
+                                        entry.getKey());
+                                return true;
+                            }
+                            return false;
+                        });
             }
 
             LOG.info(
@@ -760,31 +761,28 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
         }
 
         // initialize commit metrics and default offset callback method
-        this.successfulCommits =
-                this.getRuntimeContext()
-                        .getMetricGroup()
-                        .counter(COMMITS_SUCCEEDED_METRICS_COUNTER);
-        this.failedCommits =
-                this.getRuntimeContext().getMetricGroup().counter(COMMITS_FAILED_METRICS_COUNTER);
+        this.successfulCommits = this.getRuntimeContext().getMetricGroup()
+                .counter(COMMITS_SUCCEEDED_METRICS_COUNTER);
+        this.failedCommits = this.getRuntimeContext().getMetricGroup()
+                .counter(COMMITS_FAILED_METRICS_COUNTER);
         final int subtaskIndex = this.getRuntimeContext().getIndexOfThisSubtask();
 
-        this.offsetCommitCallback =
-                new KafkaCommitCallback() {
-                    @Override
-                    public void onSuccess() {
-                        successfulCommits.inc();
-                    }
+        this.offsetCommitCallback = new KafkaCommitCallback() {
+            @Override
+            public void onSuccess() {
+                successfulCommits.inc();
+            }
 
-                    @Override
-                    public void onException(Throwable cause) {
-                        LOG.warn(
-                                String.format(
-                                        "Consumer subtask %d failed async Kafka commit.",
-                                        subtaskIndex),
-                                cause);
-                        failedCommits.inc();
-                    }
-                };
+            @Override
+            public void onException(Throwable cause) {
+                LOG.warn(
+                        String.format(
+                                "Consumer subtask %d failed async Kafka commit.",
+                                subtaskIndex),
+                        cause);
+                failedCommits.inc();
+            }
+        };
 
         // mark the subtask as temporarily idle if there are no initial seed partitions;
         // once this subtask discovers some partitions and starts collecting records, the subtask's
@@ -802,15 +800,14 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
         //     instead of being built from `subscribedPartitionsToStartOffsets`
         //   - 'notifyCheckpointComplete' will start to do work (i.e. commit offsets to
         //     Kafka through the fetcher, if configured to do so)
-        this.kafkaFetcher =
-                createFetcher(
-                        sourceContext,
-                        subscribedPartitionsToStartOffsets,
-                        watermarkStrategy,
-                        (StreamingRuntimeContext) getRuntimeContext(),
-                        offsetCommitMode,
-                        getRuntimeContext().getMetricGroup().addGroup(KAFKA_CONSUMER_METRICS_GROUP),
-                        useMetrics);
+        this.kafkaFetcher = createFetcher(
+                sourceContext,
+                subscribedPartitionsToStartOffsets,
+                watermarkStrategy,
+                (StreamingRuntimeContext) getRuntimeContext(),
+                offsetCommitMode,
+                getRuntimeContext().getMetricGroup().addGroup(KAFKA_CONSUMER_METRICS_GROUP),
+                useMetrics);
 
         if (!running) {
             return;
@@ -879,7 +876,7 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
                                         discoveredPartitions =
                                                 partitionDiscoverer.discoverPartitions();
                                     } catch (AbstractPartitionDiscoverer.WakeupException
-                                            | AbstractPartitionDiscoverer.ClosedException e) {
+                                             | AbstractPartitionDiscoverer.ClosedException e) {
                                         // the partition discoverer may have been closed or woken up
                                         // before or during the discovery;
                                         // this would only happen if the consumer was canceled;
@@ -1119,7 +1116,8 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
     }
 
     @Override
-    public void notifyCheckpointAborted(long checkpointId) {}
+    public void notifyCheckpointAborted(long checkpointId) {
+    }
 
     // ------------------------------------------------------------------------
     //  Kafka Consumer specific methods
@@ -1131,10 +1129,12 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
      *
      * @param sourceContext The source context to emit data to.
      * @param subscribedPartitionsToStartOffsets The set of partitions that this subtask should
-     *     handle, with their start offsets.
+     *         handle, with their start offsets.
      * @param watermarkStrategy Optional, a serialized WatermarkStrategy.
      * @param runtimeContext The task's runtime context.
+     *
      * @return The instantiated fetcher
+     *
      * @throws Exception The method should forward exceptions
      */
     protected abstract AbstractFetcher<T, ?> createFetcher(
@@ -1151,9 +1151,10 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
      * Creates the partition discoverer that is used to find new partitions for this subtask.
      *
      * @param topicsDescriptor Descriptor that describes whether we are discovering partitions for
-     *     fixed topics or a topic pattern.
+     *         fixed topics or a topic pattern.
      * @param indexOfThisSubtask The index of this consumer subtask.
      * @param numParallelSubtasks The total number of parallel consumer subtasks.
+     *
      * @return The instantiated partition discoverer
      */
     protected abstract AbstractPartitionDiscoverer createPartitionDiscoverer(
@@ -1216,8 +1217,8 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
         // disableGenericTypes for users
         TypeSerializer<?>[] fieldSerializers =
                 new TypeSerializer<?>[] {
-                    new KryoSerializer<>(KafkaTopicPartition.class, executionConfig),
-                    LongSerializer.INSTANCE
+                        new KryoSerializer<>(KafkaTopicPartition.class, executionConfig),
+                        LongSerializer.INSTANCE
                 };
         @SuppressWarnings("unchecked")
         Class<Tuple2<KafkaTopicPartition, Long>> tupleClass =

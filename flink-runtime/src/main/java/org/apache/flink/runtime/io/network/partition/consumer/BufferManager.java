@@ -139,17 +139,16 @@ public class BufferManager implements BufferListener, BufferRecycler {
             return;
         }
 
-        Collection<MemorySegment> segments =
-                globalPool.requestUnpooledMemorySegments(numExclusiveBuffers);
+        Collection<MemorySegment> segments = globalPool.requestUnpooledMemorySegments(numExclusiveBuffers);
         synchronized (bufferQueue) {
             // AvailableBufferQueue::addExclusiveBuffer may release the previously allocated
             // floating buffer, which requires the caller to recycle these released floating
             // buffers. There should be no floating buffers that have been allocated before the
             // exclusive buffers are initialized, so here only a simple assertion is required
-            checkState(
-                    unsynchronizedGetFloatingBuffersAvailable() == 0,
+            checkState(unsynchronizedGetFloatingBuffersAvailable() == 0,
                     "Bug in buffer allocation logic: floating buffer is allocated before exclusive buffers are initialized.");
             for (MemorySegment segment : segments) {
+                // 分配 Buffer
                 bufferQueue.addExclusiveBuffer(
                         new NetworkBuffer(segment, this), numRequiredBuffers);
             }
@@ -301,6 +300,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
      * buffer pool. Otherwise, the buffer will be added into the <tt>bufferQueue</tt>.
      *
      * @param buffer Buffer that becomes available in buffer pool.
+     *
      * @return true if the buffer is accepted by this listener.
      */
     @Override
@@ -420,10 +420,12 @@ public class BufferManager implements BufferListener, BufferRecycler {
          *
          * @param buffer The exclusive buffer to add
          * @param numRequiredBuffers The number of required buffers
+         *
          * @return An released floating buffer, may be null if the numRequiredBuffers is not met.
          */
         @Nullable
         Buffer addExclusiveBuffer(Buffer buffer, int numRequiredBuffers) {
+            // 加入 独占buffer池
             exclusiveBuffers.add(buffer);
             if (getAvailableBufferSize() > numRequiredBuffers) {
                 return floatingBuffers.poll();
@@ -439,7 +441,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
          * Takes the floating buffer first in order to make full use of floating buffers reasonably.
          *
          * @return An available floating or exclusive buffer, may be null if the channel is
-         *     released.
+         *         released.
          */
         @Nullable
         Buffer takeBuffer() {

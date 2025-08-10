@@ -49,9 +49,8 @@ public class EdgeManagerBuildUtil {
             ExecutionJobVertex vertex, IntermediateResult intermediateResult) {
         final DistributionPattern distributionPattern =
                 intermediateResult.getConsumingDistributionPattern();
-        final JobVertexInputInfo jobVertexInputInfo =
-                vertex.getGraph()
-                        .getJobVertexInputInfo(vertex.getJobVertexId(), intermediateResult.getId());
+        final JobVertexInputInfo jobVertexInputInfo = vertex.getGraph()
+                .getJobVertexInputInfo(vertex.getJobVertexId(), intermediateResult.getId());
 
         switch (distributionPattern) {
             case POINTWISE:
@@ -123,8 +122,7 @@ public class EdgeManagerBuildUtil {
             int consumerIndex = executionVertexInputInfo.getSubtaskIndex();
             IndexRange range = executionVertexInputInfo.getPartitionIndexRange();
             consumersByPartition.compute(
-                    range,
-                    (ignore, consumers) -> {
+                    range, (ignore, consumers) -> {
                         if (consumers == null) {
                             consumers = new ArrayList<>();
                         }
@@ -133,22 +131,21 @@ public class EdgeManagerBuildUtil {
                     });
         }
 
-        consumersByPartition.forEach(
-                (range, subtasks) -> {
-                    List<ExecutionVertex> taskVertices = new ArrayList<>();
-                    List<IntermediateResultPartition> partitions = new ArrayList<>();
-                    for (int index : subtasks) {
-                        taskVertices.add(jobVertex.getTaskVertices()[index]);
-                    }
-                    for (int i = range.getStartIndex(); i <= range.getEndIndex(); ++i) {
-                        partitions.add(result.getPartitions()[i]);
-                    }
-                    connectInternal(
-                            taskVertices,
-                            partitions,
-                            result.getResultType(),
-                            jobVertex.getGraph().getEdgeManager());
-                });
+        consumersByPartition.forEach((range, subtasks) -> {
+            List<ExecutionVertex> taskVertices = new ArrayList<>();
+            List<IntermediateResultPartition> partitions = new ArrayList<>();
+            for (int index : subtasks) {
+                taskVertices.add(jobVertex.getTaskVertices()[index]);
+            }
+            for (int i = range.getStartIndex(); i <= range.getEndIndex(); ++i) {
+                partitions.add(result.getPartitions()[i]);
+            }
+            connectInternal(
+                    taskVertices,
+                    partitions,
+                    result.getResultType(),
+                    jobVertex.getGraph().getEdgeManager());
+        });
     }
 
     /** Connect all execution vertices to all partitions. */

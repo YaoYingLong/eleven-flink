@@ -391,14 +391,10 @@ public class StreamConfig implements Serializable {
             String classLoaderInfo = ClassLoaderUtil.getUserCodeClassLoaderInfo(cl);
             boolean loadableDoubleCheck = ClassLoaderUtil.validateClassLoadable(e, cl);
 
-            String exceptionMessage =
-                    "Cannot load user class: "
-                            + e.getMessage()
-                            + "\nClassLoader info: "
-                            + classLoaderInfo
-                            + (loadableDoubleCheck
-                                    ? "\nClass was actually found in classloader - deserialization issue."
-                                    : "\nClass not resolvable through given classloader.");
+            String exceptionMessage = "Cannot load user class: " + e.getMessage()
+                    + "\nClassLoader info: " + classLoaderInfo + (loadableDoubleCheck
+                    ? "\nClass was actually found in classloader - deserialization issue."
+                    : "\nClass not resolvable through given classloader.");
 
             throw new StreamTaskException(exceptionMessage, e);
         } catch (Exception e) {
@@ -561,9 +557,8 @@ public class StreamConfig implements Serializable {
 
     public List<NonChainedOutput> getVertexNonChainedOutputs(ClassLoader cl) {
         try {
-            List<NonChainedOutput> nonChainedOutputs =
-                    InstantiationUtil.readObjectFromConfig(
-                            this.config, VERTEX_NONCHAINED_OUTPUTS, cl);
+            List<NonChainedOutput> nonChainedOutputs = InstantiationUtil.readObjectFromConfig(
+                    this.config, VERTEX_NONCHAINED_OUTPUTS, cl);
             return nonChainedOutputs == null ? new ArrayList<>() : nonChainedOutputs;
         } catch (Exception e) {
             throw new StreamTaskException("Could not instantiate outputs in order.", e);
@@ -814,7 +809,8 @@ public class StreamConfig implements Serializable {
     }
 
     /** Interface representing chained inputs. */
-    public interface InputConfig extends Serializable {}
+    public interface InputConfig extends Serializable {
+    }
 
     /** A representation of a Network {@link InputConfig}. */
     public static class NetworkInputConfig implements InputConfig {
@@ -887,6 +883,6 @@ public class StreamConfig implements Serializable {
     public static boolean requiresSorting(StreamConfig.InputConfig inputConfig) {
         return inputConfig instanceof StreamConfig.NetworkInputConfig
                 && ((StreamConfig.NetworkInputConfig) inputConfig).getInputRequirement()
-                        == StreamConfig.InputRequirement.SORTED;
+                == StreamConfig.InputRequirement.SORTED;
     }
 }

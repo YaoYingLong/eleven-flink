@@ -37,6 +37,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public final class ChannelSelectorRecordWriter<T extends IOReadableWritable>
         extends RecordWriter<T> {
 
+    // channelSelector其实就是ForwardPartitioner或者RebalancePartitioner等
     private final ChannelSelector<T> channelSelector;
 
     ChannelSelectorRecordWriter(
@@ -52,6 +53,8 @@ public final class ChannelSelectorRecordWriter<T extends IOReadableWritable>
 
     @Override
     public void emit(T record) throws IOException {
+        // channelSelector其实就是ForwardPartitioner或者RebalancePartitioner等，确定目标channel
+        // 用来决定record到底被分发到那个一个分区，调用超类RecordWriter中的emit方法
         emit(record, channelSelector.selectChannel(record));
     }
 

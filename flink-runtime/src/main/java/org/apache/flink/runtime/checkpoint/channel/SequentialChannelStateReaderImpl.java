@@ -58,12 +58,10 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
 
     @Override
     public void readInputData(InputGate[] inputGates) throws IOException, InterruptedException {
-        try (InputChannelRecoveredStateHandler stateHandler =
-                new InputChannelRecoveredStateHandler(
-                        inputGates, taskStateSnapshot.getInputRescalingDescriptor())) {
+        try (InputChannelRecoveredStateHandler stateHandler = new InputChannelRecoveredStateHandler(
+                inputGates, taskStateSnapshot.getInputRescalingDescriptor())) {
             read(
-                    stateHandler,
-                    groupByDelegate(
+                    stateHandler, groupByDelegate(
                             streamSubtaskStates(), OperatorSubtaskState::getInputChannelState));
         }
     }
@@ -71,14 +69,12 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     @Override
     public void readOutputData(ResultPartitionWriter[] writers, boolean notifyAndBlockOnCompletion)
             throws IOException, InterruptedException {
-        try (ResultSubpartitionRecoveredStateHandler stateHandler =
-                new ResultSubpartitionRecoveredStateHandler(
-                        writers,
-                        notifyAndBlockOnCompletion,
-                        taskStateSnapshot.getOutputRescalingDescriptor())) {
+        try (ResultSubpartitionRecoveredStateHandler stateHandler = new ResultSubpartitionRecoveredStateHandler(
+                writers,
+                notifyAndBlockOnCompletion,
+                taskStateSnapshot.getOutputRescalingDescriptor())) {
             read(
-                    stateHandler,
-                    groupByDelegate(
+                    stateHandler, groupByDelegate(
                             streamSubtaskStates(),
                             OperatorSubtaskState::getResultSubpartitionState));
         }
@@ -102,8 +98,8 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
             throws IOException, InterruptedException {
         try (FSDataInputStream is = streamStateHandle.openInputStream()) {
             serializer.readHeader(is);
-            for (RescaledOffset<Info> offsetAndChannelInfo :
-                    extractOffsetsSorted(channelStateHandles)) {
+            for (RescaledOffset<Info> offsetAndChannelInfo : extractOffsetsSorted(
+                    channelStateHandles)) {
                 chunkReader.readChunk(
                         is,
                         offsetAndChannelInfo.offset,
@@ -119,10 +115,10 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     }
 
     private static <Info, Handle extends AbstractChannelStateHandle<Info>>
-            Map<StreamStateHandle, List<Handle>> groupByDelegate(
-                    Stream<OperatorSubtaskState> states,
-                    Function<OperatorSubtaskState, StateObjectCollection<Handle>>
-                            stateHandleExtractor) {
+    Map<StreamStateHandle, List<Handle>> groupByDelegate(
+            Stream<OperatorSubtaskState> states,
+            Function<OperatorSubtaskState, StateObjectCollection<Handle>>
+                    stateHandleExtractor) {
         return states.map(stateHandleExtractor)
                 .flatMap(Collection::stream)
                 .peek(validate())
@@ -130,7 +126,7 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     }
 
     private static <Info, Handle extends AbstractChannelStateHandle<Info>>
-            Consumer<Handle> validate() {
+    Consumer<Handle> validate() {
         Set<Tuple2<Info, Integer>> seen = new HashSet<>();
         // expect each channel/subtask to be described only once; otherwise, buffers in channel
         // could be
@@ -143,7 +139,7 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     }
 
     private static <Info, Handle extends AbstractChannelStateHandle<Info>>
-            List<RescaledOffset<Info>> extractOffsetsSorted(List<Handle> channelStateHandles) {
+    List<RescaledOffset<Info>> extractOffsetsSorted(List<Handle> channelStateHandles) {
         return channelStateHandles.stream()
                 .flatMap(SequentialChannelStateReaderImpl::extractOffsets)
                 .sorted(comparingLong(offsetAndInfo -> offsetAndInfo.offset))
@@ -151,7 +147,7 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     }
 
     private static <Info, Handle extends AbstractChannelStateHandle<Info>>
-            Stream<RescaledOffset<Info>> extractOffsets(Handle handle) {
+    Stream<RescaledOffset<Info>> extractOffsets(Handle handle) {
         return handle.getOffsets().stream()
                 .map(
                         offset ->
@@ -160,7 +156,8 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     }
 
     @Override
-    public void close() throws Exception {}
+    public void close() throws Exception {
+    }
 
     static class RescaledOffset<Info> {
         final Long offset;
@@ -196,9 +193,8 @@ class ChannelStateChunkReader {
         while (length > 0) {
             RecoveredChannelStateHandler.BufferWithContext<Context> bufferWithContext =
                     stateHandler.getBuffer(channelInfo);
-            try (Closeable ignored =
-                    NetworkActionsLogger.measureIO(
-                            "ChannelStateChunkReader#readChunk", bufferWithContext.buffer)) {
+            try (Closeable ignored = NetworkActionsLogger.measureIO(
+                    "ChannelStateChunkReader#readChunk", bufferWithContext.buffer)) {
                 while (length > 0 && bufferWithContext.buffer.isWritable()) {
                     length -= serializer.readData(source, bufferWithContext.buffer, length);
                 }

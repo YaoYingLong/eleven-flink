@@ -79,19 +79,24 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
     /** Only set for externally induced sources. See also {@link #isExternallyInducedSource()}. */
     private StreamTaskExternallyInducedSourceInput<T> externallyInducedSourceInput;
 
+    // 这里是在TaskManager中通过反射的方式调用的构造方法
     public SourceOperatorStreamTask(Environment env) throws Exception {
+        // 调用超类StreamTask的构造方法，StreamTask的构造方法中有比较重要的逻辑
         super(env);
     }
 
     @Override
     public void init() throws Exception {
+        // mainOperator是超类StreamTask中的属性，在StreamTask的构造方法中被初始化
         final SourceOperator<T, ?> sourceOperator = this.mainOperator;
         // reader initialization, which cannot happen in the constructor due to the
         // lazy metric group initialization. We do this here now, rather than
         // later (in open()) so that we can access the reader when setting up the
         // input processors
-        sourceOperator.initReader();
 
+        // 这里其实就是执行readerFactory函数表达式得到真正的SourceReader，如果是KafkaSource这里得到的是KafkaSourceReader
+        sourceOperator.initReader();
+        // 如果是KafkaSource这里得到的是KafkaSourceReader
         final SourceReader<T, ?> sourceReader = sourceOperator.getSourceReader();
         final StreamTaskInput<T> input;
 
@@ -99,34 +104,31 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
         if (operatorChain.isTaskDeployedAsFinished()) {
             input = new StreamTaskFinishedOnRestoreSourceInput<>(sourceOperator, 0, 0);
         } else if (sourceReader instanceof ExternallyInducedSourceReader) {
-            externallyInducedSourceInput =
-                    new StreamTaskExternallyInducedSourceInput<>(
-                            sourceOperator,
-                            this::triggerCheckpointForExternallyInducedSource,
-                            0,
-                            0);
+            externallyInducedSourceInput = new StreamTaskExternallyInducedSourceInput<>(
+                    sourceOperator,
+                    this::triggerCheckpointForExternallyInducedSource,
+                    0,
+                    0);
 
             input = externallyInducedSourceInput;
         } else {
+            // 默认是走该逻辑
             input = new StreamTaskSourceInput<>(sourceOperator, 0, 0);
         }
 
         // The SourceOperatorStreamTask doesn't have any inputs, so there is no need for
         // a WatermarkGauge on the input.
-        output =
-                new AsyncDataOutputToOutput<T>(
-                        operatorChain.getMainOperatorOutput(),
-                        sourceOperator.getSourceMetricGroup(),
-                        null);
-
+        output = new AsyncDataOutputToOutput<T>(
+                // 就是ChainingOutput或RecordWriterOutput
+                operatorChain.getMainOperatorOutput(),
+                sourceOperator.getSourceMetricGroup(),
+                null);
+        // input为StreamTaskSourceInput，output为AsyncDataOutputToOutput
         inputProcessor = new StreamOneInputProcessor<>(input, output, operatorChain);
 
-        getEnvironment()
-                .getMetricGroup()
-                .getIOMetricGroup()
-                .gauge(
-                        MetricNames.CHECKPOINT_START_DELAY_TIME,
-                        this::getAsyncCheckpointStartDelayNanos);
+        getEnvironment().getMetricGroup().getIOMetricGroup().gauge(
+                MetricNames.CHECKPOINT_START_DELAY_TIME,
+                this::getAsyncCheckpointStartDelayNanos);
     }
 
     @Override
@@ -196,7 +198,7 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
                     FutureUtils.forward(
                             mainOperator.stop(
                                     ((SavepointType) checkpointOptions.getCheckpointType())
-                                                    .shouldDrain()
+                                            .shouldDrain()
                                             ? StopMode.DRAIN
                                             : StopMode.NO_DRAIN),
                             operatorFinished);
@@ -288,16 +290,17 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
 
     /** Implementation of {@link DataOutput} that wraps a specific {@link Output}. */
     public static class AsyncDataOutputToOutput<T> implements DataOutput<T> {
-
+        // output就是ChainingOutput或RecordWriterOutput
         private final Output<StreamRecord<T>> output;
         private final InternalSourceReaderMetricGroup metricGroup;
-        @Nullable private final WatermarkGauge inputWatermarkGauge;
+        @Nullable
+        private final WatermarkGauge inputWatermarkGauge;
 
         public AsyncDataOutputToOutput(
                 Output<StreamRecord<T>> output,
                 InternalSourceReaderMetricGroup metricGroup,
                 @Nullable WatermarkGauge inputWatermarkGauge) {
-
+            // output就是ChainingOutput或RecordWriterOutput
             this.output = checkNotNull(output);
             this.inputWatermarkGauge = inputWatermarkGauge;
             this.metricGroup = metricGroup;
@@ -306,6 +309,7 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
         @Override
         public void emitRecord(StreamRecord<T> streamRecord) {
             metricGroup.recordEmitted(streamRecord.getTimestamp());
+            // output就是ChainingOutput或RecordWriterOutput
             output.collect(streamRecord);
         }
 
@@ -317,15 +321,18 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
         @Override
         public void emitWatermark(Watermark watermark) {
             long watermarkTimestamp = watermark.getTimestamp();
+            // 更新指标
             if (inputWatermarkGauge != null) {
                 inputWatermarkGauge.setCurrentWatermark(watermarkTimestamp);
             }
             metricGroup.watermarkEmitted(watermarkTimestamp);
+            // output就是ChainingOutput或RecordWriterOutput
             output.emitWatermark(watermark);
         }
 
         @Override
         public void emitWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
+            // output就是ChainingOutput或RecordWriterOutput
             output.emitWatermarkStatus(watermarkStatus);
         }
     }

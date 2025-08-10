@@ -60,6 +60,7 @@ class PauseOrResumeSplitsTask<SplitT extends SourceSplit> implements SplitFetche
     @Override
     public boolean run() throws IOException {
         try {
+            // 调用KafkaPartitionSplitReader的pauseOrResumeSplits方法
             splitReader.pauseOrResumeSplits(splitsToPause, splitsToResume);
         } catch (UnsupportedOperationException e) {
             if (!allowUnalignedSourceSplits) {

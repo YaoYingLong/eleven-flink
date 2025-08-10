@@ -32,12 +32,20 @@ import static org.apache.flink.util.Preconditions.checkState;
 @Internal
 final class CombinedWatermarkStatus {
 
-    /** List of all watermark outputs, for efficient access. */
+    /**
+     * List of all watermark outputs, for efficient access.
+     * <p>
+     * 所有水位线的输出列表，便于高效访问
+     */
     private final List<PartialWatermark> partialWatermarks = new ArrayList<>();
 
-    /** The combined watermark over the per-output watermarks. */
+    /**
+     * The combined watermark over the per-output watermarks.
+     * <p>
+     * 水位线的组合水印，基于每个输出的水位线
+     */
     private long combinedWatermark = Long.MIN_VALUE;
-
+    // 是否处于空闲
     private boolean idle = false;
 
     public long getCombinedWatermark() {
@@ -74,6 +82,7 @@ final class CombinedWatermarkStatus {
 
         boolean allIdle = true;
         for (PartialWatermark partialWatermark : partialWatermarks) {
+            // 遍历所有输出的水位线，且不处于空闲状态，则取所有水位线中的最小值
             if (!partialWatermark.isIdle()) {
                 minimumOverAllOutputs =
                         Math.min(minimumOverAllOutputs, partialWatermark.getWatermark());
@@ -83,6 +92,7 @@ final class CombinedWatermarkStatus {
 
         this.idle = allIdle;
 
+        // 如果所有输出都处于非空闲状态，且最小水位线大于当前组合水位线，则更新组合水位线
         if (!allIdle && minimumOverAllOutputs > combinedWatermark) {
             combinedWatermark = minimumOverAllOutputs;
             return true;
@@ -97,8 +107,7 @@ final class CombinedWatermarkStatus {
         private boolean idle = false;
         private final WatermarkOutputMultiplexer.WatermarkUpdateListener onWatermarkUpdate;
 
-        public PartialWatermark(
-                WatermarkOutputMultiplexer.WatermarkUpdateListener onWatermarkUpdate) {
+        public PartialWatermark(WatermarkOutputMultiplexer.WatermarkUpdateListener onWatermarkUpdate) {
             this.onWatermarkUpdate = onWatermarkUpdate;
         }
 
@@ -119,8 +128,10 @@ final class CombinedWatermarkStatus {
          */
         public boolean setWatermark(long watermark) {
             this.idle = false;
+            // 如说设置的水位线大于当前水位线，则更新水位线
             final boolean updated = watermark > this.watermark;
             if (updated) {
+                // 这里是调用 WatermarkUpdateListener 的 onWatermarkUpdate 方法
                 this.onWatermarkUpdate.onWatermarkUpdate(watermark);
                 this.watermark = Math.max(watermark, this.watermark);
             }

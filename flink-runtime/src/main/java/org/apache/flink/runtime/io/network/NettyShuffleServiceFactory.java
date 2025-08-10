@@ -116,15 +116,15 @@ public class NettyShuffleServiceFactory
             int numberOfSlots,
             String[] tmpDirPaths) {
         NettyConfig nettyConfig = config.nettyConfig();
-        ConnectionManager connectionManager =
-                nettyConfig != null
-                        ? new NettyConnectionManager(
-                                resultPartitionManager,
-                                taskEventPublisher,
-                                nettyConfig,
-                                config.getMaxNumberOfConnections(),
-                                config.isConnectionReuseEnabled())
-                        : new LocalConnectionManager();
+        // 返回NettyConnectionManager
+        ConnectionManager connectionManager = nettyConfig != null
+                ? new NettyConnectionManager(
+                resultPartitionManager,
+                taskEventPublisher,
+                nettyConfig,
+                config.getMaxNumberOfConnections(),
+                config.isConnectionReuseEnabled())
+                : new LocalConnectionManager();
         return createNettyShuffleEnvironment(
                 config,
                 taskExecutorResourceId,
@@ -166,62 +166,56 @@ public class NettyShuffleServiceFactory
                             .collect(Collectors.joining("\n\t")));
         }
 
-        NetworkBufferPool networkBufferPool =
-                new NetworkBufferPool(
-                        config.numNetworkBuffers(),
-                        config.networkBufferSize(),
-                        config.getRequestSegmentsTimeout());
+        NetworkBufferPool networkBufferPool = new NetworkBufferPool(
+                config.numNetworkBuffers(),
+                config.networkBufferSize(),
+                config.getRequestSegmentsTimeout());
 
         // we create a separated buffer pool here for batch shuffle instead of reusing the network
         // buffer pool directly to avoid potential side effects of memory contention, for example,
         // dead lock or "insufficient network buffer" error
-        BatchShuffleReadBufferPool batchShuffleReadBufferPool =
-                new BatchShuffleReadBufferPool(
-                        config.batchShuffleReadMemoryBytes(), config.networkBufferSize());
+        BatchShuffleReadBufferPool batchShuffleReadBufferPool = new BatchShuffleReadBufferPool(
+                config.batchShuffleReadMemoryBytes(), config.networkBufferSize());
 
         // we create a separated IO executor pool here for batch shuffle instead of reusing the
         // TaskManager IO executor pool directly to avoid the potential side effects of execution
         // contention, for example, too long IO or waiting time leading to starvation or timeout
-        ScheduledExecutorService batchShuffleReadIOExecutor =
-                Executors.newScheduledThreadPool(
-                        Math.max(
-                                1,
-                                Math.min(
-                                        batchShuffleReadBufferPool.getMaxConcurrentRequests(),
-                                        Math.max(numberOfSlots, tmpDirPaths.length))),
-                        new ExecutorThreadFactory("blocking-shuffle-io"));
+        ScheduledExecutorService batchShuffleReadIOExecutor = Executors.newScheduledThreadPool(
+                Math.max(
+                        1, Math.min(
+                                batchShuffleReadBufferPool.getMaxConcurrentRequests(),
+                                Math.max(numberOfSlots, tmpDirPaths.length))),
+                new ExecutorThreadFactory("blocking-shuffle-io"));
 
         registerShuffleMetrics(metricGroup, networkBufferPool);
 
-        ResultPartitionFactory resultPartitionFactory =
-                new ResultPartitionFactory(
-                        resultPartitionManager,
-                        fileChannelManager,
-                        networkBufferPool,
-                        batchShuffleReadBufferPool,
-                        batchShuffleReadIOExecutor,
-                        config.getBlockingSubpartitionType(),
-                        config.networkBuffersPerChannel(),
-                        config.floatingNetworkBuffersPerGate(),
-                        config.networkBufferSize(),
-                        config.isBatchShuffleCompressionEnabled(),
-                        config.getCompressionCodec(),
-                        config.getMaxBuffersPerChannel(),
-                        config.sortShuffleMinBuffers(),
-                        config.sortShuffleMinParallelism(),
-                        config.isSSLEnabled(),
-                        config.getMaxOverdraftBuffersPerGate(),
-                        config.getHybridShuffleSpilledIndexSegmentSize(),
-                        config.getHybridShuffleNumRetainedInMemoryRegionsMax());
+        ResultPartitionFactory resultPartitionFactory = new ResultPartitionFactory(
+                resultPartitionManager,
+                fileChannelManager,
+                networkBufferPool,
+                batchShuffleReadBufferPool,
+                batchShuffleReadIOExecutor,
+                config.getBlockingSubpartitionType(),
+                config.networkBuffersPerChannel(),
+                config.floatingNetworkBuffersPerGate(),
+                config.networkBufferSize(),
+                config.isBatchShuffleCompressionEnabled(),
+                config.getCompressionCodec(),
+                config.getMaxBuffersPerChannel(),
+                config.sortShuffleMinBuffers(),
+                config.sortShuffleMinParallelism(),
+                config.isSSLEnabled(),
+                config.getMaxOverdraftBuffersPerGate(),
+                config.getHybridShuffleSpilledIndexSegmentSize(),
+                config.getHybridShuffleNumRetainedInMemoryRegionsMax());
 
-        SingleInputGateFactory singleInputGateFactory =
-                new SingleInputGateFactory(
-                        taskExecutorResourceId,
-                        config,
-                        connectionManager,
-                        resultPartitionManager,
-                        taskEventPublisher,
-                        networkBufferPool);
+        SingleInputGateFactory singleInputGateFactory = new SingleInputGateFactory(
+                taskExecutorResourceId,
+                config,
+                connectionManager,
+                resultPartitionManager,
+                taskEventPublisher,
+                networkBufferPool);
 
         return new NettyShuffleEnvironment(
                 taskExecutorResourceId,

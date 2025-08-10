@@ -38,10 +38,12 @@ public class SerializationDelegate<T> implements IOReadableWritable {
     private final TypeSerializer<T> serializer;
 
     public SerializationDelegate(TypeSerializer<T> serializer) {
+        // 传入的是StreamElementSerializer
         this.serializer = serializer;
     }
 
     public void setInstance(T instance) {
+        // 具体的StreamRecord<X>数据对象
         this.instance = instance;
     }
 
@@ -51,6 +53,7 @@ public class SerializationDelegate<T> implements IOReadableWritable {
 
     @Override
     public void write(DataOutputView out) throws IOException {
+        // 调用StreamElementSerializer的serialize方法进行序列化并写入到DataOutputView中
         this.serializer.serialize(this.instance, out);
     }
 

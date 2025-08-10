@@ -40,6 +40,7 @@ public class RemoteExecutorFactory implements PipelineExecutorFactory {
 
     @Override
     public PipelineExecutor getExecutor(final Configuration configuration) {
+        //  返回 RemoteExecutorFactory 的 RemoteExecutor
         return new RemoteExecutor();
     }
 }

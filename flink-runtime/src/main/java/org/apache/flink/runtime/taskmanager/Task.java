@@ -136,8 +136,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>Each Task is run by one dedicated thread.
  */
-public class Task
-        implements Runnable, TaskSlotPayload, TaskActions, PartitionProducerStateProvider {
+public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionProducerStateProvider {
 
     /** The class logger. */
     private static final Logger LOG = LoggerFactory.getLogger(Task.class);
@@ -215,6 +214,7 @@ public class Task
      */
     private final SerializedValue<ExecutionConfig> serializedExecutionConfig;
 
+    // 当前Task可能要输出多个ResultPartition
     private final ResultPartitionWriter[] partitionWriters;
 
     private final IndexedInputGate[] inputGates;
@@ -278,7 +278,8 @@ public class Task
      * The invokable of this task, if initialized. All accesses must copy the reference and check
      * for null, as this field is cleared as part of the disposal logic.
      */
-    @Nullable private volatile TaskInvokable invokable;
+    @Nullable
+    private volatile TaskInvokable invokable;
 
     /** The current execution state of the task. */
     private volatile ExecutionState executionState = ExecutionState.CREATED;
@@ -301,6 +302,8 @@ public class Task
     /**
      * <b>IMPORTANT:</b> This constructor may not start any work that would need to be undone in the
      * case of a failing task deployment.
+     * <p>
+     * Execution被调度后在分配的TaskManager中启动对应的Task。Task包裹了具有用户执行逻辑的operator
      */
     public Task(
             JobInformation jobInformation,
@@ -334,14 +337,13 @@ public class Task
         Preconditions.checkNotNull(jobInformation);
         Preconditions.checkNotNull(taskInformation);
 
-        this.taskInfo =
-                new TaskInfo(
-                        taskInformation.getTaskName(),
-                        taskInformation.getMaxNumberOfSubtasks(),
-                        executionAttemptID.getSubtaskIndex(),
-                        taskInformation.getNumberOfSubtasks(),
-                        executionAttemptID.getAttemptNumber(),
-                        String.valueOf(slotAllocationId));
+        this.taskInfo = new TaskInfo(
+                taskInformation.getTaskName(),
+                taskInformation.getMaxNumberOfSubtasks(),
+                executionAttemptID.getSubtaskIndex(),
+                taskInformation.getNumberOfSubtasks(),
+                executionAttemptID.getAttemptNumber(),
+                String.valueOf(slotAllocationId));
 
         this.jobId = jobInformation.getJobId();
         this.vertexId = taskInformation.getJobVertexId();
@@ -356,10 +358,10 @@ public class Task
         this.serializedExecutionConfig = jobInformation.getSerializedExecutionConfig();
 
         Configuration tmConfig = taskManagerConfig.getConfiguration();
-        this.taskCancellationInterval =
-                tmConfig.getLong(TaskManagerOptions.TASK_CANCELLATION_INTERVAL);
-        this.taskCancellationTimeout =
-                tmConfig.getLong(TaskManagerOptions.TASK_CANCELLATION_TIMEOUT);
+        this.taskCancellationInterval = tmConfig.getLong(
+                TaskManagerOptions.TASK_CANCELLATION_INTERVAL);
+        this.taskCancellationTimeout = tmConfig.getLong(
+                TaskManagerOptions.TASK_CANCELLATION_TIMEOUT);
 
         this.memoryManager = Preconditions.checkNotNull(memManager);
         this.sharedResources = Preconditions.checkNotNull(sharedResources);
@@ -392,44 +394,41 @@ public class Task
         // create the reader and writer structures
 
         final String taskNameWithSubtaskAndId = taskNameWithSubtask + " (" + executionId + ')';
-
+        // 创建ShuffleIOOwnerContext,这个变量在TaskExecutor初始化的时候，就已经创建好了
         final ShuffleIOOwnerContext taskShuffleContext =
                 shuffleEnvironment.createShuffleIOOwnerContext(
                         taskNameWithSubtaskAndId, executionId, metrics.getIOMetricGroup());
 
         // produced intermediate result partitions
-        final ResultPartitionWriter[] resultPartitionWriters =
-                shuffleEnvironment
-                        .createResultPartitionWriters(
-                                taskShuffleContext, resultPartitionDeploymentDescriptors)
-                        .toArray(new ResultPartitionWriter[] {});
+        // 初始化ResultPartitioner具体实现是ResultPartition和ResultSubPartition一般一个Task就只有一个ResultPartition
+        // resultPartitionDeploymentDescriptors是通过TaskDeploymentDescriptor中的getProducedPartitions得到的
+        final ResultPartitionWriter[] resultPartitionWriters = shuffleEnvironment
+                .createResultPartitionWriters(
+                        taskShuffleContext,
+                        resultPartitionDeploymentDescriptors)
+                .toArray(new ResultPartitionWriter[] {});
 
         this.partitionWriters = resultPartitionWriters;
-
         // consumed intermediate result partitions
-        final IndexedInputGate[] gates =
-                shuffleEnvironment
-                        .createInputGates(taskShuffleContext, this, inputGateDeploymentDescriptors)
-                        .toArray(new IndexedInputGate[0]);
+        // 初始化 InputGate
+        final IndexedInputGate[] gates = shuffleEnvironment
+                .createInputGates(taskShuffleContext, this, inputGateDeploymentDescriptors)
+                .toArray(new IndexedInputGate[0]);
 
         this.inputGates = new IndexedInputGate[gates.length];
         int counter = 0;
         for (IndexedInputGate gate : gates) {
-            inputGates[counter++] =
-                    new InputGateWithMetrics(
-                            gate, metrics.getIOMetricGroup().getNumBytesInCounter());
+            inputGates[counter++] = new InputGateWithMetrics(
+                    gate, metrics.getIOMetricGroup().getNumBytesInCounter());
         }
-
         if (shuffleEnvironment instanceof NettyShuffleEnvironment) {
             //noinspection deprecation
-            ((NettyShuffleEnvironment) shuffleEnvironment)
-                    .registerLegacyNetworkMetrics(
-                            metrics.getIOMetricGroup(), resultPartitionWriters, gates);
+            ((NettyShuffleEnvironment) shuffleEnvironment).registerLegacyNetworkMetrics(
+                    metrics.getIOMetricGroup(), resultPartitionWriters, gates);
         }
-
         invokableHasBeenCanceled = new AtomicBoolean(false);
-
         // finally, create the executing thread, but do not start it
+        // 执行Task的线程，转到Task的run()方法
         executingThread = new Thread(TASK_THREADS_GROUP, this, taskNameWithSubtask);
     }
 
@@ -505,7 +504,7 @@ public class Task
         if (invokable == null
                 || partitionWriters.length == 0
                 || (executionState != ExecutionState.INITIALIZING
-                        && executionState != ExecutionState.RUNNING)) {
+                && executionState != ExecutionState.RUNNING)) {
             return false;
         }
         for (int i = 0; i < partitionWriters.length; ++i) {
@@ -552,6 +551,7 @@ public class Task
 
     /** Starts the task's thread. */
     public void startTaskThread() {
+        // 这个线程在创建Task对象的时候，就已经会初始化好了，经过转换最终就是调用当前类的run()方法
         executingThread.start();
     }
 
@@ -559,6 +559,7 @@ public class Task
     @Override
     public void run() {
         try {
+            // 执行任务
             doRun();
         } finally {
             terminationFuture.complete(executionState);
@@ -569,8 +570,10 @@ public class Task
         // ----------------------------
         //  Initial State transition
         // ----------------------------
+        // 状态处理，当能把Task的状态改成DEPLOYING的时候，就退出这个while(true)循环
         while (true) {
             ExecutionState current = this.executionState;
+            // 由 CREATED 改成：DEPLOYING， 然后退出
             if (current == ExecutionState.CREATED) {
                 if (transitionState(ExecutionState.CREATED, ExecutionState.DEPLOYING)) {
                     // success, we can start our work
@@ -605,8 +608,9 @@ public class Task
         // all resource acquisitions and registrations from here on
         // need to be undone in the end
         Map<String, Future<Path>> distributedCacheEntries = new HashMap<>();
+        // 在构建ExecutorGraph时，会把每一个ExecutorVertex的启动类都会初始化好，设置在ExecutorVertex里面
+        // Slot ===> Task ===> ExecutorVertex ===> 启动类
         TaskInvokable invokable = null;
-
         try {
             // ----------------------------
             //  Task Bootstrap - We periodically
@@ -620,23 +624,22 @@ public class Task
             // first of all, get a user-code classloader
             // this may involve downloading the job's JAR files and/or classes
             LOG.info("Loading JAR files for task {}.", this);
-
+            // 创建一个用户加载用户代码的类加载器
             userCodeClassLoader = createUserCodeClassloader();
+            // 过反序列化得到 ExecutionConfig，从 ExecutionConfig 中可以的到所有算子相关的信息
             final ExecutionConfig executionConfig =
                     serializedExecutionConfig.deserializeValue(userCodeClassLoader.asClassLoader());
             Configuration executionConfigConfiguration = executionConfig.toConfiguration();
 
             // override task cancellation interval from Flink config if set in ExecutionConfig
-            taskCancellationInterval =
-                    executionConfigConfiguration
-                            .getOptional(TaskManagerOptions.TASK_CANCELLATION_INTERVAL)
-                            .orElse(taskCancellationInterval);
+            taskCancellationInterval = executionConfigConfiguration
+                    .getOptional(TaskManagerOptions.TASK_CANCELLATION_INTERVAL)
+                    .orElse(taskCancellationInterval);
 
             // override task cancellation timeout from Flink config if set in ExecutionConfig
-            taskCancellationTimeout =
-                    executionConfigConfiguration
-                            .getOptional(TaskManagerOptions.TASK_CANCELLATION_TIMEOUT)
-                            .orElse(taskCancellationTimeout);
+            taskCancellationTimeout = executionConfigConfiguration
+                    .getOptional(TaskManagerOptions.TASK_CANCELLATION_TIMEOUT)
+                    .orElse(taskCancellationTimeout);
 
             if (isCanceledOrFailed()) {
                 throw new CancelTaskException();
@@ -650,29 +653,32 @@ public class Task
             // ----------------------------------------------------------------
 
             LOG.debug("Registering task at network: {}.", this);
-
+            // 启动ResultPartitionWriter和InputGate
+            // 向网络栈中注册Task,为ResultPartition和InputGate分配缓冲池
+            // 原来在初始化Task的时候，就已经把ResultPartition和InputGate给初始化
+            // 原来在构造Task对象的时候，关于输入和输出的抽象对象，都已经创建完毕
+            // 其实就是初始化BufferPool
             setupPartitionsAndGates(partitionWriters, inputGates);
-
+            // 注册 ResultPartitionWriter
             for (ResultPartitionWriter partitionWriter : partitionWriters) {
                 taskEventDispatcher.registerPartition(partitionWriter.getPartitionId());
             }
 
             // next, kick off the background copying of files for the distributed cache
             try {
+                // 为分布式缓存启动文件的后台复制
                 for (Map.Entry<String, DistributedCache.DistributedCacheEntry> entry :
                         DistributedCache.readFileInfoFromConfig(jobConfiguration)) {
                     LOG.info("Obtaining local cache file for '{}'.", entry.getKey());
-                    Future<Path> cp =
-                            fileCache.createTmpFile(
-                                    entry.getKey(), entry.getValue(), jobId, executionId);
+                    Future<Path> cp = fileCache.createTmpFile(
+                            entry.getKey(), entry.getValue(), jobId, executionId);
                     distributedCacheEntries.put(entry.getKey(), cp);
                 }
             } catch (Exception e) {
                 throw new Exception(
                         String.format(
                                 "Exception while adding files to distributed cache of task %s (%s).",
-                                taskNameWithSubtask, executionId),
-                        e);
+                                taskNameWithSubtask, executionId), e);
             }
 
             if (isCanceledOrFailed()) {
@@ -685,37 +691,36 @@ public class Task
 
             TaskKvStateRegistry kvStateRegistry =
                     kvStateService.createKvStateTaskRegistry(jobId, getJobVertexId());
-
-            Environment env =
-                    new RuntimeEnvironment(
-                            jobId,
-                            vertexId,
-                            executionId,
-                            executionConfig,
-                            taskInfo,
-                            jobConfiguration,
-                            taskConfiguration,
-                            userCodeClassLoader,
-                            memoryManager,
-                            sharedResources,
-                            ioManager,
-                            broadcastVariableManager,
-                            taskStateManager,
-                            aggregateManager,
-                            accumulatorRegistry,
-                            kvStateRegistry,
-                            inputSplitProvider,
-                            distributedCacheEntries,
-                            partitionWriters,
-                            inputGates,
-                            taskEventDispatcher,
-                            checkpointResponder,
-                            operatorCoordinatorEventGateway,
-                            taskManagerConfig,
-                            metrics,
-                            this,
-                            externalResourceInfoProvider,
-                            channelStateExecutorFactory);
+            // 构建一个环境对象
+            Environment env = new RuntimeEnvironment(
+                    jobId,
+                    vertexId,
+                    executionId,
+                    executionConfig,
+                    taskInfo,
+                    jobConfiguration,
+                    taskConfiguration,
+                    userCodeClassLoader,
+                    memoryManager,
+                    sharedResources,
+                    ioManager,
+                    broadcastVariableManager,
+                    taskStateManager,
+                    aggregateManager,
+                    accumulatorRegistry,
+                    kvStateRegistry,
+                    inputSplitProvider,
+                    distributedCacheEntries,
+                    partitionWriters,
+                    inputGates,
+                    taskEventDispatcher,
+                    checkpointResponder,
+                    operatorCoordinatorEventGateway,
+                    taskManagerConfig,
+                    metrics,
+                    this,
+                    externalResourceInfoProvider,
+                    channelStateExecutorFactory);
 
             // Make sure the user code classloader is accessible thread-locally.
             // We are setting the correct context class loader before instantiating the invokable
@@ -727,9 +732,13 @@ public class Task
             FlinkSecurityManager.monitorUserSystemExitForCurrentThread();
             try {
                 // now load and instantiate the task's invokable code
-                invokable =
-                        loadAndInstantiateInvokable(
-                                userCodeClassLoader.asClassLoader(), nameOfInvokableClass, env);
+                // 获取到代码运行主类nameOfInvokableClass是JobVertex的invokableClassName，
+                // AbstractInvokable = invokable每一个StreamNode在添加的时候都会有一个jobVertexClass属性
+                // 对于一个operator chain，就是head operator对应的invokableClassName，见StreamingJobGraphGenerator.createChain
+                // 对于Stream任务而言，就是StreamTask的子类，SourceStreamTask、OneInputStreamTask、TwoInputStreamTask等
+                // 通过通过反射创建AbstractInvokable对象，其实就是通过反射调用StreamTask的构造方法
+                invokable = loadAndInstantiateInvokable(
+                        userCodeClassLoader.asClassLoader(), nameOfInvokableClass, env);
             } finally {
                 FlinkSecurityManager.unmonitorUserSystemExitForCurrentThread();
             }
@@ -742,6 +751,13 @@ public class Task
             // by the time we switched to running.
             this.invokable = invokable;
 
+            // 运行任务，在流式应用程序中，都是StreamTask的子类
+            // AbstractInvokable是Task执行的主要逻辑，也是所有被执行的任务的基类，包括Streaming模式和Batch模式。
+            // 在Streaming模式下所有任务都继承自StreamTask，其子类包括SourceStreamTask,OneInputStreamTask,
+            // TwoInputStreamTask, 以及用于迭代模式下的StreamIterationHead和StreamIterationTail。
+            // 每一个StreamNode在添加到StreamGraph的时候都会有一个关联的jobVertexClass属性，
+            // 这个属性就是该StreamNode对应的StreamTask类型；对于一个OperatorChain而言，它所对应的
+            // StreamTask就是其head operator对应的StreamTask。
             restoreAndInvoke(invokable);
 
             // make sure, we enter the catch block if the task leaves the invoke() method due
@@ -755,6 +771,7 @@ public class Task
             // ----------------------------------------------------------------
 
             // finish the produced partitions. if this fails, we consider the execution failed.
+            // 正常结束
             for (ResultPartitionWriter partitionWriter : partitionWriters) {
                 if (partitionWriter != null) {
                     partitionWriter.finish();
@@ -771,9 +788,7 @@ public class Task
             // the execution failed. either the invokable code properly failed, or
             // an exception was thrown as a side effect of cancelling
             // ----------------------------------------------------------------
-
             t = preProcessException(t);
-
             try {
                 // transition into our final state. we should be either in DEPLOYING, INITIALIZING,
                 // RUNNING, CANCELING, or FAILED
@@ -781,7 +796,6 @@ public class Task
                 // or to failExternally()
                 while (true) {
                     ExecutionState current = this.executionState;
-
                     if (current == ExecutionState.RUNNING
                             || current == ExecutionState.INITIALIZING
                             || current == ExecutionState.DEPLOYING) {
@@ -886,7 +900,7 @@ public class Task
         // check if the exception is unrecoverable
         if (ExceptionUtils.isJvmFatalError(t)
                 || (t instanceof OutOfMemoryError
-                        && taskManagerConfig.shouldExitJvmOnOutOfMemoryError())) {
+                && taskManagerConfig.shouldExitJvmOnOutOfMemoryError())) {
 
             // terminate the JVM immediately
             // don't attempt a clean shutdown, because we cannot expect the clean shutdown
@@ -908,6 +922,7 @@ public class Task
         try {
             // switch to the INITIALIZING state, if that fails, we have been canceled/failed in the
             // meantime
+            // 由 DEPLOYING 状态改成： INITIALIZING
             if (!transitionState(ExecutionState.DEPLOYING, ExecutionState.INITIALIZING)) {
                 throw new CancelTaskException();
             }
@@ -918,8 +933,9 @@ public class Task
             // make sure the user code classloader is accessible thread-locally
             executingThread.setContextClassLoader(userCodeClassLoader.asClassLoader());
 
+            // 在invoke方法之前被调用，主要是恢复状态
             runWithSystemExitMonitoring(finalInvokable::restore);
-
+            // 由 INITIALIZING 状态改成： RUNNING
             if (!transitionState(ExecutionState.INITIALIZING, ExecutionState.RUNNING)) {
                 throw new CancelTaskException();
             }
@@ -928,6 +944,13 @@ public class Task
             taskManagerActions.updateTaskExecutionState(
                     new TaskExecutionState(executionId, ExecutionState.RUNNING));
 
+            // 运行任务，在流式应用程序中，都是StreamTask的子类
+            // AbstractInvokable是Task执行的主要逻辑，也是所有被执行的任务的基类，包括Streaming模式和Batch模式。
+            // 在Streaming模式下所有任务都继承自StreamTask，其子类包括SourceStreamTask,OneInputStreamTask,
+            // TwoInputStreamTask, 以及用于迭代模式下的StreamIterationHead和StreamIterationTail。
+            // 每一个StreamNode在添加到StreamGraph的时候都会有一个关联的jobVertexClass属性，
+            // 这个属性就是该StreamNode对应的StreamTask类型；对于一个OperatorChain而言，它所对应的
+            // StreamTask就是其head operator对应的StreamTask。
             runWithSystemExitMonitoring(finalInvokable::invoke);
         } catch (Throwable throwable) {
             try {
@@ -958,13 +981,15 @@ public class Task
     @VisibleForTesting
     public static void setupPartitionsAndGates(
             ResultPartitionWriter[] producedPartitions, InputGate[] inputGates) throws IOException {
-
+        // 注册当前Task的ResultPartition到启动当前Task的TaskManager
+        // 之上的用来跟踪管理ResultPartition的ResultPartitionManager之中
         for (ResultPartitionWriter partition : producedPartitions) {
             partition.setup();
         }
 
         // InputGates must be initialized after the partitions, since during InputGate#setup
         // we are requesting partitions
+        // 为这个Task的InputGate中的InputChannel分配BufferPool
         for (InputGate gate : inputGates) {
             gate.setup();
         }
@@ -1063,6 +1088,7 @@ public class Task
      *
      * @param currentState of the execution
      * @param newState of the execution
+     *
      * @return true if the transition was successful, otherwise false
      */
     private boolean transitionState(ExecutionState currentState, ExecutionState newState) {
@@ -1075,6 +1101,7 @@ public class Task
      * @param currentState of the execution
      * @param newState of the execution
      * @param cause of the transition change or null
+     *
      * @return true if the transition was successful, otherwise false
      */
     private boolean transitionState(
@@ -1489,7 +1516,7 @@ public class Task
      * takes care of that).
      *
      * @throws FlinkException This method throws exceptions indicating the reason why delivery did
-     *     not succeed.
+     *         not succeed.
      */
     public void deliverOperatorEvent(OperatorID operator, SerializedValue<OperatorEvent> evt)
             throws FlinkException {
@@ -1498,7 +1525,7 @@ public class Task
 
         if (invokable == null
                 || (currentState != ExecutionState.RUNNING
-                        && currentState != ExecutionState.INITIALIZING)) {
+                && currentState != ExecutionState.INITIALIZING)) {
             throw new TaskNotRunningException("Task is not running, but in state " + currentState);
         }
 
@@ -1580,21 +1607,25 @@ public class Task
      * @param classLoader The classloader to load the class through.
      * @param className The name of the class to load.
      * @param environment The task environment.
+     *
      * @return The instantiated invokable task object.
+     *
      * @throws Throwable Forwards all exceptions that happen during initialization of the task. Also
-     *     throws an exception if the task class misses the necessary constructor.
+     *         throws an exception if the task class misses the necessary constructor.
      */
     private static TaskInvokable loadAndInstantiateInvokable(
             ClassLoader classLoader, String className, Environment environment) throws Throwable {
 
         final Class<? extends TaskInvokable> invokableClass;
         try {
-            invokableClass =
-                    Class.forName(className, true, classLoader).asSubclass(TaskInvokable.class);
+            invokableClass = Class.forName(className, true, classLoader)
+                    .asSubclass(TaskInvokable.class);
         } catch (Throwable t) {
             throw new Exception("Could not load the task's invokable class.", t);
         }
-
+        // 注意这个地方，调用AbstractInvokable的带一个RuntimeEnvironment参数的构造
+        // 1、SourceStreamTask的带RuntimeEnvironment的构造方法
+        // 2、OneInputStreamTask的带RuntimeEnvironment的构造方法
         Constructor<? extends TaskInvokable> statelessCtor;
 
         try {

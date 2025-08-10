@@ -81,6 +81,7 @@ public class MetricOptions {
      *
      * @param configuration backing configuration
      * @param reporterName reporter name
+     *
      * @return view over configuration
      */
     @Experimental
@@ -312,18 +313,16 @@ public class MetricOptions {
             key("metrics.latency.granularity")
                     .stringType()
                     .defaultValue("operator")
-                    .withDescription(
-                            Description.builder()
-                                    .text(
-                                            "Defines the granularity of latency metrics. Accepted values are:")
-                                    .list(
-                                            text(
-                                                    "single - Track latency without differentiating between sources and subtasks."),
-                                            text(
-                                                    "operator - Track latency while differentiating between sources, but not subtasks."),
-                                            text(
-                                                    "subtask - Track latency while differentiating between sources and subtasks."))
-                                    .build());
+                    .withDescription(Description.builder().text(
+                                    "Defines the granularity of latency metrics. Accepted values are:")
+                            .list(
+                                    text(
+                                            "single - Track latency without differentiating between sources and subtasks."),
+                                    text(
+                                            "operator - Track latency while differentiating between sources, but not subtasks."),
+                                    text(
+                                            "subtask - Track latency while differentiating between sources and subtasks."))
+                            .build());
 
     /** The number of measured latencies to maintain at each operator. */
     public static final ConfigOption<Integer> LATENCY_HISTORY_SIZE =
@@ -483,5 +482,6 @@ public class MetricOptions {
         }
     }
 
-    private MetricOptions() {}
+    private MetricOptions() {
+    }
 }

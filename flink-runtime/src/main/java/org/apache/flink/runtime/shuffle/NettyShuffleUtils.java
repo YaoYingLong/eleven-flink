@@ -68,17 +68,15 @@ public class NettyShuffleUtils {
             final int sortShuffleMinBuffers,
             final int numSubpartitions,
             final ResultPartitionType type) {
-        boolean isSortShuffle =
-                type.isBlockingOrBlockingPersistentResultPartition()
-                        && numSubpartitions >= sortShuffleMinParallelism;
+        boolean isSortShuffle = type.isBlockingOrBlockingPersistentResultPartition()
+                && numSubpartitions >= sortShuffleMinParallelism;
         int min = isSortShuffle ? sortShuffleMinBuffers : numSubpartitions + 1;
-        int max =
-                type.isBounded()
-                        ? numSubpartitions * configuredNetworkBuffersPerChannel
-                                + numFloatingBuffersPerGate
-                        : (isSortShuffle
-                                ? Math.max(min, 4 * numSubpartitions)
-                                : NetworkBufferPool.UNBOUNDED_POOL_SIZE);
+        // 如果PartitionType是unbounded，则不限制buffer pool的最大大小
+        // 否则为sub-partition * taskmanager.network.memory.buffers-per-channel
+        int max = type.isBounded() ?
+                numSubpartitions * configuredNetworkBuffersPerChannel + numFloatingBuffersPerGate
+                : (isSortShuffle ? Math.max(min, 4 * numSubpartitions) :
+                NetworkBufferPool.UNBOUNDED_POOL_SIZE);
         // for each upstream hash-based blocking/pipelined subpartition, at least one buffer is
         // needed even the configured network buffers per channel is 0 and this behavior is for
         // performance. If it's not guaranteed that each subpartition can get at least one buffer,
@@ -189,5 +187,6 @@ public class NettyShuffleUtils {
     }
 
     /** Private default constructor to avoid being instantiated. */
-    private NettyShuffleUtils() {}
+    private NettyShuffleUtils() {
+    }
 }

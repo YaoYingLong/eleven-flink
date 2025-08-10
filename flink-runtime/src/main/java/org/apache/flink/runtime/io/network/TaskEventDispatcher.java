@@ -53,14 +53,14 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      */
     public void registerPartition(ResultPartitionID partitionId) {
         checkNotNull(partitionId);
-
+        // TaskEventDispatcher负责从消费Task发送Task消费结果给上游生产Task
+        // 任务事件分派器分派从消耗任务向产生消耗结果的任务倒流的事件。
+        // 向后事件仅适用于产生流水线结果的任务，也就是说生产Task和消费Task同时运行的时候
         synchronized (registeredHandlers) {
             LOG.debug("registering {}", partitionId);
             if (registeredHandlers.put(partitionId, new TaskEventHandler()) != null) {
-                throw new IllegalStateException(
-                        "Partition "
-                                + partitionId
-                                + " already registered at task event dispatcher.");
+                throw new IllegalStateException("Partition " + partitionId
+                        + " already registered at task event dispatcher.");
             }
         }
     }
@@ -87,7 +87,7 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      * Subscribes a listener to this dispatcher for events on a partition.
      *
      * @param partitionId ID of the partition to subscribe for (must be registered via {@link
-     *     #registerPartition(ResultPartitionID)} first!)
+     *         #registerPartition(ResultPartitionID)} first!)
      * @param eventListener the event listener to subscribe
      * @param eventType event type to subscribe to
      */
@@ -117,7 +117,7 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      * thread on behalf of a {@link RemoteInputChannel}.
      *
      * @return whether the event was published to a registered event handler (initiated via {@link
-     *     #registerPartition(ResultPartitionID)}) or not
+     *         #registerPartition(ResultPartitionID)}) or not
      */
     @Override
     public boolean publish(ResultPartitionID partitionId, TaskEvent event) {

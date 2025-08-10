@@ -75,6 +75,9 @@ public class WatermarkOutputMultiplexer {
      * {@link WatermarkOutput}.
      */
     public WatermarkOutputMultiplexer(WatermarkOutput underlyingOutput) {
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+        // 将output封装成WatermarkToDataOutput然后再被封装成IdlenessAwareWatermarkOutput
         this.underlyingOutput = underlyingOutput;
         this.watermarkPerOutputId = new HashMap<>();
         this.combinedWatermarkStatus = new CombinedWatermarkStatus();
@@ -86,12 +89,13 @@ public class WatermarkOutputMultiplexer {
      * output.
      */
     public void registerNewOutput(String id, WatermarkUpdateListener onWatermarkUpdate) {
+        // onWatermarkUpdate为watermark -> watermarkUpdateListener.updateCurrentSplitWatermark(splitId, watermark)
         final PartialWatermark outputState = new PartialWatermark(onWatermarkUpdate);
-
+        // putIfAbsent如果key已经存在则返回旧值，否则返回null
         final PartialWatermark previouslyRegistered =
                 watermarkPerOutputId.putIfAbsent(id, outputState);
         checkState(previouslyRegistered == null, "Already contains an output for ID %s", id);
-
+        // 把新的outputState添加到combinedWatermarkStatus中
         combinedWatermarkStatus.add(outputState);
     }
 
@@ -146,8 +150,13 @@ public class WatermarkOutputMultiplexer {
      */
     private void updateCombinedWatermark() {
         if (combinedWatermarkStatus.updateCombinedWatermark()) {
-            underlyingOutput.emitWatermark(
-                    new Watermark(combinedWatermarkStatus.getCombinedWatermark()));
+            // 如果有水位线更新，则调用underlyingOutput.emitWatermark
+            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+            // 将output封装成WatermarkToDataOutput然后再被封装成IdlenessAwareWatermarkOutput
+            // 这里调用IdlenessAwareWatermarkOutput的emitWatermark
+            underlyingOutput.emitWatermark(new Watermark(
+                    combinedWatermarkStatus.getCombinedWatermark()));
         } else if (combinedWatermarkStatus.isIdle()) {
             underlyingOutput.markIdle();
         }

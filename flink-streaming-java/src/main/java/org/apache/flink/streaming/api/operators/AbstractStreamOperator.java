@@ -157,22 +157,27 @@ public abstract class AbstractStreamOperator<OUT>
             StreamTask<?, ?> containingTask,
             StreamConfig config,
             Output<StreamRecord<OUT>> output) {
+        // containingTask其实就是StreamTask
         final Environment environment = containingTask.getEnvironment();
         this.container = containingTask;
         this.config = config;
+        // output要么是ChainingOutput，要么就是RecordWriterOutput，最终都会被封装为CountingOutput
         this.output = output;
+        // 指标
         this.metrics = environment.getMetricGroup()
                 .getOrAddOperator(config.getOperatorID(), config.getOperatorName());
+        // 这里其实就是new了一个IndexedCombinedWatermarkStatus
         this.combinedWatermark = IndexedCombinedWatermarkStatus.forInputsCount(2);
 
         try {
+            // 处理延迟指标
             Configuration taskManagerConfig = environment.getTaskManagerInfo().getConfiguration();
+            // 每个算子需要维护的测量延迟的数量，如果没有配置默认为128
             int historySize = taskManagerConfig.getInteger(MetricOptions.LATENCY_HISTORY_SIZE);
             if (historySize <= 0) {
                 LOG.warn(
                         "{} has been set to a value equal or below 0: {}. Using default.",
-                        MetricOptions.LATENCY_HISTORY_SIZE,
-                        historySize);
+                        MetricOptions.LATENCY_HISTORY_SIZE, historySize);
                 historySize = MetricOptions.LATENCY_HISTORY_SIZE.defaultValue();
             }
 
@@ -180,9 +185,8 @@ public abstract class AbstractStreamOperator<OUT>
                     taskManagerConfig.getString(MetricOptions.LATENCY_SOURCE_GRANULARITY);
             LatencyStats.Granularity granularity;
             try {
-                granularity =
-                        LatencyStats.Granularity.valueOf(
-                                configuredGranularity.toUpperCase(Locale.ROOT));
+                granularity = LatencyStats.Granularity.valueOf(
+                        configuredGranularity.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException iae) {
                 granularity = LatencyStats.Granularity.OPERATOR;
                 LOG.warn(
@@ -192,34 +196,28 @@ public abstract class AbstractStreamOperator<OUT>
                         granularity);
             }
             MetricGroup taskMetricGroup = this.metrics.getTaskMetricGroup();
-            this.latencyStats =
-                    new LatencyStats(
-                            taskMetricGroup.addGroup("latency"),
-                            historySize,
-                            container.getIndexInSubtaskGroup(),
-                            getOperatorID(),
-                            granularity);
+            this.latencyStats = new LatencyStats(
+                    taskMetricGroup.addGroup("latency"),
+                    historySize,
+                    container.getIndexInSubtaskGroup(),
+                    getOperatorID(),
+                    granularity);
         } catch (Exception e) {
             LOG.warn("An error occurred while instantiating latency metrics.", e);
-            this.latencyStats =
-                    new LatencyStats(
-                            UnregisteredMetricGroups.createUnregisteredTaskMetricGroup()
-                                    .addGroup("latency"),
-                            1,
-                            0,
-                            new OperatorID(),
-                            LatencyStats.Granularity.SINGLE);
+            this.latencyStats = new LatencyStats(
+                    UnregisteredMetricGroups.createUnregisteredTaskMetricGroup()
+                            .addGroup("latency"), 1, 0, new OperatorID(),
+                    LatencyStats.Granularity.SINGLE);
         }
 
-        this.runtimeContext =
-                new StreamingRuntimeContext(
-                        environment,
-                        environment.getAccumulatorRegistry().getUserMap(),
-                        getMetricGroup(),
-                        getOperatorID(),
-                        getProcessingTimeService(),
-                        null,
-                        environment.getExternalResourceInfoProvider());
+        this.runtimeContext = new StreamingRuntimeContext(
+                environment,
+                environment.getAccumulatorRegistry().getUserMap(),
+                getMetricGroup(),
+                getOperatorID(),
+                getProcessingTimeService(),
+                null,
+                environment.getExternalResourceInfoProvider());
 
         stateKeySelector1 = config.getStatePartitioner(0, getUserCodeClassloader());
         stateKeySelector2 = config.getStatePartitioner(1, getUserCodeClassloader());
@@ -265,9 +263,8 @@ public abstract class AbstractStreamOperator<OUT>
                                 runtimeContext.getUserCodeClassLoader()),
                         isUsingCustomRawKeyedState());
 
-        stateHandler =
-                new StreamOperatorStateHandler(
-                        context, getExecutionConfig(), streamTaskCloseableRegistry);
+        stateHandler = new StreamOperatorStateHandler(
+                context, getExecutionConfig(), streamTaskCloseableRegistry);
         timeServiceManager = context.internalTimerServiceManager();
         stateHandler.initializeOperatorState(this);
         runtimeContext.setKeyedStateStore(stateHandler.getKeyedStateStore().orElse(null));

@@ -63,6 +63,8 @@ public class RpcInputSplitProvider implements InputSplitProvider {
             if (serializedInputSplit.isEmpty()) {
                 return null;
             } else {
+                // InputSplit是一个逻辑数据分片的抽象，它表示输入数据的一个子集
+                // 例如一个文件的部分内容、一个Kafka分区、一个数据库表的一部分等
                 return InstantiationUtil.deserializeObject(
                         serializedInputSplit.getInputSplitData(), userCodeClassLoader);
             }

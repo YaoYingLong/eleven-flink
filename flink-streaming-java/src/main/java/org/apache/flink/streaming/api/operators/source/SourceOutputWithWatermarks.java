@@ -80,12 +80,16 @@ public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
             WatermarkOutput periodicWatermarkOutput,
             TimestampAssigner<T> timestampAssigner,
             WatermarkGenerator<T> watermarkGenerator) {
-
+        // recordOutput是AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
         this.recordsOutput = checkNotNull(recordsOutput);
+        // 将splitId生成的对应的PartialWatermark封装成ImmediateOutput
         this.onEventWatermarkOutput = checkNotNull(onEventWatermarkOutput);
+        // 将splitId生成的对应的PartialWatermark封装成DeferredOutput
         this.periodicWatermarkOutput = checkNotNull(periodicWatermarkOutput);
+        // timestampAssigner如果有定义，则一般为我们自定义的，用于从数据中提取时间戳的逻辑
         this.timestampAssigner = checkNotNull(timestampAssigner);
         this.watermarkGenerator = checkNotNull(watermarkGenerator);
+        // 封装数据的容器
         this.reusingRecord = new StreamRecord<>(null);
     }
 
@@ -104,10 +108,14 @@ public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
     @Override
     public final void collect(T record, long timestamp) {
         try {
+            // 从数据中提取事件时间
             final long assignedTimestamp = timestampAssigner.extractTimestamp(record, timestamp);
 
             // IMPORTANT: The event must be emitted before the watermark generator is called.
             recordsOutput.emitRecord(reusingRecord.replace(record, assignedTimestamp));
+            // 更新我们自定义的WatermarkGenerator中的maxTimestamp，如BoundedOutOfOrdernessWatermarks
+            // 在调用WatermarkGenerator中的onPeriodicEmit方法时会用到
+            // onEventWatermarkOutput是将splitId生成的对应的PartialWatermark封装成ImmediateOutput
             watermarkGenerator.onEvent(record, assignedTimestamp, onEventWatermarkOutput);
         } catch (ExceptionInChainedOperatorException e) {
             throw e;

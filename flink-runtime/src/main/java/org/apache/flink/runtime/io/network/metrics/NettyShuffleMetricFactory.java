@@ -188,8 +188,7 @@ public class NettyShuffleMetricFactory {
         }
         buffersGroup.gauge(METRIC_OUTPUT_QUEUE_LENGTH, new OutputBuffersGauge(resultPartitions));
         buffersGroup.gauge(METRIC_OUTPUT_QUEUE_SIZE, new OutputBuffersSizeGauge(resultPartitions));
-        buffersGroup.gauge(
-                METRIC_OUTPUT_POOL_USAGE, new OutputBufferPoolUsageGauge(resultPartitions));
+        buffersGroup.gauge(METRIC_OUTPUT_POOL_USAGE, new OutputBufferPoolUsageGauge(resultPartitions));
     }
 
     public static void registerInputMetrics(

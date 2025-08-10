@@ -43,7 +43,9 @@ class FetchTask<E, SplitT extends SourceSplit> implements SplitFetcherTask {
             FutureCompletingBlockingQueue<RecordsWithSplitIds<E>> elementsQueue,
             Consumer<Collection<String>> splitFinishedCallback,
             int fetcherIndex) {
+        // splitReader为KafkaPartitionSplitReader
         this.splitReader = splitReader;
+        // elementsQueue是FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
         this.elementsQueue = elementsQueue;
         this.splitFinishedCallback = splitFinishedCallback;
         this.lastRecords = null;
@@ -55,7 +57,7 @@ class FetchTask<E, SplitT extends SourceSplit> implements SplitFetcherTask {
     public boolean run() throws IOException {
         try {
             if (!isWakenUp() && lastRecords == null) {
-                // 若是kafka会调用KafkaPartitionSplitReader的fetch方法
+                // 若是kafka会调用KafkaPartitionSplitReader的fetch方法，真正的拉取数据
                 lastRecords = splitReader.fetch();
             }
             // isWakenUp默认是返回false
@@ -64,6 +66,7 @@ class FetchTask<E, SplitT extends SourceSplit> implements SplitFetcherTask {
                 // This ensures the handling of the fetched records is atomic to wakeup.
                 // 将拉取到的记录放入队列，可能会被阻塞等待
                 if (elementsQueue.put(fetcherIndex, lastRecords)) {
+                    // if中逻辑是处理完成消费的数据的分区，可以不关注，应该是只有批量处理需要关注
                     if (!lastRecords.finishedSplits().isEmpty()) {
                         // The callback does not throw InterruptedException.
                         splitFinishedCallback.accept(lastRecords.finishedSplits());
@@ -106,6 +109,7 @@ class FetchTask<E, SplitT extends SourceSplit> implements SplitFetcherTask {
     }
 
     private boolean isWakenUp() {
+        // 构造方法中默认设置为false
         return wakeup;
     }
 

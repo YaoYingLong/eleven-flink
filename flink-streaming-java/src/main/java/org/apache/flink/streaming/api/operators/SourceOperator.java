@@ -96,8 +96,8 @@ import static org.apache.flink.util.Preconditions.checkState;
 @Internal
 public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStreamOperator<OUT>
         implements OperatorEventHandler,
-                PushingAsyncDataInput<OUT>,
-                TimestampsAndWatermarks.WatermarkUpdateListener {
+        PushingAsyncDataInput<OUT>,
+        TimestampsAndWatermarks.WatermarkUpdateListener {
     private static final long serialVersionUID = 1405537676017904695L;
 
     // Package private for unit test.
@@ -196,8 +196,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     private final CanEmitBatchOfRecordsChecker canEmitBatchOfRecords;
 
     public SourceOperator(
-            FunctionWithException<SourceReaderContext, SourceReader<OUT, SplitT>, Exception>
-                    readerFactory,
+            FunctionWithException<SourceReaderContext, SourceReader<OUT, SplitT>, Exception> readerFactory,
             OperatorEventGateway operatorEventGateway,
             SimpleVersionedSerializer<SplitT> splitSerializer,
             WatermarkStrategy<OUT> watermarkStrategy,
@@ -206,16 +205,19 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             String localHostname,
             boolean emitProgressiveWatermarks,
             CanEmitBatchOfRecordsChecker canEmitBatchOfRecords) {
-
+        // readerFactory其实就是KafkaSource::createReader的函数表达式
         this.readerFactory = checkNotNull(readerFactory);
         this.operatorEventGateway = checkNotNull(operatorEventGateway);
         this.splitSerializer = checkNotNull(splitSerializer);
+        // 传入的我们自定义的水位线策略
         this.watermarkStrategy = checkNotNull(watermarkStrategy);
         this.processingTimeService = timeService;
         this.configuration = checkNotNull(configuration);
         this.localHostname = checkNotNull(localHostname);
+        // emitProgressiveWatermarks默认为true
         this.emitProgressiveWatermarks = emitProgressiveWatermarks;
         this.operatingMode = OperatingMode.OUTPUT_NOT_INITIALIZED;
+        // 水位线对齐参数，我们通过withWatermarkAlignment("default", Duration.ofMinutes(2))自定义的
         this.watermarkAlignmentParams = watermarkStrategy.getAlignmentParameters();
         this.allowUnalignedSourceSplits = configuration.get(ALLOW_UNALIGNED_SOURCE_SPLITS);
         this.canEmitBatchOfRecords = checkNotNull(canEmitBatchOfRecords);
@@ -226,7 +228,11 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             StreamTask<?, ?> containingTask,
             StreamConfig config,
             Output<StreamRecord<OUT>> output) {
+        // 调用了SourceOperator的构造方法后会立即调用setup方法，open方法是晚于setup方法被调用的
+        // 这里是调用AbstractStreamOperator的setup方法，初始化了combinedWatermark，以及初始化处理延迟指标
+        // output要么是ChainingOutput，要么就是RecordWriterOutput，最终都会被封装为CountingOutput
         super.setup(containingTask, config, output);
+        // 初始化指标类
         initSourceMetricGroup();
     }
 
@@ -251,66 +257,63 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
         if (sourceReader != null) {
             return;
         }
-
         final int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
+        final SourceReaderContext context = new SourceReaderContext() {
+            @Override
+            public SourceReaderMetricGroup metricGroup() {
+                return sourceMetricGroup;
+            }
 
-        final SourceReaderContext context =
-                new SourceReaderContext() {
+            @Override
+            public Configuration getConfiguration() {
+                return configuration;
+            }
+
+            @Override
+            public String getLocalHostName() {
+                return localHostname;
+            }
+
+            @Override
+            public int getIndexOfSubtask() {
+                return subtaskIndex;
+            }
+
+            @Override
+            public void sendSplitRequest() {
+                operatorEventGateway.sendEventToCoordinator(
+                        new RequestSplitEvent(getLocalHostName()));
+            }
+
+            @Override
+            public void sendSourceEventToCoordinator(SourceEvent event) {
+                operatorEventGateway.sendEventToCoordinator(new SourceEventWrapper(event));
+            }
+
+            @Override
+            public UserCodeClassLoader getUserCodeClassLoader() {
+                return new UserCodeClassLoader() {
                     @Override
-                    public SourceReaderMetricGroup metricGroup() {
-                        return sourceMetricGroup;
+                    public ClassLoader asClassLoader() {
+                        return getRuntimeContext().getUserCodeClassLoader();
                     }
 
                     @Override
-                    public Configuration getConfiguration() {
-                        return configuration;
-                    }
-
-                    @Override
-                    public String getLocalHostName() {
-                        return localHostname;
-                    }
-
-                    @Override
-                    public int getIndexOfSubtask() {
-                        return subtaskIndex;
-                    }
-
-                    @Override
-                    public void sendSplitRequest() {
-                        operatorEventGateway.sendEventToCoordinator(
-                                new RequestSplitEvent(getLocalHostName()));
-                    }
-
-                    @Override
-                    public void sendSourceEventToCoordinator(SourceEvent event) {
-                        operatorEventGateway.sendEventToCoordinator(new SourceEventWrapper(event));
-                    }
-
-                    @Override
-                    public UserCodeClassLoader getUserCodeClassLoader() {
-                        return new UserCodeClassLoader() {
-                            @Override
-                            public ClassLoader asClassLoader() {
-                                return getRuntimeContext().getUserCodeClassLoader();
-                            }
-
-                            @Override
-                            public void registerReleaseHookIfAbsent(
-                                    String releaseHookName, Runnable releaseHook) {
-                                getRuntimeContext()
-                                        .registerUserCodeClassLoaderReleaseHookIfAbsent(
-                                                releaseHookName, releaseHook);
-                            }
-                        };
-                    }
-
-                    @Override
-                    public int currentParallelism() {
-                        return getRuntimeContext().getNumberOfParallelSubtasks();
+                    public void registerReleaseHookIfAbsent(
+                            String releaseHookName, Runnable releaseHook) {
+                        getRuntimeContext().registerUserCodeClassLoaderReleaseHookIfAbsent(
+                                releaseHookName, releaseHook);
                     }
                 };
+            }
 
+            @Override
+            public int currentParallelism() {
+                return getRuntimeContext().getNumberOfParallelSubtasks();
+            }
+        };
+        // readerFactory其实就是KafkaSource::createReader的函数表达式，在构造方法中被初始化
+        // 如果是KafkaSource这里得到的是KafkaSourceReader
         sourceReader = readerFactory.apply(context);
     }
 
@@ -320,37 +323,42 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     @Override
     public void open() throws Exception {
+        // 这里其实就是执行readerFactory函数表达式得到真正的SourceReader，如果是KafkaSource这里得到的是KafkaSourceReader
         initReader();
 
         // in the future when we this one is migrated to the "eager initialization" operator
         // (StreamOperatorV2), then we should evaluate this during operator construction.
+        // emitProgressiveWatermarks默认为true
         if (emitProgressiveWatermarks) {
-            eventTimeLogic =
-                    TimestampsAndWatermarks.createProgressiveEventTimeLogic(
-                            watermarkStrategy,
-                            sourceMetricGroup,
-                            getProcessingTimeService(),
-                            getExecutionConfig().getAutoWatermarkInterval());
+            // 创建ProgressiveTimestampsAndWatermarks
+            eventTimeLogic = TimestampsAndWatermarks.createProgressiveEventTimeLogic(
+                    watermarkStrategy,
+                    sourceMetricGroup,
+                    getProcessingTimeService(),
+                    getExecutionConfig().getAutoWatermarkInterval());
         } else {
-            eventTimeLogic =
-                    TimestampsAndWatermarks.createNoOpEventTimeLogic(
-                            watermarkStrategy, sourceMetricGroup);
+            eventTimeLogic = TimestampsAndWatermarks.createNoOpEventTimeLogic(
+                    watermarkStrategy, sourceMetricGroup);
         }
 
         // restore the state if necessary.
+        // readerState会在initializeState中被初始化，initializeState会先open方法被调用
         final List<SplitT> splits = CollectionUtil.iterableToList(readerState.get());
         if (!splits.isEmpty()) {
             LOG.info("Restoring state for {} split(s) to reader.", splits.size());
+            // 如果从状态中恢复了分区，则将分区添加到sourceReader中
             sourceReader.addSplits(splits);
         }
 
         // Register the reader to the coordinator.
+        // 通过RPC向协调者注册当前的SourceReader
         registerReader();
 
         sourceMetricGroup.idlingStarted();
         // Start the reader after registration, sending messages in start is allowed.
+        // 对于KafkaSourceReader该方法是一个空实现
         sourceReader.start();
-
+        // 每200ms执行一次执行currentPerSplitOutputs和currentMainOutput的emitPeriodicWatermark()方法
         eventTimeLogic.startPeriodicWatermarkEmits();
     }
 
@@ -376,10 +384,8 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             case WAITING_FOR_ALIGNMENT:
             case OUTPUT_NOT_INITIALIZED:
             case READING:
-                this.operatingMode =
-                        mode == StopMode.DRAIN
-                                ? OperatingMode.SOURCE_DRAINED
-                                : OperatingMode.SOURCE_STOPPED;
+                this.operatingMode = mode == StopMode.DRAIN
+                        ? OperatingMode.SOURCE_DRAINED : OperatingMode.SOURCE_STOPPED;
                 availabilityHelper.forceStop();
                 if (this.operatingMode == OperatingMode.SOURCE_STOPPED) {
                     stopInternalServices();
@@ -404,18 +410,24 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
         // guarding an assumptions we currently make due to the fact that certain classes
         // assume a constant output, this assumption does not need to stand if we emitted all
         // records. In that case the output will change to FinishedDataOutput
+
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
         assert lastInvokedOutput == output
                 || lastInvokedOutput == null
                 || this.operatingMode == OperatingMode.DATA_FINISHED;
 
         // short circuit the hot path. Without this short circuit (READING handled in the
         // switch/case) InputBenchmark.mapSink was showing a performance regression.
+        // TODO 需要确定一点是否是每次启动都一定会先走到emitNextNotReading
         if (operatingMode != OperatingMode.READING) {
+            // 短路热路径，如果没有这个短路（在switch/case中处理READING），InputBenchmark.mapSink会出现性能回退
             return emitNextNotReading(output);
         }
 
         InputStatus status;
         do {
+            // 这里的sourceReader为KafkaSourceReader，但这里是调用的超类SourceReaderBase的pollNext
             status = sourceReader.pollNext(currentMainOutput);
         } while (status == InputStatus.MORE_AVAILABLE
                 && canEmitBatchOfRecords.check()
@@ -425,17 +437,24 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     private DataInputStatus emitNextNotReading(DataOutput<OUT> output) throws Exception {
         switch (operatingMode) {
+            // 构造方法中operatingMode会初始化为OUTPUT_NOT_INITIALIZED
             case OUTPUT_NOT_INITIALIZED:
+                // 如果通过withWatermarkAlignment("default", Duration.ofMinutes(2))自定义了，这返回true
                 if (watermarkAlignmentParams.isEnabled()) {
                     // Only wrap the output when watermark alignment is enabled, as otherwise this
-                    // introduces a small performance regression (probably because of an extra
-                    // virtual call)
+                    // introduces a small performance regression (probably because of an extra virtual call)
+                    // 这里周期性执行emitLatestWatermark，默认是1s执行一次RPC上报最新水位线
                     processingTimeService.scheduleWithFixedDelay(
                             time -> emitLatestWatermark(),
                             watermarkAlignmentParams.getUpdateInterval(),
                             watermarkAlignmentParams.getUpdateInterval());
                 }
+                // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+                // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
                 initializeMainOutput(output);
+                // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+                // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+                // 这里得currentMainOutput是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
                 return convertToInternalStatus(sourceReader.pollNext(currentMainOutput));
             case SOURCE_STOPPED:
                 this.operatingMode = OperatingMode.DATA_FINISHED;
@@ -463,7 +482,11 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     }
 
     private void initializeMainOutput(DataOutput<OUT> output) {
+        // eventTimeLogic在open方法中被初始化，如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+        // 这里得到的是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
         currentMainOutput = eventTimeLogic.createMainOutput(output, this);
+        // 延迟数据周期处理逻辑
         initializeLatencyMarkerEmitter(output);
         lastInvokedOutput = output;
         // Create per-split output for pending splits added before main output is initialized
@@ -472,22 +495,25 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     }
 
     private void initializeLatencyMarkerEmitter(DataOutput<OUT> output) {
-        long latencyTrackingInterval =
-                getExecutionConfig().isLatencyTrackingConfigured()
-                        ? getExecutionConfig().getLatencyTrackingInterval()
-                        : getContainingTask()
-                                .getEnvironment()
-                                .getTaskManagerInfo()
-                                .getConfiguration()
-                                .getLong(MetricOptions.LATENCY_INTERVAL);
+        long latencyTrackingInterval = getExecutionConfig().isLatencyTrackingConfigured()
+                ? getExecutionConfig().getLatencyTrackingInterval()
+                : getContainingTask()
+                .getEnvironment()
+                .getTaskManagerInfo()
+                .getConfiguration()
+                .getLong(MetricOptions.LATENCY_INTERVAL);
+        // latencyTrackingInterval默认是0，表示不跟踪延迟
         if (latencyTrackingInterval > 0) {
-            latencyMarkerEmitter =
-                    new LatencyMarkerEmitter<>(
-                            getProcessingTimeService(),
-                            output::emitLatencyMarker,
-                            latencyTrackingInterval,
-                            getOperatorID(),
-                            getRuntimeContext().getIndexOfThisSubtask());
+            // 如果需要跟踪延迟
+
+            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+            latencyMarkerEmitter = new LatencyMarkerEmitter<>(
+                    getProcessingTimeService(),
+                    output::emitLatencyMarker,
+                    latencyTrackingInterval,
+                    getOperatorID(),
+                    getRuntimeContext().getIndexOfThisSubtask());
         }
     }
 
@@ -496,6 +522,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             case MORE_AVAILABLE:
                 return DataInputStatus.MORE_AVAILABLE;
             case NOTHING_AVAILABLE:
+                // 第一次会走到这里
                 sourceMetricGroup.idlingStarted();
                 return DataInputStatus.NOTHING_AVAILABLE;
             case END_OF_INPUT:
@@ -510,10 +537,12 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     private void emitLatestWatermark() {
         checkState(currentMainOutput != null);
         if (latestWatermark == Watermark.UNINITIALIZED.getTimestamp()) {
+            // 如果水位线还未初始化直接return
             return;
         }
-        operatorEventGateway.sendEventToCoordinator(
-                new ReportedWatermarkEvent(idle ? Watermark.MAX_WATERMARK.getTimestamp() : latestWatermark));
+        // RPC上报水位线，如果是空闲的则上报Long.MAX_VALUE作为水位线，否则上报最新的水位线
+        operatorEventGateway.sendEventToCoordinator(new ReportedWatermarkEvent(
+                idle ? Watermark.MAX_WATERMARK.getTimestamp() : latestWatermark));
     }
 
     @Override
@@ -609,22 +638,27 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     @Override
     public void updateIdle(boolean isIdle) {
+        // 设置当前操作符的空闲状态
         this.idle = isIdle;
     }
 
     @Override
     public void updateCurrentEffectiveWatermark(long watermark) {
         latestWatermark = watermark;
+        // 检查水位线对齐，设置operatingMode为WAITING_FOR_ALIGNMENT或READING
         checkWatermarkAlignment();
     }
 
     @Override
     public void updateCurrentSplitWatermark(String splitId, long watermark) {
+        // 通知关于每个分片的水位线的变化
         splitCurrentWatermarks.put(splitId, watermark);
-        if (numSplits > 1
-                && watermark > currentMaxDesiredWatermark
+        // 如果当前的分片数大于1，并且当前分片的水位线大于currentMaxDesiredWatermark，并且当前分片没有被暂停
+        if (numSplits > 1 && watermark > currentMaxDesiredWatermark
                 && !currentlyPausedSplits.contains(splitId)) {
+            // 其实就是异步调用KafkaPartitionSplitReader的pauseOrResumeSplits方法
             pauseOrResumeSplits(Collections.singletonList(splitId), Collections.emptyList());
+            // 将当前分片添加到currentlyPausedSplits中，表示当前分片已经被暂停
             currentlyPausedSplits.add(splitId);
         }
     }
@@ -662,6 +696,8 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     private void pauseOrResumeSplits(
             Collection<String> splitsToPause, Collection<String> splitsToResume) {
         try {
+            // 调用KafkaSourceReader的pauseOrResumeSplits方法，暂停或恢复分片
+            // 其实就是异步调用KafkaPartitionSplitReader的pauseOrResumeSplits方法
             sourceReader.pauseOrResumeSplits(splitsToPause, splitsToResume);
         } catch (UnsupportedOperationException e) {
             if (!allowUnalignedSourceSplits) {
@@ -672,15 +708,21 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     private void checkWatermarkAlignment() {
         if (operatingMode == OperatingMode.READING) {
+            // 如果isDone返回false，则抛出异常，这里是判断是否已经存在一个未完成的waitingForAlignmentFuture
             checkState(waitingForAlignmentFuture.isDone());
             if (shouldWaitForAlignment()) {
+                // 如果currentMaxDesiredWatermark < latestWatermark，将状态设置为WAITING_FOR_ALIGNMENT等待对齐
                 operatingMode = OperatingMode.WAITING_FOR_ALIGNMENT;
+                // 这里会将waitingForAlignmentFuture设置为未完成状态
                 waitingForAlignmentFuture = new CompletableFuture<>();
             }
         } else if (operatingMode == OperatingMode.WAITING_FOR_ALIGNMENT) {
+            // 如果isDone返回false，则抛出异常
             checkState(!waitingForAlignmentFuture.isDone());
             if (!shouldWaitForAlignment()) {
+                // 如果currentMaxDesiredWatermark >= latestWatermark将状态设置为READING
                 operatingMode = OperatingMode.READING;
+                // 这里会将waitingForAlignmentFuture设置为已完成状态
                 waitingForAlignmentFuture.complete(null);
             }
         }
@@ -691,8 +733,8 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     }
 
     private void registerReader() {
-        operatorEventGateway.sendEventToCoordinator(
-                new ReaderRegistrationEvent(getRuntimeContext().getIndexOfThisSubtask(), localHostname));
+        operatorEventGateway.sendEventToCoordinator(new ReaderRegistrationEvent(
+                getRuntimeContext().getIndexOfThisSubtask(), localHostname));
     }
 
     // --------------- methods for unit tests ------------

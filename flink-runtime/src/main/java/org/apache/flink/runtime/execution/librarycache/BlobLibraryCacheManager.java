@@ -226,8 +226,7 @@ public class BlobLibraryCacheManager implements LibraryCacheManager {
                 verifyIsNotReleased();
 
                 if (resolvedClassLoader == null) {
-                    resolvedClassLoader =
-                            new ResolvedClassLoader(
+                    resolvedClassLoader = new ResolvedClassLoader(
                                     createUserCodeClassLoader(jobId, libraries, classPaths),
                                     libraries,
                                     classPaths);

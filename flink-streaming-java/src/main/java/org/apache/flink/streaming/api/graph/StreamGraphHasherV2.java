@@ -85,6 +85,9 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
         // not returned in the same order, which means that submitting the same
         // program twice might result in different traversal, which breaks the
         // deterministic hash assignment.
+
+        // 这里是获取Source节点，并进行排序，一般只有一个Source节点
+        // 如KafkaSource那这里的Source节点就是KafkaSource
         List<Integer> sources = new ArrayList<>();
         for (Integer sourceNodeId : streamGraph.getSourceIDs()) {
             sources.add(sourceNodeId);
@@ -99,10 +102,12 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
         // Start with source nodes
         for (Integer sourceNodeId : sources) {
             remaining.add(streamGraph.getStreamNode(sourceNodeId));
+            // 加入已经处理过的节点列表
             visited.add(sourceNodeId);
         }
 
         StreamNode currentNode;
+        // 其实这里就是从Source头节点开始，进行图的广度优先遍历
         while ((currentNode = remaining.poll()) != null) {
             // Generate the hash code. Because multiple path exist to each
             // node, we might not have all required inputs available to
@@ -111,14 +116,19 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
                     currentNode,
                     hashFunction,
                     hashes,
+                    // 是否能Chain在一起
                     streamGraph.isChainingEnabled(),
                     streamGraph)) {
                 // Add the child nodes
+                // 遍历当前节点的所有输出边
                 for (StreamEdge outEdge : currentNode.getOutEdges()) {
+                    // 将当前节点的输出边的目标节点加入到待处理队列中
                     StreamNode child = streamGraph.getTargetVertex(outEdge);
 
                     if (!visited.contains(child.getId())) {
+                        // 如果child定点没有被处理过，则加入待处理队列
                         remaining.add(child);
+                        // 加入已经处理过的节点列表
                         visited.add(child.getId());
                     }
                 }
@@ -137,11 +147,13 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
      * @param node The node to generate the hash for
      * @param hashFunction The hash function to use
      * @param hashes The current state of generated hashes
+     *
      * @return <code>true</code> if the node hash has been generated. <code>false</code>, otherwise.
-     *     If the operation is not successful, the hash needs be generated at a later point when all
-     *     input is available.
+     *         If the operation is not successful, the hash needs be generated at a later point when all
+     *         input is available.
+     *
      * @throws IllegalStateException If node has user-specified hash and is intermediate node of a
-     *     chain
+     *         chain
      */
     private boolean generateNodeHash(
             StreamNode node,
@@ -151,10 +163,12 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
             StreamGraph streamGraph) {
 
         // Check for user-specified ID
+        // userSpecifiedHash默认是为null的
         String userSpecifiedHash = node.getTransformationUID();
 
         if (userSpecifiedHash == null) {
             // Check that all input nodes have their hashes computed
+            // 确定所有输入节点的哈希值都已经计算出来了
             for (StreamEdge inEdge : node.getInEdges()) {
                 // If the input node has not been visited yet, the current
                 // node will be visited again at a later point when all input
@@ -165,16 +179,15 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
             }
 
             Hasher hasher = hashFunction.newHasher();
-            byte[] hash =
-                    generateDeterministicHash(node, hasher, hashes, isChainingEnabled, streamGraph);
+            // isChainingEnabled一般默认是true的
+            byte[] hash = generateDeterministicHash(
+                    node, hasher, hashes, isChainingEnabled, streamGraph);
 
             if (hashes.put(node.getId(), hash) != null) {
                 // Sanity check
-                throw new IllegalStateException(
-                        "Unexpected state. Tried to add node hash "
-                                + "twice. This is probably a bug in the JobGraph generator.");
+                throw new IllegalStateException("Unexpected state. Tried to add node hash "
+                        + "twice. This is probably a bug in the JobGraph generator.");
             }
-
             return true;
         } else {
             Hasher hasher = hashFunction.newHasher();
@@ -226,8 +239,8 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
 
         // Include chained nodes to hash
         for (StreamEdge outEdge : node.getOutEdges()) {
+            // 判断当前节点和输出节点是否能chain在一起
             if (isChainable(outEdge, isChainingEnabled, streamGraph)) {
-
                 // Use the hash size again, because the nodes are chained to
                 // this node. This does not add a hash for the chained nodes.
                 generateNodeLocalHash(hasher, hashes.size());
@@ -238,17 +251,15 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
 
         // Make sure that all input nodes have their hash set before entering
         // this loop (calling this method).
+        // 这里其实就是校验，确保所有的Source节点都已经被处理过了
         for (StreamEdge inEdge : node.getInEdges()) {
             byte[] otherHash = hashes.get(inEdge.getSourceId());
 
             // Sanity check
             if (otherHash == null) {
-                throw new IllegalStateException(
-                        "Missing hash for input node "
-                                + streamGraph.getSourceVertex(inEdge)
-                                + ". Cannot generate hash for "
-                                + node
-                                + ".");
+                throw new IllegalStateException("Missing hash for input node "
+                        + streamGraph.getSourceVertex(inEdge)
+                        + ". Cannot generate hash for " + node + ".");
             }
 
             for (int j = 0; j < hash.length; j++) {
@@ -256,29 +267,16 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
             }
         }
 
+        // 打印日志
         if (LOG.isDebugEnabled()) {
             String udfClassName = "";
             if (node.getOperatorFactory() instanceof UdfStreamOperatorFactory) {
-                udfClassName =
-                        ((UdfStreamOperatorFactory) node.getOperatorFactory())
-                                .getUserFunctionClassName();
+                udfClassName = ((UdfStreamOperatorFactory) node
+                        .getOperatorFactory()).getUserFunctionClassName();
             }
-
-            LOG.debug(
-                    "Generated hash '"
-                            + byteToHexString(hash)
-                            + "' for node "
-                            + "'"
-                            + node.toString()
-                            + "' {id: "
-                            + node.getId()
-                            + ", "
-                            + "parallelism: "
-                            + node.getParallelism()
-                            + ", "
-                            + "user function: "
-                            + udfClassName
-                            + "}");
+            LOG.debug("Generated hash '" + byteToHexString(hash) + "' for node '"
+                    + node.toString() + "' {id: " + node.getId() + ", parallelism: "
+                    + node.getParallelism() + ", user function: " + udfClassName + "}");
         }
 
         return hash;

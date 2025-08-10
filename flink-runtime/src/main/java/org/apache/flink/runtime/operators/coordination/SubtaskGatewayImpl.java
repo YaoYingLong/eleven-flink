@@ -88,6 +88,7 @@ class SubtaskGatewayImpl implements OperatorCoordinator.SubtaskGateway {
 
     @Override
     public CompletableFuture<Acknowledge> sendEvent(OperatorEvent evt) {
+        // 在SourceCoordinatorContext的assignSplitsToAttempt方法中被调用
         if (!isReady()) {
             throw new FlinkRuntimeException("SubtaskGateway is not ready, task not yet running.");
         }

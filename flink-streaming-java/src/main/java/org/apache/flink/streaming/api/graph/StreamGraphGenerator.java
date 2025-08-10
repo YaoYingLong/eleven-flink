@@ -188,19 +188,23 @@ public class StreamGraphGenerator {
             translatorMap;
 
     static {
+        // 注意这里针对各种类型的算子的Transformation，有各自对应的Translator
         @SuppressWarnings("rawtypes")
         Map<Class<? extends Transformation>, TransformationTranslator<?, ? extends Transformation>>
                 tmp = new HashMap<>();
+        // 大多数情况是下是OneInputTransformation
         tmp.put(OneInputTransformation.class, new OneInputTransformationTranslator<>());
         tmp.put(TwoInputTransformation.class, new TwoInputTransformationTranslator<>());
         tmp.put(MultipleInputTransformation.class, new MultiInputTransformationTranslator<>());
         tmp.put(KeyedMultipleInputTransformation.class, new MultiInputTransformationTranslator<>());
+        // kafka数据源的情况下是SourceTransformation
         tmp.put(SourceTransformation.class, new SourceTransformationTranslator<>());
         tmp.put(SinkTransformation.class, new SinkTransformationTranslator<>());
         tmp.put(LegacySinkTransformation.class, new LegacySinkTransformationTranslator<>());
         tmp.put(LegacySourceTransformation.class, new LegacySourceTransformationTranslator<>());
         tmp.put(UnionTransformation.class, new UnionTransformationTranslator<>());
         tmp.put(PartitionTransformation.class, new PartitionTransformationTranslator<>());
+        // 针对旁路输出的情况
         tmp.put(SideOutputTransformation.class, new SideOutputTransformationTranslator<>());
         tmp.put(ReduceTransformation.class, new ReduceTransformationTranslator<>());
         tmp.put(
@@ -309,13 +313,24 @@ public class StreamGraphGenerator {
     }
 
     public StreamGraph generate() {
+        // 构建一个StreamGraph
         streamGraph = new StreamGraph(executionConfig, checkpointConfig, savepointRestoreSettings);
+        // 判断到底是批处理还是流处理
         shouldExecuteInBatchMode = shouldExecuteInBatchMode();
+        // 设置各种属性，当时在生成StreamGraphGenerator的时候，就已经把各种属性设置到StreamGraphGenerator中了
+        // 现在把StreamGraphGenerator中的属性，设置到StreamGraph中
         configureStreamGraph(streamGraph);
 
+        // 初始化一个容器用来去存储 已经转换过的 Transformation
         alreadyTransformed = new IdentityHashMap<>();
 
+        // 执行各种算子的transformation，由算子生成Transformation来构建StreamGraph
+        // 当时在执行各种算子的时候，就已经把算子转换成对应的Transformation放入transformations集合中了
+        // 自底向上(先遍历input transformations) 对转换树的每个transformation进行转换
         for (Transformation<?> transformation : transformations) {
+            // 从Env对象中，把Transformation拿出来，然后转换成StreamNode
+            // Function --> Operator --> Transformation --> StreamNode
+            // 注意这个地方其实是会触发递归调用
             transform(transformation);
         }
 
@@ -331,6 +346,7 @@ public class StreamGraphGenerator {
             }
         }
 
+        // 把生成好的StreamGragh引用给返回对象，然后清空，保持当前这个StreamGraphGenerator依然是一个空的可再生利用的
         final StreamGraph builtStreamGraph = streamGraph;
 
         alreadyTransformed.clear();
@@ -346,36 +362,36 @@ public class StreamGraphGenerator {
     }
 
     private void setDynamic(final StreamGraph graph) {
+        // 一般为SchedulerType.Default
         Optional<JobManagerOptions.SchedulerType> schedulerTypeOptional =
                 executionConfig.getSchedulerType();
-        boolean dynamic =
-                shouldExecuteInBatchMode
-                        && schedulerTypeOptional.orElse(
-                        JobManagerOptions.SchedulerType.AdaptiveBatch)
-                        == JobManagerOptions.SchedulerType.AdaptiveBatch;
+        boolean dynamic = shouldExecuteInBatchMode && schedulerTypeOptional.orElse(
+                JobManagerOptions.SchedulerType.AdaptiveBatch)
+                == JobManagerOptions.SchedulerType.AdaptiveBatch;
         graph.setDynamic(dynamic);
     }
 
     private void configureStreamGraph(final StreamGraph graph) {
         checkNotNull(graph);
 
+        // 设置各种属性，当时在生成StreamGraphGenerator的时候，就已经把各种属性设置到StreamGraphGenerator中了
+        // 现在把StreamGraphGenerator中的属性，设置到StreamGraph中
         graph.setChaining(chaining);
         graph.setUserArtifacts(userArtifacts);
         graph.setTimeCharacteristic(timeCharacteristic);
         graph.setVertexDescriptionMode(configuration.get(PipelineOptions.VERTEX_DESCRIPTION_MODE));
-        graph.setVertexNameIncludeIndexPrefix(
-                configuration.get(PipelineOptions.VERTEX_NAME_INCLUDE_INDEX_PREFIX));
-        graph.setAutoParallelismEnabled(
-                configuration.get(BatchExecutionOptions.ADAPTIVE_AUTO_PARALLELISM_ENABLED));
+        graph.setVertexNameIncludeIndexPrefix(configuration.get(PipelineOptions.VERTEX_NAME_INCLUDE_INDEX_PREFIX));
+        graph.setAutoParallelismEnabled(configuration.get(BatchExecutionOptions.ADAPTIVE_AUTO_PARALLELISM_ENABLED));
         graph.setEnableCheckpointsAfterTasksFinish(
-                configuration.get(
-                        ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH));
+                configuration.get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH));
         setDynamic(graph);
 
         if (shouldExecuteInBatchMode) {
+            // 批处理模式
             configureStreamGraphBatch(graph);
             setDefaultBufferTimeout(-1);
         } else {
+            // 流处理模式
             configureStreamGraphStreaming(graph);
         }
     }
@@ -430,6 +446,7 @@ public class StreamGraphGenerator {
     }
 
     private GlobalStreamExchangeMode deriveGlobalStreamExchangeModeStreaming() {
+        // 默认值为false
         if (checkpointConfig.isApproximateLocalRecoveryEnabled()) {
             checkApproximateLocalRecoveryCompatibility();
             return GlobalStreamExchangeMode.ALL_EDGES_PIPELINED_APPROXIMATE;
@@ -523,14 +540,13 @@ public class StreamGraphGenerator {
      * delegates to one of the transformation specific methods.
      */
     private Collection<Integer> transform(Transformation<?> transform) {
+        //  已经Transform的Transformation会放在alreadyTransformed集合中
         if (alreadyTransformed.containsKey(transform)) {
             return alreadyTransformed.get(transform);
         }
-
         LOG.debug("Transforming " + transform);
-
+        // 如果MaxParallelism没有设置，使用job的MaxParallelism设置
         if (transform.getMaxParallelism() <= 0) {
-
             // if the max parallelism hasn't been set, then first use the job wide max parallelism
             // from the ExecutionConfig.
             int globalMaxParallelismFromConfig = executionConfig.getMaxParallelism();
@@ -563,15 +579,17 @@ public class StreamGraphGenerator {
         });
 
         // call at least once to trigger exceptions about MissingTypeInfo
+        // 如果是MissingTypeInfo类型即类型不确定，则将会触发异常
         transform.getOutputType();
 
+        // translatorMap在static静态块中已经初始化了，各种Transformation对应的Translator
         @SuppressWarnings("unchecked") final TransformationTranslator<?, Transformation<?>>
                 translator =
-                (TransformationTranslator<?, Transformation<?>>)
-                        translatorMap.get(transform.getClass());
+                (TransformationTranslator<?, Transformation<?>>) translatorMap.get(transform.getClass());
 
         Collection<Integer> transformedIds;
         if (translator != null) {
+            // 可能是会触发transform的递归调用的
             transformedIds = translate(translator, transform);
         } else {
             transformedIds = legacyTransform(transform);
@@ -821,27 +839,30 @@ public class StreamGraphGenerator {
         checkNotNull(translator);
         checkNotNull(transform);
 
+        // 可能触发transform的递归调用，如果当前节点的输入没有被transform，则先对它们进行transform
+        // 这返回的是StreamNode的ID的集合，注意Source的transformation就是在该处被translate的
         final List<Collection<Integer>> allInputIds = getParentInputIds(transform.getInputs());
 
         // the recursive call might have already transformed this
+        // 如果当前的的Transformation以及被transform过了，则直接返回
         if (alreadyTransformed.containsKey(transform)) {
             return alreadyTransformed.get(transform);
         }
 
-        final String slotSharingGroup =
-                determineSlotSharingGroup(
-                        transform.getSlotSharingGroup().isPresent()
-                                ? transform.getSlotSharingGroup().get().getName()
-                                : null,
-                        allInputIds.stream()
-                                .flatMap(Collection::stream)
-                                .collect(Collectors.toList()));
+        // 获取share group， 默认是default
+        final String slotSharingGroup = determineSlotSharingGroup(
+                transform.getSlotSharingGroup().isPresent()
+                        ? transform.getSlotSharingGroup().get().getName() : null,
+                allInputIds.stream().flatMap(Collection::stream).collect(Collectors.toList()));
 
+        // 这里其实只是对StreamGraphGenerator、streamGraph等做了一次封装
         final TransformationTranslator.Context context =
                 new ContextImpl(this, streamGraph, slotSharingGroup, configuration);
 
         return shouldExecuteInBatchMode
+                // 批处理
                 ? translator.translateForBatch(transform, context)
+                // 流处理，这里大多数情况下是调用的SimpleTransformationTranslator
                 : translator.translateForStreaming(transform, context);
     }
 
@@ -863,6 +884,7 @@ public class StreamGraphGenerator {
             return allInputIds;
         }
 
+        // 如果输入的Transformation还没有被transform，则先对它们进行transform
         for (Transformation<?> transformation : parentTransformations) {
             allInputIds.add(transform(transformation));
         }

@@ -85,12 +85,15 @@ public class KafkaPartitionSplitReader
         Properties consumerProps = new Properties();
         consumerProps.putAll(props);
         consumerProps.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, createConsumerClientId(props));
+        // new一个KafkaConsumer，kafka原生消费者对象
         this.consumer = new KafkaConsumer<>(consumerProps);
         this.stoppingOffsets = new HashMap<>();
+        // 设置消费者的分区
         this.groupId = consumerProps.getProperty(ConsumerConfig.GROUP_ID_CONFIG);
 
         // Metric registration
         maybeRegisterKafkaConsumerMetrics(props, kafkaSourceReaderMetrics, consumer);
+        // kafka指标
         this.kafkaSourceReaderMetrics.registerNumBytesIn(consumer);
     }
 
@@ -106,16 +109,19 @@ public class KafkaPartitionSplitReader
             // This happens if all assigned partitions are invalid or empty (starting offset >=
             // stopping offset). We just mark empty partitions as finished and return an empty
             // record container, and this consumer will be closed by SplitFetcherManager.
-            KafkaPartitionSplitRecords recordsBySplits = new KafkaPartitionSplitRecords(ConsumerRecords.empty(), kafkaSourceReaderMetrics);
+            KafkaPartitionSplitRecords recordsBySplits = new KafkaPartitionSplitRecords(
+                    ConsumerRecords.empty(),
+                    kafkaSourceReaderMetrics);
             markEmptySplitsAsFinished(recordsBySplits);
             return recordsBySplits;
         }
         // 这里将拉取的消费者记录转换为KafkaPartitionSplitRecords
-        KafkaPartitionSplitRecords recordsBySplits = new KafkaPartitionSplitRecords(consumerRecords, kafkaSourceReaderMetrics);
+        KafkaPartitionSplitRecords recordsBySplits =
+                new KafkaPartitionSplitRecords(consumerRecords, kafkaSourceReaderMetrics);
         List<TopicPartition> finishedPartitions = new ArrayList<>();
-        // 遍历所有的partition
+        // 遍历拉取到的数据的所有的partition
         for (TopicPartition tp : consumerRecords.partitions()) {
-            // 获取停止读取的Offset
+            // 获取停止读取的Offset，如果没有设置则返回Long.MAX_VALUE
             long stoppingOffset = getStoppingOffset(tp);
             // 返回该分区拉取到的所有记录
             final List<ConsumerRecord<byte[], byte[]>> recordsFromPartition =
@@ -131,7 +137,7 @@ public class KafkaPartitionSplitReader
                 // exist. Keep polling will just block forever.
                 // 如果最后一条记录的偏移量大于等于停止偏移量 - 1，则认为该分区已经完成
                 if (lastRecord.offset() >= stoppingOffset - 1) {
-                    // 将该分区的停止偏移量设置到recordsBySplits中
+                    // KafkaPartitionSplitRecords中设置每个分区的停止偏移量，流处理模式一般不会被执行
                     recordsBySplits.setPartitionStoppingOffset(tp, stoppingOffset);
                     // 记录该分区已经完成，分别添加到finishedPartitions和recordsBySplits中的finishedSplits
                     finishSplitAtRecord(
@@ -235,14 +241,12 @@ public class KafkaPartitionSplitReader
     public void pauseOrResumeSplits(
             Collection<KafkaPartitionSplit> splitsToPause,
             Collection<KafkaPartitionSplit> splitsToResume) {
-        consumer.resume(
-                splitsToResume.stream()
-                        .map(KafkaPartitionSplit::getTopicPartition)
-                        .collect(Collectors.toList()));
-        consumer.pause(
-                splitsToPause.stream()
-                        .map(KafkaPartitionSplit::getTopicPartition)
-                        .collect(Collectors.toList()));
+        consumer.resume(splitsToResume.stream()
+                .map(KafkaPartitionSplit::getTopicPartition)
+                .collect(Collectors.toList()));
+        consumer.pause(splitsToPause.stream()
+                .map(KafkaPartitionSplit::getTopicPartition)
+                .collect(Collectors.toList()));
     }
 
     // ---------------
@@ -501,9 +505,11 @@ public class KafkaPartitionSplitReader
         @Nullable
         @Override
         public String nextSplit() {
+            // splitIterator其实就是拉取到的分区列表的迭代器
             if (splitIterator.hasNext()) {
+                // 获取下一个分区
                 currentTopicPartition = splitIterator.next();
-                // 从拉取的消息中筛选出特定分区的记录
+                // 从拉取的消息中筛选出currentTopicPartition分区的所有消息
                 recordIterator = consumerRecords.records(currentTopicPartition).iterator();
                 // 获取当前分区的停止偏移量，默认返回Long.MAX_VALUE
                 currentSplitStoppingOffset =

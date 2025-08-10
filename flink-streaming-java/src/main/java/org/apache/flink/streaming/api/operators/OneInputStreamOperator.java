@@ -33,6 +33,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 public interface OneInputStreamOperator<IN, OUT> extends StreamOperator<OUT>, Input<IN> {
     @Override
     default void setKeyContextElement(StreamRecord<IN> record) throws Exception {
+        // 调用AbstractStreamOperator的setKeyContextElement1方法
         setKeyContextElement1(record);
     }
 }

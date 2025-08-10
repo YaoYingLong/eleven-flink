@@ -49,8 +49,8 @@ public class JobManagerOptions {
      * multiple standby JobManagers.
      */
     @Documentation.Section({
-        Documentation.Sections.COMMON_HOST_PORT,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.COMMON_HOST_PORT,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<String> ADDRESS =
             key("jobmanager.rpc.address")
@@ -85,8 +85,8 @@ public class JobManagerOptions {
      * elect and discover the JobManager leader from potentially multiple standby JobManagers.
      */
     @Documentation.Section({
-        Documentation.Sections.COMMON_HOST_PORT,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.COMMON_HOST_PORT,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<Integer> PORT =
             key("jobmanager.rpc.port")
@@ -119,7 +119,7 @@ public class JobManagerOptions {
      * JVM heap size for the JobManager with memory size.
      *
      * @deprecated use {@link #TOTAL_FLINK_MEMORY} for standalone setups and {@link
-     *     #TOTAL_PROCESS_MEMORY} for containerized setups.
+     *         #TOTAL_PROCESS_MEMORY} for containerized setups.
      */
     @Deprecated
     @Documentation.Section(Documentation.Sections.ALL_JOB_MANAGER)
@@ -133,7 +133,7 @@ public class JobManagerOptions {
      * JVM heap size (in megabytes) for the JobManager.
      *
      * @deprecated use {@link #TOTAL_FLINK_MEMORY} for standalone setups and {@link
-     *     #TOTAL_PROCESS_MEMORY} for containerized setups.
+     *         #TOTAL_PROCESS_MEMORY} for containerized setups.
      */
     @Deprecated
     public static final ConfigOption<Integer> JOB_MANAGER_HEAP_MEMORY_MB =
@@ -268,8 +268,8 @@ public class JobManagerOptions {
      * failures.
      */
     @Documentation.Section({
-        Documentation.Sections.ALL_JOB_MANAGER,
-        Documentation.Sections.EXPERT_FAULT_TOLERANCE
+            Documentation.Sections.ALL_JOB_MANAGER,
+            Documentation.Sections.EXPERT_FAULT_TOLERANCE
     })
     public static final ConfigOption<String> EXECUTION_FAILOVER_STRATEGY =
             key("jobmanager.execution.failover-strategy")
@@ -370,8 +370,8 @@ public class JobManagerOptions {
                                     + "However, local input split assignment (such as for HDFS files) may be impacted.");
 
     @Documentation.Section({
-        Documentation.Sections.EXPERT_JOB_MANAGER,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.EXPERT_JOB_MANAGER,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<Integer> JOB_MANAGER_FUTURE_POOL_SIZE =
             key("jobmanager.future-pool.size")
@@ -382,8 +382,8 @@ public class JobManagerOptions {
                                     + "If no value is specified, then Flink defaults to the number of available CPU cores.");
 
     @Documentation.Section({
-        Documentation.Sections.EXPERT_JOB_MANAGER,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.EXPERT_JOB_MANAGER,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<Integer> JOB_MANAGER_IO_POOL_SIZE =
             key("jobmanager.io-pool.size")
@@ -416,30 +416,27 @@ public class JobManagerOptions {
 
     /** Config parameter determining the scheduler implementation. */
     @Documentation.Section({
-        Documentation.Sections.EXPERT_SCHEDULING,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.EXPERT_SCHEDULING,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<SchedulerType> SCHEDULER =
-            key("jobmanager.scheduler")
-                    .enumType(SchedulerType.class)
+            key("jobmanager.scheduler").enumType(SchedulerType.class)
                     .defaultValue(SchedulerType.Default)
-                    .withDescription(
-                            Description.builder()
-                                    .text(
-                                            "Determines which scheduler implementation is used to schedule tasks. Accepted values are:")
-                                    .list(
-                                            text("'Default': Default scheduler"),
-                                            text(
-                                                    "'Adaptive': Adaptive scheduler. More details can be found %s.",
-                                                    link(
-                                                            "{{.Site.BaseURL}}{{.Site.LanguagePrefix}}/docs/deployment/elastic_scaling#adaptive-scheduler",
-                                                            "here")),
-                                            text(
-                                                    "'AdaptiveBatch': Adaptive batch scheduler. More details can be found %s.",
-                                                    link(
-                                                            "{{.Site.BaseURL}}{{.Site.LanguagePrefix}}/docs/deployment/elastic_scaling#adaptive-batch-scheduler",
-                                                            "here")))
-                                    .build());
+                    .withDescription(Description.builder().text(
+                                    "Determines which scheduler implementation is used to schedule tasks. Accepted values are:")
+                            .list(
+                                    text("'Default': Default scheduler"),
+                                    text(
+                                            "'Adaptive': Adaptive scheduler. More details can be found %s.",
+                                            link(
+                                                    "{{.Site.BaseURL}}{{.Site.LanguagePrefix}}/docs/deployment/elastic_scaling#adaptive-scheduler",
+                                                    "here")),
+                                    text(
+                                            "'AdaptiveBatch': Adaptive batch scheduler. More details can be found %s.",
+                                            link(
+                                                    "{{.Site.BaseURL}}{{.Site.LanguagePrefix}}/docs/deployment/elastic_scaling#adaptive-batch-scheduler",
+                                                    "here")))
+                            .build());
 
     /** Type of scheduler implementation. */
     public enum SchedulerType {
@@ -465,8 +462,8 @@ public class JobManagerOptions {
                                     .build());
 
     @Documentation.Section({
-        Documentation.Sections.EXPERT_SCHEDULING,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.EXPERT_SCHEDULING,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<Integer> MIN_PARALLELISM_INCREASE =
             key("jobmanager.adaptive-scheduler.min-parallelism-increase")
@@ -476,8 +473,8 @@ public class JobManagerOptions {
                             "Configure the minimum increase in parallelism for a job to scale up.");
 
     @Documentation.Section({
-        Documentation.Sections.EXPERT_SCHEDULING,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.EXPERT_SCHEDULING,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<Duration> RESOURCE_WAIT_TIMEOUT =
             key("jobmanager.adaptive-scheduler.resource-wait-timeout")
@@ -502,8 +499,8 @@ public class JobManagerOptions {
                                     .build());
 
     @Documentation.Section({
-        Documentation.Sections.EXPERT_SCHEDULING,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.EXPERT_SCHEDULING,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<Duration> RESOURCE_STABILIZATION_TIMEOUT =
             key("jobmanager.adaptive-scheduler.resource-stabilization-timeout")
@@ -568,7 +565,7 @@ public class JobManagerOptions {
 
     /**
      * @deprecated Use {@link
-     *     BatchExecutionOptions#ADAPTIVE_AUTO_PARALLELISM_AVG_DATA_VOLUME_PER_TASK}.
+     *         BatchExecutionOptions#ADAPTIVE_AUTO_PARALLELISM_AVG_DATA_VOLUME_PER_TASK}.
      */
     @Deprecated
     @Documentation.ExcludeFromDocumentation("Hidden for deprecated")
@@ -589,7 +586,7 @@ public class JobManagerOptions {
 
     /**
      * @deprecated Use {@link
-     *     BatchExecutionOptions#ADAPTIVE_AUTO_PARALLELISM_DEFAULT_SOURCE_PARALLELISM}.
+     *         BatchExecutionOptions#ADAPTIVE_AUTO_PARALLELISM_DEFAULT_SOURCE_PARALLELISM}.
      */
     @Deprecated
     @Documentation.ExcludeFromDocumentation("Hidden for deprecated")
@@ -665,33 +662,33 @@ public class JobManagerOptions {
     }
 
     @Documentation.Section({
-        Documentation.Sections.EXPERT_SCHEDULING,
-        Documentation.Sections.ALL_JOB_MANAGER
+            Documentation.Sections.EXPERT_SCHEDULING,
+            Documentation.Sections.ALL_JOB_MANAGER
     })
     public static final ConfigOption<HybridPartitionDataConsumeConstraint>
             HYBRID_PARTITION_DATA_CONSUME_CONSTRAINT =
-                    key("jobmanager.partition.hybrid.partition-data-consume-constraint")
-                            .enumType(HybridPartitionDataConsumeConstraint.class)
-                            .noDefaultValue()
-                            .withDescription(
-                                    Description.builder()
-                                            .text(
-                                                    "Controls the constraint that hybrid partition data can be consumed. "
-                                                            + "Note that this option is allowed only when %s has been set to %s. "
-                                                            + "Accepted values are:",
-                                                    code(SCHEDULER.key()),
-                                                    code(SchedulerType.AdaptiveBatch.name()))
-                                            .list(
-                                                    text(
-                                                            "'%s': hybrid partition data can be consumed only when all producers are finished.",
-                                                            code(ALL_PRODUCERS_FINISHED.name())),
-                                                    text(
-                                                            "'%s': hybrid partition data can be consumed when its producer is finished.",
-                                                            code(ONLY_FINISHED_PRODUCERS.name())),
-                                                    text(
-                                                            "'%s': hybrid partition data can be consumed even if its producer is un-finished.",
-                                                            code(UNFINISHED_PRODUCERS.name())))
-                                            .build());
+            key("jobmanager.partition.hybrid.partition-data-consume-constraint")
+                    .enumType(HybridPartitionDataConsumeConstraint.class)
+                    .noDefaultValue()
+                    .withDescription(
+                            Description.builder()
+                                    .text(
+                                            "Controls the constraint that hybrid partition data can be consumed. "
+                                                    + "Note that this option is allowed only when %s has been set to %s. "
+                                                    + "Accepted values are:",
+                                            code(SCHEDULER.key()),
+                                            code(SchedulerType.AdaptiveBatch.name()))
+                                    .list(
+                                            text(
+                                                    "'%s': hybrid partition data can be consumed only when all producers are finished.",
+                                                    code(ALL_PRODUCERS_FINISHED.name())),
+                                            text(
+                                                    "'%s': hybrid partition data can be consumed when its producer is finished.",
+                                                    code(ONLY_FINISHED_PRODUCERS.name())),
+                                            text(
+                                                    "'%s': hybrid partition data can be consumed even if its producer is un-finished.",
+                                                    code(UNFINISHED_PRODUCERS.name())))
+                                    .build());
 
     // ---------------------------------------------------------------------------------------------
 

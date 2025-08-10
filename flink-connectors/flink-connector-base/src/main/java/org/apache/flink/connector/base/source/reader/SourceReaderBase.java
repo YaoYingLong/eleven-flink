@@ -135,10 +135,16 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     @Override
     public InputStatus pollNext(ReaderOutput<T> output) throws Exception {
         // make sure we have a fetch we are working on, or move to the next
+        // 初始时，currentFetch为null，表示没有获取到数据
         RecordsWithSplitIds<E> recordsWithSplitId = this.currentFetch;
         if (recordsWithSplitId == null) {
+            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+            // 这里得currentMainOutput是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
             recordsWithSplitId = getNextFetch(output);
+            // 如果没有获取到数据，则返回InputStatus.NOTHING_AVAILABLE
             if (recordsWithSplitId == null) {
+                // 直接返回END_OF_INPUT、MORE_AVAILABLE、NOTHING_AVAILABLE
                 return trace(finishedOrAvailableLater());
             }
         }
@@ -146,11 +152,13 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
         // we need to loop here, because we may have to go across splits
         while (true) {
             // Process one record.
+            // 遍历当前分区的所有记录
             final E record = recordsWithSplitId.nextRecordFromSplit();
             if (record != null) {
                 // emit the record.
                 numRecordsInCounter.inc(1);
-                // 调用KafkaRecordEmitter的emitRecord()方法将记录发送到输出
+                // 调用KafkaRecordEmitter的emitRecord()方法将记录发送到输出，这里的recordEmitter是KafkaRecordEmitter
+                // 这里的currentSplitOutput是SourceOutputWithWatermarks
                 recordEmitter.emitRecord(record, currentSplitOutput, currentSplitContext.state);
                 LOG.trace("Emitted record: {}", record);
 
@@ -179,7 +187,11 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
         splitFetcherManager.checkErrors();
 
         LOG.trace("Getting next source data batch from queue");
+        // 从elementsQueue中获取下一个RecordsWithSplitIds,这里是非阻塞，如果队列中没有数据则返回null
         final RecordsWithSplitIds<E> recordsWithSplitId = elementsQueue.poll();
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+        // 这里得currentMainOutput是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
         if (recordsWithSplitId == null || !moveToNextSplit(recordsWithSplitId, output)) {
             // No element available, set to available later if needed.
             return null;
@@ -216,12 +228,15 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
             RecordsWithSplitIds<E> recordsWithSplitIds, ReaderOutput<T> output) {
         // 调用KafkaPartitionSplitReader的nextSplit()方法获取下一个分片ID
         final String nextSplitId = recordsWithSplitIds.nextSplit();
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+        // 这里得currentMainOutput是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
         if (nextSplitId == null) {
             LOG.trace("Current fetch is finished.");
             finishCurrentFetch(recordsWithSplitIds, output);
             return false;
         }
-
+        // 当调用addSplits时会为每一个分片创建一个SplitContext
         currentSplitContext = splitStates.get(nextSplitId);
         checkState(currentSplitContext != null, "Have records for a split that was not registered");
         currentSplitOutput = currentSplitContext.getOrCreateSplitOutput(output);
@@ -248,6 +263,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     public void addSplits(List<SplitT> splits) {
         LOG.info("Adding split(s) to reader: {}", splits);
         // Initialize the state for each split.
+        // 从保存点中恢复分片状态
         splits.forEach(s -> splitStates.put(s.splitId(), new SplitContext<>(s.splitId(), initializedState(s))));
         // Hand over the splits to the split fetcher to start fetch.
         splitFetcherManager.addSplits(splits);
@@ -312,6 +328,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     // ------------------ private helper methods ---------------------
 
     private InputStatus finishedOrAvailableLater() {
+        // 如果所有分片都已经完成了，并且所有的分片提取器都已经关闭了，则返回true
         final boolean allFetchersHaveShutdown = splitFetcherManager.maybeShutdownFinishedFetchers();
         if (!(noMoreSplitsAssignment && allFetchersHaveShutdown)) {
             return InputStatus.NOTHING_AVAILABLE;
@@ -345,8 +362,13 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
         SourceOutput<T> getOrCreateSplitOutput(ReaderOutput<T> mainOutput) {
             if (sourceOutput == null) {
                 // The split output should have been created when AddSplitsEvent was processed in
-                // SourceOperator. Here we just use this method to get the previously created
-                // output.
+                // SourceOperator. Here we just use this method to get the previously created output.
+
+                // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+                // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+                // 这里得currentMainOutput是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
+
+                // 这里创建的是SourceOutputWithWatermarks
                 sourceOutput = mainOutput.createOutputForSplit(splitId);
             }
             return sourceOutput;

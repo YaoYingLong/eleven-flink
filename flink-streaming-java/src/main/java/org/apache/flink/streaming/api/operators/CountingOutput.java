@@ -34,17 +34,20 @@ public class CountingOutput<OUT> implements WatermarkGaugeExposingOutput<StreamR
 
     public CountingOutput(
             WatermarkGaugeExposingOutput<StreamRecord<OUT>> output, Counter numRecordsOut) {
+        // output其实就是ChainingOutput或RecordWriterOutput
         this.output = output;
         this.numRecordsOut = numRecordsOut;
     }
 
     @Override
     public void emitWatermark(Watermark mark) {
+        // output其实就是ChainingOutput或RecordWriterOutput
         output.emitWatermark(mark);
     }
 
     @Override
     public void emitWatermarkStatus(WatermarkStatus watermarkStatus) {
+        // output其实就是ChainingOutput或RecordWriterOutput
         output.emitWatermarkStatus(watermarkStatus);
     }
 
@@ -56,12 +59,14 @@ public class CountingOutput<OUT> implements WatermarkGaugeExposingOutput<StreamR
     @Override
     public void collect(StreamRecord<OUT> record) {
         numRecordsOut.inc();
+        // output其实就是ChainingOutput或RecordWriterOutput
         output.collect(record);
     }
 
     @Override
     public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
         numRecordsOut.inc();
+        // output其实就是ChainingOutput或RecordWriterOutput
         output.collect(outputTag, record);
     }
 

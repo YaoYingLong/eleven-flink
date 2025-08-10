@@ -34,8 +34,7 @@ import java.io.IOException;
  * KafkaPartitionSplit}.
  */
 @Internal
-public class KafkaPartitionSplitSerializer
-        implements SimpleVersionedSerializer<KafkaPartitionSplit> {
+public class KafkaPartitionSplitSerializer implements SimpleVersionedSerializer<KafkaPartitionSplit> {
 
     private static final int CURRENT_VERSION = 0;
 

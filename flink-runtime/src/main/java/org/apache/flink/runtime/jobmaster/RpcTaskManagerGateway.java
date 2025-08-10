@@ -56,7 +56,13 @@ public class RpcTaskManagerGateway implements TaskManagerGateway {
 
     @Override
     public CompletableFuture<Acknowledge> submitTask(TaskDeploymentDescriptor tdd, Time timeout) {
+        // 这里的taskExecutorGateway其实就是TaskExecutor，调用的是TaskExecutor的submitTask方法，
+        // 提交到对应的slot所在节点的TaskExecutor中来执行该ExecutionVertex，其实已经变成：Task
+        // 关于Client提交Job到最后变成分布式Task物理执行图的所有细节到此为止，结束了。
+        // 从这以后，就是去到了TaskManager中的TaskExecutor中来执行Task了
+        // Flink 每个Task 发布的时候，单独启动一个线程来执行
         return taskExecutorGateway.submitTask(tdd, jobMasterId, timeout);
+
     }
 
     @Override

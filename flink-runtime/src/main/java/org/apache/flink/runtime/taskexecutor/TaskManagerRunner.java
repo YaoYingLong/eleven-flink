@@ -114,7 +114,8 @@ public class TaskManagerRunner implements FatalErrorHandler {
     private static final long FATAL_ERROR_SHUTDOWN_TIMEOUT_MS = 10000L;
 
     private static final int SUCCESS_EXIT_CODE = 0;
-    @VisibleForTesting public static final int FAILURE_EXIT_CODE = 1;
+    @VisibleForTesting
+    public static final int FAILURE_EXIT_CODE = 1;
 
     private final Thread shutdownHook;
 
@@ -175,53 +176,52 @@ public class TaskManagerRunner implements FatalErrorHandler {
         this.terminationFuture = new CompletableFuture<>();
         this.shutdown = false;
 
-        this.shutdownHook =
-                ShutdownHookUtil.addShutdownHook(
-                        () -> this.closeAsync(Result.JVM_SHUTDOWN).join(),
-                        getClass().getSimpleName(),
-                        LOG);
+        this.shutdownHook = ShutdownHookUtil.addShutdownHook(
+                () -> this.closeAsync(Result.JVM_SHUTDOWN).join(),
+                getClass().getSimpleName(),
+                LOG);
     }
 
     private void startTaskManagerRunnerServices() throws Exception {
         synchronized (lock) {
             rpcSystem = RpcSystem.load(configuration);
-
-            this.executor =
-                    Executors.newScheduledThreadPool(
-                            Hardware.getNumberCPUCores(),
-                            new ExecutorThreadFactory("taskmanager-future"));
-
-            highAvailabilityServices =
-                    HighAvailabilityServicesUtils.createHighAvailabilityServices(
-                            configuration,
-                            executor,
+            // 初始化进行回调处理的线程池
+            this.executor = Executors.newScheduledThreadPool(
+                    Hardware.getNumberCPUCores(),
+                    new ExecutorThreadFactory("taskmanager-future"));
+            // HA服务：ZooKeeperHaServiceshighAvailabilityServices
+            // 提供对高可用性所需的所有服务的访问注册，分布式计数器和领导人选举,已经解析过了flink-conf.yaml,zookeeper
+            highAvailabilityServices = HighAvailabilityServicesUtils
+                    .createHighAvailabilityServices(
+                            configuration, executor,
                             AddressResolution.NO_ADDRESS_RESOLUTION,
                             rpcSystem,
                             this);
 
             JMXService.startInstance(configuration.getString(JMXServerOptions.JMX_SERVER_PORT));
-
+            // 初始化RpcService内部细节和主节点启动的Rpc服务的启动方式完全一致
             rpcService = createRpcService(configuration, highAvailabilityServices, rpcSystem);
 
-            this.resourceId =
-                    getTaskManagerResourceID(
-                            configuration, rpcService.getAddress(), rpcService.getPort());
+            this.resourceId = getTaskManagerResourceID(
+                    configuration, rpcService.getAddress(), rpcService.getPort());
 
-            this.workingDirectory =
-                    ClusterEntrypointUtils.createTaskManagerWorkingDirectory(
-                            configuration, resourceId);
+            this.workingDirectory = ClusterEntrypointUtils.createTaskManagerWorkingDirectory(
+                    configuration, resourceId);
 
             LOG.info("Using working directory: {}", workingDirectory);
-
+            // 初始化HeartbeatServices
+            // 1、TaskExecutor 这个组件是一定会启动的
+            // 2、JobMaster JobLeader Flink Job的主控程序，类似于Spark的Driver
+            // 这两个组件，都需要个 ResourceManager 维持心跳
+            // 将来不管有多少个需要发送心跳的组件，都可以通过heartbeatServices来创建对应的心跳组件
             HeartbeatServices heartbeatServices =
                     HeartbeatServices.fromConfiguration(configuration);
-
-            metricRegistry =
-                    new MetricRegistryImpl(
-                            MetricRegistryConfiguration.fromConfiguration(
-                                    configuration,
-                                    rpcSystem.getMaximumMessageSizeInBytes(configuration)),
-                            ReporterSetup.fromConfiguration(configuration, pluginManager));
+            // Flink 集群监控
+            metricRegistry = new MetricRegistryImpl(
+                    MetricRegistryConfiguration.fromConfiguration(
+                            configuration,
+                            rpcSystem.getMaximumMessageSizeInBytes(configuration)),
+                    ReporterSetup.fromConfiguration(configuration, pluginManager));
 
             final RpcService metricQueryServiceRpcService =
                     MetricUtils.startRemoteMetricsRpcService(
@@ -230,58 +230,62 @@ public class TaskManagerRunner implements FatalErrorHandler {
                             configuration.getString(TaskManagerOptions.BIND_HOST),
                             rpcSystem);
             metricRegistry.startQueryService(metricQueryServiceRpcService, resourceId.unwrap());
-
-            blobCacheService =
-                    BlobUtils.createBlobCacheService(
-                            configuration,
-                            Reference.borrowed(workingDirectory.unwrap().getBlobStorageDirectory()),
-                            highAvailabilityServices.createBlobStore(),
-                            null);
-
+            // 初始化BlobCacheService
+            // 其实内部就是启动两个定时任务，用来定时执行检查，删除过期的 Job 的资源文件。
+            // 通过 引用计数(RefCount) 的方式，来判断是否文件过期（JVM）
+            // 1、主节点其实启动了一个 BlobServer
+            // 2、从节点：BlobCacheService
+            // 其实有两种具体的实现支撑：
+            // 1、永久的
+            // 2、临时的
+            blobCacheService = BlobUtils.createBlobCacheService(
+                    configuration,
+                    Reference.borrowed(workingDirectory.unwrap().getBlobStorageDirectory()),
+                    highAvailabilityServices.createBlobStore(),
+                    null);
+            // 提供外部资源的信息
             final ExternalResourceInfoProvider externalResourceInfoProvider =
                     ExternalResourceUtils.createStaticExternalResourceInfoProviderFromConfig(
                             configuration, pluginManager);
 
             final DelegationTokenReceiverRepository delegationTokenReceiverRepository =
                     new DelegationTokenReceiverRepository(configuration, pluginManager);
-
-            taskExecutorService =
-                    taskExecutorServiceFactory.createTaskExecutor(
-                            this.configuration,
-                            this.resourceId.unwrap(),
-                            rpcService,
-                            highAvailabilityServices,
-                            heartbeatServices,
-                            metricRegistry,
-                            blobCacheService,
-                            false,
-                            externalResourceInfoProvider,
-                            workingDirectory.unwrap(),
-                            this,
-                            delegationTokenReceiverRepository);
+            // 负责创建 TaskExecutor，负责多个任务Task的运行
+            taskExecutorService = taskExecutorServiceFactory.createTaskExecutor(
+                    this.configuration,
+                    this.resourceId.unwrap(),
+                    rpcService,
+                    highAvailabilityServices,
+                    heartbeatServices,
+                    metricRegistry,
+                    blobCacheService,
+                    false,
+                    externalResourceInfoProvider,
+                    workingDirectory.unwrap(),
+                    this,
+                    delegationTokenReceiverRepository);
 
             handleUnexpectedTaskExecutorServiceTermination();
 
             MemoryLogger.startIfConfigured(
-                    LOG, configuration, terminationFuture.thenAccept(ignored -> {}));
+                    LOG, configuration, terminationFuture.thenAccept(ignored -> {
+                    }));
         }
     }
 
     @GuardedBy("lock")
     private void handleUnexpectedTaskExecutorServiceTermination() {
-        taskExecutorService
-                .getTerminationFuture()
-                .whenComplete(
-                        (unused, throwable) -> {
-                            synchronized (lock) {
-                                if (!shutdown) {
-                                    onFatalError(
-                                            new FlinkException(
-                                                    "Unexpected termination of the TaskExecutor.",
-                                                    throwable));
-                                }
-                            }
-                        });
+        taskExecutorService.getTerminationFuture().whenComplete(
+                (unused, throwable) -> {
+                    synchronized (lock) {
+                        if (!shutdown) {
+                            onFatalError(
+                                    new FlinkException(
+                                            "Unexpected termination of the TaskExecutor.",
+                                            throwable));
+                        }
+                    }
+                });
     }
 
     // --------------------------------------------------------------------------------------------
@@ -478,11 +482,10 @@ public class TaskManagerRunner implements FatalErrorHandler {
         final TaskManagerRunner taskManagerRunner;
 
         try {
-            taskManagerRunner =
-                    new TaskManagerRunner(
-                            configuration,
-                            pluginManager,
-                            TaskManagerRunner::createTaskExecutorService);
+            taskManagerRunner = new TaskManagerRunner(
+                    configuration,
+                    pluginManager,
+                    TaskManagerRunner::createTaskExecutorService);
             taskManagerRunner.start();
         } catch (Exception exception) {
             throw new FlinkException("Failed to start the TaskManagerRunner.", exception);
@@ -561,20 +564,19 @@ public class TaskManagerRunner implements FatalErrorHandler {
             DelegationTokenReceiverRepository delegationTokenReceiverRepository)
             throws Exception {
 
-        final TaskExecutor taskExecutor =
-                startTaskManager(
-                        configuration,
-                        resourceID,
-                        rpcService,
-                        highAvailabilityServices,
-                        heartbeatServices,
-                        metricRegistry,
-                        blobCacheService,
-                        localCommunicationOnly,
-                        externalResourceInfoProvider,
-                        workingDirectory,
-                        fatalErrorHandler,
-                        delegationTokenReceiverRepository);
+        final TaskExecutor taskExecutor = startTaskManager(
+                configuration,
+                resourceID,
+                rpcService,
+                highAvailabilityServices,
+                heartbeatServices,
+                metricRegistry,
+                blobCacheService,
+                localCommunicationOnly,
+                externalResourceInfoProvider,
+                workingDirectory,
+                fatalErrorHandler,
+                delegationTokenReceiverRepository);
 
         return TaskExecutorToServiceAdapter.createFor(taskExecutor);
     }
@@ -602,7 +604,11 @@ public class TaskManagerRunner implements FatalErrorHandler {
         LOG.info("Starting TaskManager with ResourceID: {}", resourceID.getStringWithMetadata());
 
         String externalAddress = rpcService.getAddress();
-
+        //  获取资源定义对象一台真实的物理节点，到底有哪些资源（cpucore， memroy, network, ...）
+        //	HardwareDescription 硬件抽象
+        //	1、配置： 重点是来源于配置： taskManager.slots = ?
+        //	2、默认获取
+        //	作用： 将来这个TaskExecutor在进行注册的时候，会将当前节点的资源，汇报给 RM
         final TaskExecutorResourceSpec taskExecutorResourceSpec =
                 TaskExecutorResourceUtils.resourceSpecFromConfig(configuration);
 
@@ -617,39 +623,39 @@ public class TaskManagerRunner implements FatalErrorHandler {
 
         Tuple2<TaskManagerMetricGroup, MetricGroup> taskManagerMetricGroup =
                 MetricUtils.instantiateTaskManagerMetricGroup(
-                        metricRegistry,
-                        externalAddress,
-                        resourceID,
+                        metricRegistry, externalAddress, resourceID,
                         taskManagerServicesConfiguration.getSystemResourceMetricsProbingInterval());
+        // 初始化 ioExecutor
+        final ExecutorService ioExecutor = Executors.newFixedThreadPool(
+                taskManagerServicesConfiguration.getNumIoThreads(),
+                new ExecutorThreadFactory("flink-taskexecutor-io"));
 
-        final ExecutorService ioExecutor =
-                Executors.newFixedThreadPool(
-                        taskManagerServicesConfiguration.getNumIoThreads(),
-                        new ExecutorThreadFactory("flink-taskexecutor-io"));
-
-        TaskManagerServices taskManagerServices =
-                TaskManagerServices.fromConfiguration(
-                        taskManagerServicesConfiguration,
-                        taskExecutorBlobService.getPermanentBlobService(),
-                        taskManagerMetricGroup.f1,
-                        ioExecutor,
-                        fatalErrorHandler,
-                        workingDirectory);
+        // 里头初始化了很多很多的TaskManager在运行过程中需要的服务
+        // 在这儿TaskManager启动之前，已经初始化了一些服务组件，基础服务，
+        // 这里面创建的服务，就是TaskManager在运行过程中，真正需要的用来对外提供服务的 各种服务组件
+        TaskManagerServices taskManagerServices = TaskManagerServices.fromConfiguration(
+                taskManagerServicesConfiguration,
+                taskExecutorBlobService.getPermanentBlobService(),
+                taskManagerMetricGroup.f1,
+                ioExecutor,
+                fatalErrorHandler,
+                workingDirectory);
 
         MetricUtils.instantiateFlinkMemoryMetricGroup(
                 taskManagerMetricGroup.f1,
                 taskManagerServices.getTaskSlotTable(),
                 taskManagerServices::getManagedMemorySize);
 
-        TaskManagerConfiguration taskManagerConfiguration =
-                TaskManagerConfiguration.fromConfiguration(
-                        configuration,
-                        taskExecutorResourceSpec,
-                        externalAddress,
-                        workingDirectory.getTmpDirectory());
+        TaskManagerConfiguration taskManagerConfiguration = TaskManagerConfiguration
+                .fromConfiguration(
+                        configuration, taskExecutorResourceSpec,
+                        externalAddress, workingDirectory.getTmpDirectory());
 
         String metricQueryServiceAddress = metricRegistry.getMetricQueryServiceGatewayRpcAddress();
-
+        // 创建TaskExecutor实例, 内部会创建两个重要的心跳管理器：
+        // 1、JobManagerHeartbeatManager
+        // 2、ResourceManagerHeartbeatManager
+        // 这里才是初始化TaskManagerRunner最重要的地方！
         return new TaskExecutor(
                 rpcService,
                 taskManagerConfiguration,
@@ -756,17 +762,17 @@ public class TaskManagerRunner implements FatalErrorHandler {
                                     final String value =
                                             StringUtils.isNullOrWhitespaceOnly(rpcAddress)
                                                     ? hostName
-                                                            + "-"
-                                                            + new AbstractID()
-                                                                    .toString()
-                                                                    .substring(0, 6)
+                                                    + "-"
+                                                    + new AbstractID()
+                                                    .toString()
+                                                    .substring(0, 6)
                                                     : rpcAddress
-                                                            + ":"
-                                                            + rpcPort
-                                                            + "-"
-                                                            + new AbstractID()
-                                                                    .toString()
-                                                                    .substring(0, 6);
+                                                    + ":"
+                                                    + rpcPort
+                                                    + "-"
+                                                    + new AbstractID()
+                                                    .toString()
+                                                    .substring(0, 6);
                                     return DeterminismEnvelope.nondeterministicValue(
                                             new ResourceID(value, metadata));
                                 }));

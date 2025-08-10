@@ -100,7 +100,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * and/or source inputs and pushing produced records to the remaining chained operators.
  *
  * @param <OUT> The type of elements accepted by the chain, i.e., the input type of the chain's main
- *     operator.
+ *         operator.
  */
 public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         implements BoundedMultiInput, Closeable {
@@ -133,10 +133,13 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
      * traversed: first, second, main, ..., tail or in reversed order: tail, ..., main, second,
      * first
      */
-    @Nullable protected final StreamOperatorWrapper<OUT, OP> mainOperatorWrapper;
+    @Nullable
+    protected final StreamOperatorWrapper<OUT, OP> mainOperatorWrapper;
 
-    @Nullable protected final StreamOperatorWrapper<?, ?> firstOperatorWrapper;
-    @Nullable protected final StreamOperatorWrapper<?, ?> tailOperatorWrapper;
+    @Nullable
+    protected final StreamOperatorWrapper<?, ?> firstOperatorWrapper;
+    @Nullable
+    protected final StreamOperatorWrapper<?, ?> tailOperatorWrapper;
 
     protected final Map<StreamConfig.SourceInputConfig, ChainedSource> chainedSources;
 
@@ -150,88 +153,114 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
 
     protected boolean isClosed;
 
+    // 构造 OperatorChain
     public OperatorChain(
             StreamTask<OUT, OP> containingTask,
             RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriterDelegate) {
-
-        this.operatorEventDispatcher =
-                new OperatorEventDispatcherImpl(
-                        containingTask.getEnvironment().getUserCodeClassLoader().asClassLoader(),
-                        containingTask.getEnvironment().getOperatorCoordinatorEventGateway());
+        // 获取 OperatorEventDispatcherImpl 实例
+        this.operatorEventDispatcher = new OperatorEventDispatcherImpl(
+                containingTask.getEnvironment().getUserCodeClassLoader().asClassLoader(),
+                containingTask.getEnvironment().getOperatorCoordinatorEventGateway());
 
         final ClassLoader userCodeClassloader = containingTask.getUserCodeClassLoader();
+        // 多个Operator会被Chain成一个Node，一个Node对应一个StreamTask，当前的StreamTask的序列化的配置数据
         final StreamConfig configuration = containingTask.getConfiguration();
-
-        StreamOperatorFactory<OUT> operatorFactory =
-                configuration.getStreamOperatorFactory(userCodeClassloader);
+        // 如果是SourceStreamTask，这里构造的是SourceOperatorFactory
+        StreamOperatorFactory<OUT> operatorFactory = configuration
+                .getStreamOperatorFactory(userCodeClassloader);
 
         // we read the chained configs, and the order of record writer registrations by output name
-        Map<Integer, StreamConfig> chainedConfigs =
-                configuration.getTransitiveChainedTaskConfigsWithSelf(userCodeClassloader);
+        // 该map中保存的是被合并的多个Operator的id和被序列化的数据
+        Map<Integer, StreamConfig> chainedConfigs = configuration
+                .getTransitiveChainedTaskConfigsWithSelf(userCodeClassloader);
 
         // create the final output stream writers
         // we iterate through all the out edges from this job vertex and create a stream output
-        List<NonChainedOutput> outputsInOrder =
-                configuration.getVertexNonChainedOutputs(userCodeClassloader);
+
+        /**
+         *  这里其实是获取的当前任务（Task）级别的非链式输出信息，其实就是当前OperatorChain的输出
+         *  这里不一定是最后一个Operator的输出，可能是中间的某个Operator的输出
+         */
+        List<NonChainedOutput> outputsInOrder = configuration
+                .getVertexNonChainedOutputs(userCodeClassloader);
         Map<IntermediateDataSetID, RecordWriterOutput<?>> recordWriterOutputs =
                 new HashMap<>(outputsInOrder.size());
+        // 初始化得到output输出数组集合，最终往外输出的output会存储到该数组中
         this.streamOutputs = new RecordWriterOutput<?>[outputsInOrder.size()];
-        this.finishedOnRestoreInput =
-                this.isTaskDeployedAsFinished()
-                        ? new FinishedOnRestoreInput(
-                                streamOutputs, configuration.getInputs(userCodeClassloader).length)
-                        : null;
+        // 这里isTaskDeployedAsFinished默认是false，所以这里的finishedOnRestoreInput为null
+        this.finishedOnRestoreInput = this.isTaskDeployedAsFinished() ? new FinishedOnRestoreInput(
+                streamOutputs, configuration.getInputs(userCodeClassloader).length) : null;
 
         // from here on, we need to make sure that the output writers are shut down again on failure
         boolean success = false;
         try {
+            // 遍历每个输出边，给每个outEdge构造一个RecordWriterOutput实例，并存储到recordWriterOutputs中
+            // 这里的recordWriter是将ChannelSelectorRecordWriter封装到SingleRecordWriter，在StreamTask构造方法中被初始化
             createChainOutputs(
-                    outputsInOrder,
-                    recordWriterDelegate,
-                    chainedConfigs,
-                    containingTask,
-                    recordWriterOutputs);
+                    outputsInOrder, recordWriterDelegate, chainedConfigs,
+                    containingTask, recordWriterOutputs);
 
             // we create the chain of operators and grab the collector that leads into the chain
-            List<StreamOperatorWrapper<?, ?>> allOpWrappers =
-                    new ArrayList<>(chainedConfigs.size());
-            this.mainOperatorOutput =
-                    createOutputCollector(
-                            containingTask,
-                            configuration,
-                            chainedConfigs,
-                            userCodeClassloader,
-                            recordWriterOutputs,
-                            allOpWrappers,
-                            containingTask.getMailboxExecutorFactory(),
-                            operatorFactory != null);
+            // OperatorChain中所有的具体的Operator
+            List<StreamOperatorWrapper<?, ?>> allOpWrappers = new ArrayList<>(
+                    chainedConfigs.size());
+            /**
+             * 这里虽然看着只是创建了mainOperatorOutput，其实会递归调用，将该OperatorChain上的所有Node对应的Operator以及对应的output都创建出来
+             *
+             * mainOperatorOutput其实是OperatorChain的头节点的输出，这里分两种情况
+             * 如果当前的是多个Operator被Chain在一起的
+             * 1、如果将pipeline.object-reuse设置为true，这里的mainOperatorOutput最终会被封装为ChainingOutput然后再次被封装为CountingOutput
+             * 2、如果未设置pipeline.object-reuse，则最终会被封装为CopyingChainingOutput然后再次被封装为CountingOutput
+             *
+             * CopyingChainingOutput其实是ChainingOutput实现类，区别是CopyingChainingOutput中调用Operator的processElement来处理
+             * 数据时不是直接使用数据而是对数据进行拷贝，然后传入processElement，而ChainingOutput是直接使用数据不进行拷贝
+             *
+             * 如果非多个Operator被Chain在一起
+             * 1、只有一个输出，这里的mainOperatorOutput是被CountingOutput封装的RecordWriterOutput
+             * 2、有两个输出的情况下，包括一个链式输出和一个或多个非链式输出，将返回BroadcastingOutputCollector或CopyingBroadcastingOutputCollector
+             *
+             * BroadcastingOutputCollector与CopyingBroadcastingOutputCollector的关于与ChainingOutput和CopyingChainingOutput关系一样
+             */
+            this.mainOperatorOutput = createOutputCollector(
+                    containingTask,
+                    configuration,  // 头节点的StreamConfig
+                    chainedConfigs,
+                    userCodeClassloader,
+                    recordWriterOutputs,
+                    allOpWrappers,
+                    containingTask.getMailboxExecutorFactory(),
+                    operatorFactory != null);
 
             if (operatorFactory != null) {
+                /**
+                 * 创建创建Operator，实际是调用StreamOperatorFactory的createStreamOperator
+                 * 如果是kafka数据源的话是调用SourceOperatorFactory的createStreamOperator
+                 * 如果是map、filter等算子，是直接调用SimpleOperatorFactory的createStreamOperator方法
+                 * 这里的OP其实是具体的Operator，这里创建的Operator是链式的第一个Operator即SourceOperator
+                 */
                 Tuple2<OP, Optional<ProcessingTimeService>> mainOperatorAndTimeService =
                         StreamOperatorFactoryUtil.createOperator(
                                 operatorFactory,
                                 containingTask,
-                                configuration,
+                                configuration,  // 头节点的StreamConfig
                                 mainOperatorOutput,
                                 operatorEventDispatcher);
 
+                // 具体的Operator，比如SourceOperator
                 OP mainOperator = mainOperatorAndTimeService.f0;
-                mainOperator
-                        .getMetricGroup()
-                        .gauge(
-                                MetricNames.IO_CURRENT_OUTPUT_WATERMARK,
-                                mainOperatorOutput.getWatermarkGauge());
-                this.mainOperatorWrapper =
-                        createOperatorWrapper(
-                                mainOperator,
-                                containingTask,
-                                configuration,
-                                mainOperatorAndTimeService.f1,
-                                true);
-
+                mainOperator.getMetricGroup().gauge(
+                        MetricNames.IO_CURRENT_OUTPUT_WATERMARK,
+                        mainOperatorOutput.getWatermarkGauge());
+                // 把每一个Operator都包装成StreamOperatorWrapper，其实就是new一个StreamOperatorWrapper
+                this.mainOperatorWrapper = createOperatorWrapper(
+                        mainOperator,
+                        containingTask,
+                        configuration,
+                        mainOperatorAndTimeService.f1,
+                        true);
                 // add main operator to end of chain
+                // 将包装的OperatorWrapper放入List<StreamOperatorWrapper<?, ?>>集合中
                 allOpWrappers.add(mainOperatorWrapper);
-
                 this.tailOperatorWrapper = allOpWrappers.get(0);
             } else {
                 checkState(allOpWrappers.size() == 0);
@@ -239,18 +268,16 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
                 this.tailOperatorWrapper = null;
             }
 
-            this.chainedSources =
-                    createChainedSources(
-                            containingTask,
-                            configuration.getInputs(userCodeClassloader),
-                            chainedConfigs,
-                            userCodeClassloader,
-                            allOpWrappers);
+            this.chainedSources = createChainedSources(
+                    containingTask,
+                    configuration.getInputs(userCodeClassloader),
+                    chainedConfigs,
+                    userCodeClassloader,
+                    allOpWrappers);
 
             this.numOperators = allOpWrappers.size();
-
+            // 以逻辑正序的方式来构建StreamOperator的链式关系，这里的返回的其实是mainOperatorWrapper
             firstOperatorWrapper = linkOperatorWrappers(allOpWrappers);
-
             success = true;
         } finally {
             // make sure we clean up after ourselves in case of a failure after acquiring
@@ -380,8 +407,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
      * order.
      */
     protected Iterable<StreamOperatorWrapper<?, ?>> getAllOperators(boolean reverse) {
-        return reverse
-                ? new StreamOperatorWrapper.ReadIterator(tailOperatorWrapper, true)
+        return reverse ? new StreamOperatorWrapper.ReadIterator(tailOperatorWrapper, true)
                 : new StreamOperatorWrapper.ReadIterator(mainOperatorWrapper, false);
     }
 
@@ -513,15 +539,16 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             Map<Integer, StreamConfig> chainedConfigs,
             StreamTask<OUT, OP> containingTask,
             Map<IntermediateDataSetID, RecordWriterOutput<?>> recordWriterOutputs) {
+        // 遍历每个输出边，给每个outEdge构造一个RecordWriterOutput实例
         for (int i = 0; i < outputsInOrder.size(); ++i) {
             NonChainedOutput output = outputsInOrder.get(i);
-
-            RecordWriterOutput<?> recordWriterOutput =
-                    createStreamOutput(
-                            recordWriterDelegate.getRecordWriter(i),
-                            output,
-                            chainedConfigs.get(output.getSourceNodeId()),
-                            containingTask.getEnvironment());
+            // 为每一个 Operator 构造 RecordWriterOutput
+            // 这里getRecordWriter获取到的是将ChannelSelectorRecordWriter封装到SingleRecordWriter，在StreamTask构造方法中被初始化
+            RecordWriterOutput<?> recordWriterOutput = createStreamOutput(
+                    recordWriterDelegate.getRecordWriter(i),
+                    output,
+                    chainedConfigs.get(output.getSourceNodeId()),
+                    containingTask.getEnvironment());
 
             this.streamOutputs[i] = recordWriterOutput;
             recordWriterOutputs.put(output.getDataSetId(), recordWriterOutput);
@@ -533,30 +560,27 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             NonChainedOutput streamOutput,
             StreamConfig upStreamConfig,
             Environment taskEnvironment) {
-        OutputTag sideOutputTag =
-                streamOutput.getOutputTag(); // OutputTag, return null if not sideOutput
+        // OutputTag, return null if not sideOutput
+        OutputTag sideOutputTag = streamOutput.getOutputTag();
 
+        // 这里的outSerializer其实就是该Operator的输出类型
         TypeSerializer outSerializer;
-
         if (streamOutput.getOutputTag() != null) {
             // side output
-            outSerializer =
-                    upStreamConfig.getTypeSerializerSideOut(
-                            streamOutput.getOutputTag(),
-                            taskEnvironment.getUserCodeClassLoader().asClassLoader());
+            outSerializer = upStreamConfig.getTypeSerializerSideOut(
+                    streamOutput.getOutputTag(),
+                    taskEnvironment.getUserCodeClassLoader().asClassLoader());
         } else {
             // main output
-            outSerializer =
-                    upStreamConfig.getTypeSerializerOut(
-                            taskEnvironment.getUserCodeClassLoader().asClassLoader());
+            outSerializer = upStreamConfig.getTypeSerializerOut(
+                    taskEnvironment.getUserCodeClassLoader().asClassLoader());
         }
-
-        return closer.register(
-                new RecordWriterOutput<OUT>(
-                        recordWriter,
-                        outSerializer,
-                        sideOutputTag,
-                        streamOutput.supportsUnalignedCheckpoints()));
+        // 这里recordWriter是将ChannelSelectorRecordWriter封装到SingleRecordWriter，在StreamTask构造方法中被初始化
+        return closer.register(new RecordWriterOutput<OUT>(
+                recordWriter,
+                outSerializer,
+                sideOutputTag,
+                streamOutput.supportsUnalignedCheckpoints()));
     }
 
     @SuppressWarnings("rawtypes")
@@ -578,12 +602,11 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
                 (MultipleInputStreamOperator<?>) mainOperatorWrapper.getStreamOperator();
         List<Input> operatorInputs = multipleInputOperator.getInputs();
 
-        int sourceInputGateIndex =
-                Arrays.stream(containingTask.getEnvironment().getAllInputGates())
-                                .mapToInt(IndexedInputGate::getInputGateIndex)
-                                .max()
-                                .orElse(-1)
-                        + 1;
+        int sourceInputGateIndex = Arrays.stream(containingTask.getEnvironment().getAllInputGates())
+                .mapToInt(IndexedInputGate::getInputGateIndex)
+                .max()
+                .orElse(-1)
+                + 1;
 
         for (int inputId = 0; inputId < configuredInputs.length; inputId++) {
             if (!(configuredInputs[inputId] instanceof StreamConfig.SourceInputConfig)) {
@@ -595,34 +618,29 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             StreamConfig sourceInputConfig = chainedConfigs.get(sourceEdgeId);
             OutputTag outputTag = sourceInput.getInputEdge().getOutputTag();
 
-            WatermarkGaugeExposingOutput chainedSourceOutput =
-                    createChainedSourceOutput(
-                            containingTask,
-                            sourceInputConfig,
-                            userCodeClassloader,
-                            getFinishedOnRestoreInputOrDefault(operatorInputs.get(inputId)),
-                            multipleInputOperator.getMetricGroup(),
-                            outputTag);
+            WatermarkGaugeExposingOutput chainedSourceOutput = createChainedSourceOutput(
+                    containingTask,
+                    sourceInputConfig,
+                    userCodeClassloader,
+                    getFinishedOnRestoreInputOrDefault(operatorInputs.get(inputId)),
+                    multipleInputOperator.getMetricGroup(),
+                    outputTag);
 
-            SourceOperator<?, ?> sourceOperator =
-                    (SourceOperator<?, ?>)
-                            createOperator(
-                                    containingTask,
-                                    sourceInputConfig,
-                                    userCodeClassloader,
-                                    (WatermarkGaugeExposingOutput<StreamRecord<OUT>>)
-                                            chainedSourceOutput,
-                                    allOpWrappers,
-                                    true);
-            chainedSourceInputs.put(
-                    sourceInput,
-                    new ChainedSource(
+            SourceOperator<?, ?> sourceOperator = (SourceOperator<?, ?>) createOperator(
+                    containingTask,
+                    sourceInputConfig,
+                    userCodeClassloader,
+                    (WatermarkGaugeExposingOutput<StreamRecord<OUT>>)
                             chainedSourceOutput,
-                            this.isTaskDeployedAsFinished()
-                                    ? new StreamTaskFinishedOnRestoreSourceInput<>(
-                                            sourceOperator, sourceInputGateIndex++, inputId)
-                                    : new StreamTaskSourceInput<>(
-                                            sourceOperator, sourceInputGateIndex++, inputId)));
+                    allOpWrappers,
+                    true);
+            chainedSourceInputs.put(
+                    sourceInput, new ChainedSource(
+                            chainedSourceOutput, this.isTaskDeployedAsFinished()
+                            ? new StreamTaskFinishedOnRestoreSourceInput<>(
+                            sourceOperator, sourceInputGateIndex++, inputId)
+                            : new StreamTaskSourceInput<>(
+                            sourceOperator, sourceInputGateIndex++, inputId)));
         }
         return chainedSourceInputs;
     }
@@ -650,12 +668,9 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             return null;
         }
 
-        InternalOperatorMetricGroup operatorMetricGroup =
-                containingTask
-                        .getEnvironment()
-                        .getMetricGroup()
-                        .getOrAddOperator(
-                                operatorConfig.getOperatorID(), operatorConfig.getOperatorName());
+        InternalOperatorMetricGroup operatorMetricGroup = containingTask.getEnvironment()
+                .getMetricGroup()
+                .getOrAddOperator(operatorConfig.getOperatorID(), operatorConfig.getOperatorName());
         if (operatorConfig.isChainEnd()) {
             operatorMetricGroup.getIOMetricGroup().reuseOutputMetricsForTask();
         }
@@ -681,9 +696,8 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         } else {
             TypeSerializer<?> inSerializer =
                     sourceInputConfig.getTypeSerializerOut(userCodeClassloader);
-            chainedSourceOutput =
-                    new CopyingChainingOutput(
-                            input, inSerializer, recordsOutCounter, metricGroup, outputTag);
+            chainedSourceOutput = new CopyingChainingOutput(
+                    input, inSerializer, recordsOutCounter, metricGroup, outputTag);
         }
         /**
          * Chained sources are closed when {@link
@@ -704,6 +718,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         List<WatermarkGaugeExposingOutput<StreamRecord<T>>> allOutputs = new ArrayList<>(4);
 
         // create collectors for the network outputs
+        // 这里是遍历当前算子的非链式输出
         for (NonChainedOutput streamOutput :
                 operatorConfig.getOperatorNonChainedOutputs(userCodeClassloader)) {
             @SuppressWarnings("unchecked")
@@ -714,34 +729,36 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         }
 
         // Create collectors for the chained outputs
+        // 这里其实是从StreamConfig反序列初该OperatorChain中所有Operator的所有输出边
+        // 第一次进入的时候operatorConfig其实是头节点对应的StreamConfig，所以这里是从头节点开始遍历所有的输出边
         for (StreamEdge outputEdge : operatorConfig.getChainedOutputs(userCodeClassloader)) {
             int outputId = outputEdge.getTargetId();
             StreamConfig chainedOpConfig = chainedConfigs.get(outputId);
-
-            WatermarkGaugeExposingOutput<StreamRecord<T>> output =
-                    createOperatorChain(
-                            containingTask,
-                            operatorConfig,
-                            chainedOpConfig,
-                            chainedConfigs,
-                            userCodeClassloader,
-                            recordWriterOutputs,
-                            allOperatorWrappers,
-                            outputEdge.getOutputTag(),
-                            mailboxExecutorFactory,
-                            shouldAddMetric);
+            // 构建output输出对象,可能为ChainingOutput或CopyingChainingOutput
+            WatermarkGaugeExposingOutput<StreamRecord<T>> output = createOperatorChain(
+                    containingTask,
+                    operatorConfig,
+                    chainedOpConfig,
+                    chainedConfigs,
+                    userCodeClassloader,
+                    recordWriterOutputs,
+                    allOperatorWrappers,
+                    outputEdge.getOutputTag(),
+                    mailboxExecutorFactory,
+                    shouldAddMetric);
             allOutputs.add(output);
             // If the operator has multiple downstream chained operators, only one of them should
             // increment the recordsOutCounter for this operator. Set shouldAddMetric to false
             // so that we would skip adding the counter to other downstream operators.
             shouldAddMetric = false;
         }
-
         WatermarkGaugeExposingOutput<StreamRecord<T>> result;
-
+        // 最后一个输出边可能是一个非Chained的输出边的情况，allOutputs的size才为1
         if (allOutputs.size() == 1) {
+            // 可能情况之四： ChainingOutput 或者 CopyingChainingOutput
             result = allOutputs.get(0);
         } else {
+            // 如果同时存在链式输出和非链式输出的情况下，或者多输出的情况下才会走下面这个分支
             // send to N outputs. Note that this includes the special case
             // of sending to zero outputs
             @SuppressWarnings({"unchecked"})
@@ -754,8 +771,10 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             // If the chaining output does not copy we need to copy in the broadcast output,
             // otherwise multi-chaining would not work correctly.
             if (containingTask.getExecutionConfig().isObjectReuseEnabled()) {
+                // 可能情况之一： CopyingBroadcastingOutputCollector
                 result = closer.register(new CopyingBroadcastingOutputCollector<>(asArray));
             } else {
+                // 可能情况之二： BroadcastingOutputCollector
                 result = closer.register(new BroadcastingOutputCollector<>(asArray));
             }
         }
@@ -769,6 +788,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
                 result = new CountingOutput<>(result, recordsOutCounter);
             }
         }
+        // 这里其实最终都会将ChainingOutput封装为CountingOutput
         return result;
     }
 
@@ -778,7 +798,9 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
      */
     private <IN, OUT> WatermarkGaugeExposingOutput<StreamRecord<IN>> createOperatorChain(
             StreamTask<OUT, ?> containingTask,
+            // 上游节点的StreamConfig
             StreamConfig prevOperatorConfig,
+            // 下游节点的StreamConfig
             StreamConfig operatorConfig,
             Map<Integer, StreamConfig> chainedConfigs,
             ClassLoader userCodeClassloader,
@@ -787,8 +809,10 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             OutputTag<IN> outputTag,
             MailboxExecutorFactory mailboxExecutorFactory,
             boolean shouldAddMetricForPrevOperator) {
-        // create the output that the operator writes to first. this may recursively create more
-        // operators
+        // create the output that the operator writes to first. this may recursively create more operators
+        // 这里其实就是递归调用，会先将下游的Operator创建好，最终会创建到链式的最后一个Operator
+        // 注意这里调用createOutputCollector方法传入的StreamConfig其实operatorConfig
+        // 这里会递归到OperatorChain最后一个Operator才会返回被CountingOutput封装的RecordWriterOutput
         WatermarkGaugeExposingOutput<StreamRecord<OUT>> chainedOperatorOutput =
                 createOutputCollector(
                         containingTask,
@@ -800,15 +824,16 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
                         mailboxExecutorFactory,
                         true);
 
-        OneInputStreamOperator<IN, OUT> chainedOperator =
-                createOperator(
-                        containingTask,
-                        operatorConfig,
-                        userCodeClassloader,
-                        chainedOperatorOutput,
-                        allOperatorWrappers,
-                        false);
-
+        // 如果是KafkaSource这里创建的chainedOperator是SourceOperator
+        // 这里是创建具体的Operator，实际是调用StreamOperatorFactory的createStreamOperator
+        OneInputStreamOperator<IN, OUT> chainedOperator = createOperator(
+                containingTask,
+                operatorConfig,
+                userCodeClassloader,
+                chainedOperatorOutput,
+                allOperatorWrappers,
+                false);
+        // 注意这个地方返回的可能是ChainingOutput或CopyingChainingOutput
         return wrapOperatorIntoOutput(
                 chainedOperator,
                 containingTask,
@@ -834,66 +859,68 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         // now create the operator and give it the output collector to write its output to
         Tuple2<OP, Optional<ProcessingTimeService>> chainedOperatorAndTimeService =
                 StreamOperatorFactoryUtil.createOperator(
+                        // 反序列化获取在构建StreamGraph时传入的StreamOperatorFactory
                         operatorConfig.getStreamOperatorFactory(userCodeClassloader),
                         containingTask,
                         operatorConfig,
                         output,
                         operatorEventDispatcher);
 
+        // 如果是KafkaSource这里创建的是SourceOperator
         OP chainedOperator = chainedOperatorAndTimeService.f0;
-        allOperatorWrappers.add(
-                createOperatorWrapper(
-                        chainedOperator,
-                        containingTask,
-                        operatorConfig,
-                        chainedOperatorAndTimeService.f1,
-                        isHead));
+        // isHead默认是false
+        allOperatorWrappers.add(createOperatorWrapper(
+                chainedOperator,
+                containingTask,
+                operatorConfig,
+                chainedOperatorAndTimeService.f1,
+                isHead));
 
-        chainedOperator
-                .getMetricGroup()
-                .gauge(
-                        MetricNames.IO_CURRENT_OUTPUT_WATERMARK,
-                        output.getWatermarkGauge()::getValue);
+        chainedOperator.getMetricGroup().gauge(
+                MetricNames.IO_CURRENT_OUTPUT_WATERMARK,
+                output.getWatermarkGauge()::getValue);
         return chainedOperator;
     }
 
     private <IN, OUT> WatermarkGaugeExposingOutput<StreamRecord<IN>> wrapOperatorIntoOutput(
+            // 下游算子的OneInputStreamOperator
             OneInputStreamOperator<IN, OUT> operator,
             StreamTask<OUT, ?> containingTask,
+            // 上游算子的StreamConfig
             StreamConfig prevOperatorConfig,
+            // 下游算子的StreamConfig
             StreamConfig operatorConfig,
             ClassLoader userCodeClassloader,
             OutputTag<IN> outputTag,
             boolean shouldAddMetricForPrevOperator) {
 
         Counter recordsOutCounter = null;
-
+        // 一般shouldAddMetricForPrevOperator默认是true的
         if (shouldAddMetricForPrevOperator) {
             recordsOutCounter = getOperatorRecordsOutCounter(containingTask, prevOperatorConfig);
         }
 
         WatermarkGaugeExposingOutput<StreamRecord<IN>> currentOperatorOutput;
+        // 如果将pipeline.object-reuse设置为true，则创建ChainingOutput
         if (containingTask.getExecutionConfig().isObjectReuseEnabled()) {
-            currentOperatorOutput =
-                    new ChainingOutput<>(
-                            operator, recordsOutCounter, operator.getMetricGroup(), outputTag);
+            currentOperatorOutput = new ChainingOutput<>(
+                    operator, recordsOutCounter, operator.getMetricGroup(), outputTag);
         } else {
             TypeSerializer<IN> inSerializer =
                     operatorConfig.getTypeSerializerIn1(userCodeClassloader);
-            currentOperatorOutput =
-                    new CopyingChainingOutput<>(
-                            operator,
-                            inSerializer,
-                            recordsOutCounter,
-                            operator.getMetricGroup(),
-                            outputTag);
+            // 如果未设置pipeline.object-reuse，CopyingChainingOutput本质上也是ChainingOutput
+            currentOperatorOutput = new CopyingChainingOutput<>(
+                    operator,
+                    inSerializer,
+                    recordsOutCounter,
+                    operator.getMetricGroup(),
+                    outputTag);
         }
 
         // wrap watermark gauges since registered metrics must be unique
-        operator.getMetricGroup()
-                .gauge(
-                        MetricNames.IO_CURRENT_INPUT_WATERMARK,
-                        currentOperatorOutput.getWatermarkGauge()::getValue);
+        operator.getMetricGroup().gauge(
+                MetricNames.IO_CURRENT_INPUT_WATERMARK,
+                currentOperatorOutput.getWatermarkGauge()::getValue);
 
         return closer.register(currentOperatorOutput);
     }
@@ -906,11 +933,17 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
     private StreamOperatorWrapper<?, ?> linkOperatorWrappers(
             List<StreamOperatorWrapper<?, ?>> allOperatorWrappers) {
         StreamOperatorWrapper<?, ?> previous = null;
+        // 将这个OperatorChain中的多个Operator都串接起来
+        // allOperatorWrappers中的OperatorWrapper都是反向存储的
         for (StreamOperatorWrapper<?, ?> current : allOperatorWrappers) {
             if (previous != null) {
+                // 当前遍历出来的OpeartorWrapper设置为上一个的previous
                 previous.setPrevious(current);
+                // List<> = [6,5,4,3,2,1]，previous = 4， current = 3
             }
+            // 将上一个遍历出来的OpeartorWrapper设置为当前OpeartorWrapper的下一个
             current.setNext(previous);
+            //  迭代previous OpeartorWrapper
             previous = current;
         }
         return previous;
@@ -922,11 +955,11 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             StreamConfig operatorConfig,
             Optional<ProcessingTimeService> processingTimeService,
             boolean isHead) {
+        // isHead默认是true
         return new StreamOperatorWrapper<>(
                 operator,
                 processingTimeService,
-                containingTask
-                        .getMailboxExecutorFactory()
+                containingTask.getMailboxExecutorFactory()
                         .createExecutor(operatorConfig.getChainIndex()),
                 isHead);
     }

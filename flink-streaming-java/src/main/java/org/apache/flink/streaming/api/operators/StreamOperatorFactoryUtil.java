@@ -52,12 +52,15 @@ public class StreamOperatorFactoryUtil {
             StreamConfig configuration,
             Output<StreamRecord<OUT>> output,
             OperatorEventDispatcher operatorEventDispatcher) {
+        // 该方法在OperatorChain中被调用
 
         // 默认为MailboxExecutorImpl
         MailboxExecutor mailboxExecutor = containingTask
                 .getMailboxExecutorFactory()
                 .createExecutor(configuration.getChainIndex());
 
+        // 如果是Kafka这里的operatorFactory就是SourceOperatorFactory
+        // 如果是StreamFilter等则operatorFactory就是SimpleOperatorFactory
         if (operatorFactory instanceof YieldingOperatorFactory) {
             ((YieldingOperatorFactory<?>) operatorFactory).setMailboxExecutor(mailboxExecutor);
         }
@@ -78,12 +81,15 @@ public class StreamOperatorFactoryUtil {
         }
 
         // TODO: what to do with ProcessingTimeServiceAware?
+        // 将用到的参数封装成StreamOperatorParameters，然后传入createStreamOperator
+        // output要么是ChainingOutput，要么就是RecordWriterOutput，最终都会被封装为CountingOutput
+        // 如果是Kafka这里的operatorFactory就是SourceOperatorFactory，创建一个SourceOperator
         OP op = operatorFactory.createStreamOperator(new StreamOperatorParameters<>(
-                containingTask,
+                containingTask,  // 这里的containingTask是StreamTask
                 configuration,
                 output,
-                processingTimeService != null ? () -> processingTimeService :
-                        processingTimeServiceFactory,
+                processingTimeService != null ?
+                        () -> processingTimeService : processingTimeServiceFactory,
                 operatorEventDispatcher));
         return new Tuple2<>(op, Optional.ofNullable(processingTimeService));
     }

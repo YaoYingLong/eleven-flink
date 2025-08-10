@@ -50,6 +50,13 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * #triggerCheckpointOnBarrier(CheckpointMetaData, CheckpointOptions, CheckpointMetricsBuilder)},
  * {@link #abortCheckpointOnBarrier(long, CheckpointException)} and {@link
  * #notifyCheckpointCompleteAsync(long)}.
+ *
+ *
+ * 这是 TaskManager 可以执行的每个 Task 的抽象基类。 具体任务扩展了此类，例如流任务和批处理任务
+ * 执行任务时，TaskManager会调用{@link #invoke（）}方法
+ * 任务的所有操作都以这种方法发生（设置输入输出流读取器和写入器以及任务的核心操作）
+ * 所有扩展的类都必须提供一个构造函数{@code MyTask（Environment，TaskStateSnapshot）}。
+ * 为了方便起见，总是无状态的任务也只能实现构造函数* {@code MyTask（Environment）}
  */
 public abstract class AbstractInvokable
         implements TaskInvokable, CheckpointableTask, CoordinatedTask {

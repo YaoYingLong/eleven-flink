@@ -80,6 +80,7 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.ExecutionCheckpointingOptions;
 import org.apache.flink.streaming.api.graph.NonChainedOutput;
 import org.apache.flink.streaming.api.graph.StreamConfig;
+import org.apache.flink.streaming.api.graph.StreamNode;
 import org.apache.flink.streaming.api.operators.InternalTimeServiceManager;
 import org.apache.flink.streaming.api.operators.InternalTimeServiceManagerImpl;
 import org.apache.flink.streaming.api.operators.StreamOperator;
@@ -185,12 +186,7 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
  * @param <OP>
  */
 @Internal
-public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
-        implements TaskInvokable,
-        CheckpointableTask,
-        CoordinatedTask,
-        AsyncExceptionHandler,
-        ContainingTaskDetails {
+public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements TaskInvokable, CheckpointableTask, CoordinatedTask, AsyncExceptionHandler, ContainingTaskDetails {
 
     /** The thread group that holds all trigger timer threads. */
     public static final ThreadGroup TRIGGER_THREAD_GROUP = new ThreadGroup("Triggers");
@@ -321,6 +317,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * @param env The task environment for this task.
      */
     protected StreamTask(Environment env) throws Exception {
+        // 在TaskManager中通过反射的方式调用子类的构造方法，然后调用到该类的该构造方法
         this(env, null);
     }
 
@@ -339,6 +336,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             @Nullable TimerService timerService,
             Thread.UncaughtExceptionHandler uncaughtExceptionHandler)
             throws Exception {
+        // 默认传入的timerService为null
         this(
                 environment,
                 timerService,
@@ -366,12 +364,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             Thread.UncaughtExceptionHandler uncaughtExceptionHandler,
             StreamTaskActionExecutor actionExecutor)
             throws Exception {
+        // 默认传入的timerService为null
+        // actionExecutor为StreamTaskActionExecutor.IMMEDIATE
+        // 每个 StreamTask 都会生成一个 TaskMailboxImpl 对象
         this(
-                environment,
-                timerService,
-                uncaughtExceptionHandler,
-                actionExecutor,
-                new TaskMailboxImpl(Thread.currentThread()));
+                environment, timerService, uncaughtExceptionHandler,
+                actionExecutor, new TaskMailboxImpl(Thread.currentThread()));
     }
 
     protected StreamTask(
@@ -381,6 +379,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             StreamTaskActionExecutor actionExecutor,
             TaskMailbox mailbox)
             throws Exception {
+        // mailbox传入的是new的一个TaskMailboxImpl
         // The registration of all closeable resources. The order of registration is important.
         resourceCloser = new AutoCloseableRegistry();
         try {
@@ -388,18 +387,21 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             this.configuration = new StreamConfig(environment.getTaskConfiguration());
 
             // Initialize mailbox metrics
-            MailboxMetricsController mailboxMetricsControl =
-                    new MailboxMetricsController(
-                            environment.getMetricGroup().getIOMetricGroup().getMailboxLatency(),
-                            environment
-                                    .getMetricGroup()
-                                    .getIOMetricGroup()
-                                    .getNumMailsProcessedCounter());
-            environment.getMetricGroup()
-                    .getIOMetricGroup()
+            // 初始化mailbox指标类MailboxMetricsController
+            MailboxMetricsController mailboxMetricsControl = new MailboxMetricsController(
+                    environment.getMetricGroup().getIOMetricGroup().getMailboxLatency(),
+                    environment.getMetricGroup().getIOMetricGroup().getNumMailsProcessedCounter());
+            environment.getMetricGroup().getIOMetricGroup()
                     .registerMailboxSizeSupplier(() -> mailbox.size());
-            // actionExecutor一般默认为StreamTaskActionExecutor.IMMEDIATE
+
+            // 初始化StreamTask的时候，初始化MailboxProcessor，同时执行StreamTask的processInput()方法
+            // 1、如果为SourceStreamTask的话，processInput方法会启动SourceStreamTask的sourceThread
+            // 2、如果为其他的非SourceStreamTask的话，则根据情况StreamOneInputProcessor或StreamTwoInputProcessor处理输入
+            // 第二个参数：mailbox为TaskMailboxImpl
+            // 第二个参数：actionExecutor为StreamTaskActionExecutor.IMMEDIATE
+            // 第三个参数：mailboxMetricsControl为MailboxMetricsController
             this.mailboxProcessor = new MailboxProcessor(
+                    // 关键代码，只要没有被暂停，会一致while循环执行该方法
                     this::processInput,
                     mailbox,
                     actionExecutor,
@@ -407,26 +409,27 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
             // Should be closed last.
             resourceCloser.registerCloseable(mailboxProcessor);
-
-            this.channelIOExecutor =
-                    Executors.newSingleThreadExecutor(
-                            new ExecutorThreadFactory("channel-state-unspilling"));
+            // 创建Channel的IO线程池
+            this.channelIOExecutor = Executors.newSingleThreadExecutor(
+                    new ExecutorThreadFactory("channel-state-unspilling"));
             resourceCloser.registerCloseable(channelIOExecutor::shutdown);
 
+            // 创建RecordWriter,大概率是ChannelSelectorRecordWriter，也有可能是个BroadcastRecordWriter
+            // 且将ChannelSelectorRecordWriter封装到SingleRecordWriter
             this.recordWriter = createRecordWriterDelegate(configuration, environment);
             // Release the output resources. this method should never fail.
             resourceCloser.registerCloseable(this::releaseOutputResources);
             // If the operators won't be closed explicitly, register it to a hard close.
             resourceCloser.registerCloseable(this::closeAllOperators);
             resourceCloser.registerCloseable(this::cleanUpInternal);
-
+            // actionExecutor为StreamTaskActionExecutor.IMMEDIATE
             this.actionExecutor = Preconditions.checkNotNull(actionExecutor);
+            // new一个MailboxExecutorImpl
             this.mainMailboxExecutor = mailboxProcessor.getMainMailboxExecutor();
             this.asyncExceptionHandler = new StreamTaskAsyncExceptionHandler(environment);
 
-            this.asyncOperationsThreadPool =
-                    Executors.newCachedThreadPool(
-                            new ExecutorThreadFactory("AsyncOperations", uncaughtExceptionHandler));
+            this.asyncOperationsThreadPool = Executors.newCachedThreadPool(
+                    new ExecutorThreadFactory("AsyncOperations", uncaughtExceptionHandler));
 
             // Register all asynchronous checkpoint threads.
             resourceCloser.registerCloseable(this::shutdownAsyncThreads);
@@ -434,16 +437,16 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
             environment.setMainMailboxExecutor(mainMailboxExecutor);
             environment.setAsyncOperationsThreadPool(asyncOperationsThreadPool);
-
+            // 创建 StateBackend 根据参数 state.backend 来创建响应的 StateBackend
+            // 1、MemoryStateBackend 把状态存储在job manager的内存中
+            // 2、FsStateBackend 把状态存在文件系统中，有可能是本地文件系统，也有可能是HDFS、S3等分布式文件系统
+            // 3、RocksDBStateBackend 把状态存在 RocksDB 中
+            // 按照我们的配置，一般获取到的是 FsStateBackend
             this.stateBackend = createStateBackend();
             this.checkpointStorage = createCheckpointStorage(stateBackend);
-            this.changelogWriterAvailabilityProvider =
-                    environment.getTaskStateManager().getStateChangelogStorage() == null
-                            ? null
-                            : environment
-                            .getTaskStateManager()
-                            .getStateChangelogStorage()
-                            .getAvailabilityProvider();
+            this.changelogWriterAvailabilityProvider = environment.getTaskStateManager()
+                    .getStateChangelogStorage() == null ? null : environment
+                    .getTaskStateManager().getStateChangelogStorage().getAvailabilityProvider();
 
             CheckpointStorageAccess checkpointStorageAccess =
                     checkpointStorage.createCheckpointStorage(getEnvironment().getJobID());
@@ -459,7 +462,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             }
 
             this.systemTimerService = createTimerService("System Time Trigger for " + getName());
-
+            // 初始化 SubtaskCheckpointCoordinatorImpl
             this.subtaskCheckpointCoordinator = new SubtaskCheckpointCoordinatorImpl(
                     checkpointStorage,
                     checkpointStorageAccess,
@@ -550,10 +553,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * @throws Exception on any problems in the action.
      */
     protected void processInput(MailboxDefaultAction.Controller controller) throws Exception {
+        // inputProcessor是具体的，如StreamOneInputProcessor的processInput
         DataInputStatus status = inputProcessor.processInput();
         switch (status) {
             case MORE_AVAILABLE:
                 if (taskIsAvailable()) {
+                    // 如果输入还有数据，并且 writer 是可用的，这里就直接返回了
                     return;
                 }
                 break;
@@ -572,6 +577,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 // after all records processed by the downstream tasks. We also suspend the default
                 // actions to avoid repeat executing the empty default operation (namely process
                 // records).
+                // 告诉 MailBox 先暂停 loop
                 controller.suspendDefaultAction();
                 mailboxProcessor.suspend();
                 return;
@@ -595,9 +601,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             // data availability has changed in the meantime; retry immediately
             return;
         }
-        assertNoException(
-                resumeFuture.thenRun(
-                        new ResumeWrapper(controller.suspendDefaultAction(timer), timer)));
+        // 等待future完成后，继续mailboxLoop（等待input和output可用后，才会继续）
+        assertNoException(resumeFuture.thenRun(
+                new ResumeWrapper(controller.suspendDefaultAction(timer), timer)));
     }
 
     protected void endData(StopMode mode) throws Exception {
@@ -687,19 +693,27 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         isRestoring = true;
         closedOperators = false;
         LOG.debug("Initializing {}.", getName());
+        // getTaskStateManager获取到的是TaskStateManagerImpl
+        // 不论是FinishedOperatorChain还是RegularOperatorChain核心逻辑都在OperatorChain的构造方法中
+        // OperatorChain里面会做很多事情，初始化output输出对象，主要做三件事情：
+        // 1、调用createStreamOutput()创建对应的下游输出RecordWriterOutput
+        // 2、调用createOutputCollector()将优化逻辑计划当中Chain中的StreamConfig（也就是数据）写入到第三步创建的RecordWriterOutput中
+        // 3、通过调用getChainedOutputs()输出结果RecordWriterOutput
 
-        operatorChain =
-                getEnvironment().getTaskStateManager().isTaskDeployedAsFinished()
-                        ? new FinishedOperatorChain<>(this, recordWriter)
-                        : new RegularOperatorChain<>(this, recordWriter);
+        // 这里的recordWriter是将ChannelSelectorRecordWriter封装到SingleRecordWriter，在StreamTask构造方法中被初始化
+        // 这里一般是new一个RegularOperatorChain
+        operatorChain = getEnvironment().getTaskStateManager().isTaskDeployedAsFinished()
+                ? new FinishedOperatorChain<>(this, recordWriter)
+                : new RegularOperatorChain<>(this, recordWriter);
+        // 获取OperatorChain的第一个Operator,可以认为接收数据线程中，要用到的mainOperator终于被初始化了
+        // 其实到此为止，可以认为在当前OperatorChain中要用到的各种组件都已经创建好了，可以接收数据然后开始流式处理了。
         mainOperator = operatorChain.getMainOperator();
 
-        getEnvironment()
-                .getTaskStateManager()
-                .getRestoreCheckpointId()
+        getEnvironment().getTaskStateManager().getRestoreCheckpointId()
                 .ifPresent(restoreId -> latestReportCheckpointId = restoreId);
 
         // task specific initialization
+        // 调用SourceOperatorStreamTask、OneInputStreamTask的init方法，主要是初始化StreamInputProcessor
         init();
 
         // save the work of reloading state, etc, if the task is already canceled
@@ -710,9 +724,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
         // we need to make sure that any triggers scheduled in open() cannot be
         // executed before all operators are opened
+        // // 遍历每个StreamOperator，调用StreamOperator的initializeState和open方法
         CompletableFuture<Void> allGatesRecoveredFuture = actionExecutor.call(this::restoreGates);
 
         // Run mailbox until all gates will be recovered.
+        // Task开始工作，执行这句代码的时候，还是在Task所在的那个线程中执行的
+        // 一般执行到这里会一直卡这，一直执行while循环处理数据
         mailboxProcessor.runMailboxLoop();
 
         ensureNotCanceled();
@@ -730,23 +747,23 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     }
 
     private CompletableFuture<Void> restoreGates() throws Exception {
-        SequentialChannelStateReader reader =
-                getEnvironment().getTaskStateManager().getSequentialChannelStateReader();
+        SequentialChannelStateReader reader = getEnvironment()
+                .getTaskStateManager().getSequentialChannelStateReader();
         reader.readOutputData(
-                getEnvironment().getAllWriters(), !configuration.isGraphContainingLoops());
-
+                getEnvironment().getAllWriters(),
+                !configuration.isGraphContainingLoops());
+        // 遍历每个StreamOperator，调用StreamOperator的initializeState和open方法
         operatorChain.initializeStateAndOpenOperators(createStreamTaskStateInitializer());
 
         IndexedInputGate[] inputGates = getEnvironment().getAllInputGates();
-        channelIOExecutor.execute(
-                () -> {
-                    try {
-                        reader.readInputData(inputGates);
-                    } catch (Exception e) {
-                        asyncExceptionHandler.handleAsyncException(
-                                "Unable to read channel state", e);
-                    }
-                });
+        channelIOExecutor.execute(() -> {
+            try {
+                reader.readInputData(inputGates);
+            } catch (Exception e) {
+                asyncExceptionHandler.handleAsyncException(
+                        "Unable to read channel state", e);
+            }
+        });
 
         // We wait for all input channel state to recover before we go into RUNNING state, and thus
         // start checkpointing. If we implement incremental checkpointing of input channel state
@@ -754,14 +771,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         List<CompletableFuture<?>> recoveredFutures = new ArrayList<>(inputGates.length);
         for (InputGate inputGate : inputGates) {
             recoveredFutures.add(inputGate.getStateConsumedFuture());
-
-            inputGate
-                    .getStateConsumedFuture()
-                    .thenRun(
-                            () ->
-                                    mainMailboxExecutor.execute(
-                                            inputGate::requestPartitions,
-                                            "Input gate request partitions"));
+            inputGate.getStateConsumedFuture().thenRun(() -> mainMailboxExecutor.execute(
+                    inputGate::requestPartitions, "Input gate request partitions"));
         }
 
         return CompletableFuture.allOf(recoveredFutures.toArray(new CompletableFuture[0]))
@@ -789,6 +800,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
         // let the task do its work
         getEnvironment().getMetricGroup().getIOMetricGroup().markTaskStart();
+        // 这里其实就是启动了MailboxProcessor的runMailboxLoop方法
+        // 该方法会一直循环处理Mailbox中的数据，直到Mailbox被关闭
+        // 在StreamTask构造方法中已经往MailboxProcessor中传入了processInput方法
+        // 所以这里其实就是执行processInput
         runMailboxLoop();
 
         // if this left the run() method cleanly despite the fact that this was canceled,
@@ -813,13 +828,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         }
         systemTimerService.registerTimer(
                 systemTimerService.getCurrentProcessingTime() + bufferDebloatPeriod,
-                timestamp ->
-                        mainMailboxExecutor.execute(
-                                () -> {
-                                    debloat();
-                                    scheduleBufferDebloater();
-                                },
-                                "Buffer size recalculation"));
+                timestamp -> mainMailboxExecutor.execute(
+                        () -> {
+                            debloat();
+                            scheduleBufferDebloater();
+                        },
+                        "Buffer size recalculation"));
     }
 
     @VisibleForTesting
@@ -1488,14 +1502,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private StateBackend createStateBackend() throws Exception {
         final StateBackend fromApplication =
                 configuration.getStateBackend(getUserCodeClassLoader());
-        final Optional<Boolean> isChangelogEnabledOptional =
-                environment
-                        .getJobConfiguration()
-                        .getOptional(
-                                StateChangelogOptionsInternal.ENABLE_CHANGE_LOG_FOR_APPLICATION);
+        final Optional<Boolean> isChangelogEnabledOptional = environment.getJobConfiguration()
+                .getOptional(StateChangelogOptionsInternal.ENABLE_CHANGE_LOG_FOR_APPLICATION);
         final TernaryBoolean isChangelogStateBackendEnableFromApplication =
-                isChangelogEnabledOptional.isPresent()
-                        ? TernaryBoolean.fromBoolean(isChangelogEnabledOptional.get())
+                isChangelogEnabledOptional.isPresent() ?
+                        TernaryBoolean.fromBoolean(isChangelogEnabledOptional.get())
                         : TernaryBoolean.UNDEFINED;
 
         return StateBackendLoader.fromApplicationOrConfigOrDefault(
@@ -1599,11 +1610,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     @VisibleForTesting
     public static <OUT>
     RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>>
-    createRecordWriterDelegate(
-            StreamConfig configuration, Environment environment) {
+    createRecordWriterDelegate(StreamConfig configuration, Environment environment) {
+        // 创建多个RecordWriter，一般创建的是ChannelSelectorRecordWriter
         List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWrites =
                 createRecordWriters(configuration, environment);
         if (recordWrites.size() == 1) {
+            // 将ChannelSelectorRecordWriter封装到SingleRecordWriter
             return new SingleRecordWriter<>(recordWrites.get(0));
         } else if (recordWrites.size() == 0) {
             return new NonRecordWriter<>();
@@ -1615,23 +1627,27 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private static <OUT>
     List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> createRecordWriters(
             StreamConfig configuration, Environment environment) {
+        // 初始化一个ArrayList容器用来存放创建出来的RecordWriter
         List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWriters =
                 new ArrayList<>();
-        List<NonChainedOutput> outputsInOrder =
-                configuration.getVertexNonChainedOutputs(
-                        environment.getUserCodeClassLoader().asClassLoader());
+        // 取该 StreamTask 的输出 StreamEdge 集合
+        List<NonChainedOutput> outputsInOrder = configuration.getVertexNonChainedOutputs(
+                environment.getUserCodeClassLoader().asClassLoader());
 
         int index = 0;
+        // 按照 out StreamEdge 的个数来构建多个 RecordWriter，不过一般就是一个
         for (NonChainedOutput streamOutput : outputsInOrder) {
+            // 判断如果并行度不匹配的情况下，将ForwardPartitioner替换为RebalancePartitioner
             replaceForwardPartitionerIfConsumerParallelismDoesNotMatch(
                     environment, streamOutput, index);
-            recordWriters.add(
-                    createRecordWriter(
-                            streamOutput,
-                            index++,
-                            environment,
-                            environment.getTaskInfo().getTaskNameWithSubtasks(),
-                            streamOutput.getBufferTimeout()));
+            // 一个outStreamEdge来构建一个RecordWriter
+            // 大概率createRecordWriter()方法的返回值是ChannelSelectorRecordWriter
+            recordWriters.add(createRecordWriter(
+                    streamOutput,
+                    index++,
+                    environment,
+                    environment.getTaskInfo().getTaskNameWithSubtasks(),
+                    streamOutput.getBufferTimeout()));
         }
         return recordWriters;
     }
@@ -1656,15 +1672,16 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             String taskNameWithSubtask,
             long bufferTimeout) {
 
+        // 获取流分区器
+        // 1、如果上游StreamNode和下游StreamNode的并行度一样，则使用ForwardPartitioner数据分发策略
+        // 2、如果上游StreamNode和下游StreamNode的并行度不一样，则使用RebalancePartitioner数据分发策略
         StreamPartitioner<OUT> outputPartitioner = null;
-
         // Clones the partition to avoid multiple stream edges sharing the same stream partitioner,
         // like the case of https://issues.apache.org/jira/browse/FLINK-14087.
         try {
-            outputPartitioner =
-                    InstantiationUtil.clone(
-                            (StreamPartitioner<OUT>) streamOutput.getPartitioner(),
-                            environment.getUserCodeClassLoader().asClassLoader());
+            outputPartitioner = InstantiationUtil.clone(
+                    (StreamPartitioner<OUT>) streamOutput.getPartitioner(),
+                    environment.getUserCodeClassLoader().asClassLoader());
         } catch (Exception e) {
             ExceptionUtils.rethrow(e);
         }
@@ -1674,23 +1691,27 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 outputPartitioner,
                 outputIndex,
                 taskNameWithSubtask);
-
+        // 获取该ResultPartitionWriter，具体实现ConsumableNotifyingResultPartitionWriterDecorator
         ResultPartitionWriter bufferWriter = environment.getWriter(outputIndex);
 
         // we initialize the partitioner here with the number of key groups (aka max. parallelism)
+        // 我们在这里用键组的数量（也就是最大并行度）初始化分区程序
+        // 只有KeyGroupStreamPartitioner实现了ConfigurableStreamPartitioner接口
         if (outputPartitioner instanceof ConfigurableStreamPartitioner) {
             int numKeyGroups = bufferWriter.getNumTargetKeyGroups();
             if (0 < numKeyGroups) {
+                // 这里是调用的KeyGroupStreamPartitioner的configure方法
                 ((ConfigurableStreamPartitioner) outputPartitioner).configure(numKeyGroups);
             }
         }
-
+        // 其实这个output就是负责帮您完成这个StrewamTask的所有数据的输出
+        // 输出到ResultPartition，初始化输出ChannelSelectorRecordWriter
         RecordWriter<SerializationDelegate<StreamRecord<OUT>>> output =
                 new RecordWriterBuilder<SerializationDelegate<StreamRecord<OUT>>>()
                         .setChannelSelector(outputPartitioner)
                         .setTimeout(bufferTimeout)
                         .setTaskName(taskNameWithSubtask)
-                        .build(bufferWriter);
+                        .build(bufferWriter); // 构建一个RecordWriter返回
         output.setMetricGroup(environment.getMetricGroup().getIOMetricGroup());
         return output;
     }

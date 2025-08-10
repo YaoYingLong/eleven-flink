@@ -62,6 +62,7 @@ public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T>
 
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
+        // output是将splitId生成的对应的PartialWatermark封装成ImmediateOutput
         // 每条数据中提取的时间戳
         maxTimestamp = Math.max(maxTimestamp, eventTimestamp);
     }

@@ -67,6 +67,7 @@ public class KafkaSourceFetcherManager
             FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>> elementsQueue,
             Supplier<SplitReader<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit>> splitReaderSupplier,
             Consumer<Collection<String>> splitFinishedHook) {
+        // splitFinishedHook是一个空实现，splitReaderSupplier其实就是new KafkaPartitionSplitReader
         super(elementsQueue, splitReaderSupplier, new Configuration(), splitFinishedHook);
     }
 
@@ -77,14 +78,17 @@ public class KafkaSourceFetcherManager
         if (offsetsToCommit.isEmpty()) {
             return;
         }
+        // fetchers是在超类SplitFetcherManager中被初始化的ConcurrentHashMap
         SplitFetcher<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit> splitFetcher = fetchers.get(0);
         if (splitFetcher != null) {
             // The fetcher thread is still running. This should be the majority of the cases.
             enqueueOffsetsCommitTask(splitFetcher, offsetsToCommit, callback);
         } else {
+            // 如果splitFetcher为null，则调用SplitFetcherManager的createSplitFetcher创建一个
             splitFetcher = createSplitFetcher();
+            // 将提交offset的任务放入到splitFetcher的任务队列中
             enqueueOffsetsCommitTask(splitFetcher, offsetsToCommit, callback);
-            // 将splitFetcher提交到线程池中执行
+            // 将splitFetcher提交到线程池中执行，其实就是执行SplitFetcher的run方法
             startFetcher(splitFetcher);
         }
     }
@@ -92,12 +96,14 @@ public class KafkaSourceFetcherManager
     private void enqueueOffsetsCommitTask(
             SplitFetcher<ConsumerRecord<byte[], byte[]>, KafkaPartitionSplit> splitFetcher,
             Map<TopicPartition, OffsetAndMetadata> offsetsToCommit, OffsetCommitCallback callback) {
+        // 获取splitFetcher中的splitReader，实际上是KafkaPartitionSplitReader
         KafkaPartitionSplitReader kafkaReader = (KafkaPartitionSplitReader) splitFetcher.getSplitReader();
 
         // 将提交offset的任务放入到splitFetcher的任务队列中
         splitFetcher.enqueueTask(new SplitFetcherTask() {
             @Override
             public boolean run() throws IOException {
+                // 调用kafka原生KafkaConsumer类的commitAsync来提交offset
                 kafkaReader.notifyCheckpointComplete(offsetsToCommit, callback);
                 return true;
             }

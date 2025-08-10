@@ -85,8 +85,7 @@ public class PipelinedSubpartition extends ResultSubpartition
     private final int receiverExclusiveBuffersPerChannel;
 
     /** All buffers of this subpartition. Access to the buffers is synchronized on this object. */
-    final PrioritizedDeque<BufferConsumerWithPartialRecordLength> buffers =
-            new PrioritizedDeque<>();
+    final PrioritizedDeque<BufferConsumerWithPartialRecordLength> buffers = new PrioritizedDeque<>();
 
     /** The number of non-event buffers currently in this subpartition. */
     @GuardedBy("buffers")
@@ -137,12 +136,9 @@ public class PipelinedSubpartition extends ResultSubpartition
 
     // ------------------------------------------------------------------------
 
-    PipelinedSubpartition(
-            int index, int receiverExclusiveBuffersPerChannel, ResultPartition parent) {
+    PipelinedSubpartition(int index, int receiverExclusiveBuffersPerChannel, ResultPartition parent) {
         super(index, parent);
-
-        checkArgument(
-                receiverExclusiveBuffersPerChannel >= 0,
+        checkArgument(receiverExclusiveBuffersPerChannel >= 0,
                 "Buffers per channel must be non-negative.");
         this.receiverExclusiveBuffersPerChannel = receiverExclusiveBuffersPerChannel;
     }
@@ -286,7 +282,9 @@ public class PipelinedSubpartition extends ResultSubpartition
                                     "%s has uncompleted channelStateFuture of checkpointId=%s, but it received "
                                             + "a new timeoutable checkpoint barrier of checkpointId=%s, it maybe "
                                             + "a bug due to currently not supported concurrent unaligned checkpoint.",
-                                    this, channelStateCheckpointId, checkpointId)));
+                                    this,
+                                    channelStateCheckpointId,
+                                    checkpointId)));
         }
         channelStateFuture = new CompletableFuture<>();
         channelStateCheckpointId = checkpointId;
@@ -315,7 +313,7 @@ public class PipelinedSubpartition extends ResultSubpartition
         checkState(
                 barrier.getCheckpointOptions().isTimeoutable()
                         && Buffer.DataType.TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER
-                                == bufferConsumer.getDataType());
+                        == bufferConsumer.getDataType());
         return barrier;
     }
 

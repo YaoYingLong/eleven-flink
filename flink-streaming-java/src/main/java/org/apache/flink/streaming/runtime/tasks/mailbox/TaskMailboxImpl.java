@@ -111,20 +111,26 @@ public class TaskMailboxImpl implements TaskMailbox {
     public Optional<Mail> tryTake(int priority) {
         checkIsMailboxThread();
         checkTakeStateConditions();
+        // 从batch队列中取出优先级高于priority的邮件
         Mail head = takeOrNull(batch, priority);
         if (head != null) {
+            // 如果batch队列不为空，直接返回
             return Optional.of(head);
         }
         if (!hasNewMail) {
+            // 如果batch队列为空，且queue队列也没有新的邮件，则返回空
             return Optional.empty();
         }
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            // 从queue队列中取出优先级高于priority的邮件
             final Mail value = takeOrNull(queue, priority);
             if (value == null) {
+                // 如果queue队列中没有新的邮件，则返回空
                 return Optional.empty();
             }
+            // 如果queue队列中有新的邮件，则更新hasNewMail状态，并返回邮件
             hasNewMail = !queue.isEmpty();
             return Optional.ofNullable(value);
         } finally {
@@ -136,18 +142,23 @@ public class TaskMailboxImpl implements TaskMailbox {
     public @Nonnull Mail take(int priority) throws InterruptedException, IllegalStateException {
         checkIsMailboxThread();
         checkTakeStateConditions();
+        // 从batch队列中取出优先级高于priority的邮件
         Mail head = takeOrNull(batch, priority);
         if (head != null) {
+            // 如果batch队列不为空，直接返回
             return head;
         }
         final ReentrantLock lock = this.lock;
         lock.lockInterruptibly();
         try {
             Mail headMail;
+            // 如果batch队列为空，且queue队列中有新的邮件，则从queue队列中取出优先级高于priority的邮件
             while ((headMail = takeOrNull(queue, priority)) == null) {
                 // to ease debugging
+                // 如果queue队列中没有新的邮件，则等待
                 notEmpty.await(1, TimeUnit.SECONDS);
             }
+            // 如果queue队列中有新的邮件，则更新hasNewMail状态，并返回邮件
             hasNewMail = !queue.isEmpty();
             return headMail;
         } finally {
@@ -170,10 +181,12 @@ public class TaskMailboxImpl implements TaskMailbox {
         lock.lock();
         try {
             Mail mail;
+            // 非阻塞，将queue队列中的邮件全部放入batch队列中
             while ((mail = queue.pollFirst()) != null) {
                 batch.addLast(mail);
             }
             hasNewMail = false;
+            // 如果batch队列不为空，则返回true
             return !batch.isEmpty();
         } finally {
             lock.unlock();
@@ -195,6 +208,7 @@ public class TaskMailboxImpl implements TaskMailbox {
         lock.lock();
         try {
             checkPutStateConditions();
+            // 就是将mail放入队列的尾部
             queue.addLast(mail);
             hasNewMail = true;
             notEmpty.signal();
@@ -205,6 +219,7 @@ public class TaskMailboxImpl implements TaskMailbox {
 
     @Override
     public void putFirst(@Nonnull Mail mail) {
+        // 将mail放入队列的头部
         if (isMailboxThread()) {
             checkPutStateConditions();
             batch.addFirst(mail);

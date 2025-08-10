@@ -46,7 +46,7 @@ public class KafkaRecordEmitter<T>
             ConsumerRecord<byte[], byte[]> consumerRecord, SourceOutput<T> output,
             KafkaPartitionSplitState splitState) throws Exception {
         try {
-            // 将SourceOutput设置到SourceOutputWrapper中
+            // 将SourceOutput设置到SourceOutputWrapper中，这里的output是SourceOutputWithWatermarks
             sourceOutputWrapper.setSourceOutput(output);
             // 将当前ConsumerRecord的时间戳设置到SourceOutputWrapper中
             sourceOutputWrapper.setTimestamp(consumerRecord.timestamp());
@@ -66,6 +66,7 @@ public class KafkaRecordEmitter<T>
 
         @Override
         public void collect(T record) {
+            // 将SourceOutput设置到SourceOutputWrapper中，这里的output是SourceOutputWithWatermarks
             sourceOutput.collect(record, timestamp);
         }
 

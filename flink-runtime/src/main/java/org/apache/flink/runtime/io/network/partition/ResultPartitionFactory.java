@@ -128,6 +128,7 @@ public class ResultPartitionFactory {
             String taskNameWithSubtaskAndId,
             int partitionIndex,
             ResultPartitionDeploymentDescriptor desc) {
+        // 创建ResultPartition，生成的是PipelinedResultPartition
         return create(
                 taskNameWithSubtaskAndId,
                 partitionIndex,
@@ -150,58 +151,56 @@ public class ResultPartitionFactory {
             boolean isBroadcast,
             SupplierWithException<BufferPool, IOException> bufferPoolFactory) {
         BufferCompressor bufferCompressor = null;
+        // 支持压缩
         if (type.supportCompression() && batchShuffleCompressionEnabled) {
             bufferCompressor = new BufferCompressor(networkBufferSize, compressionCodec);
         }
-
+        // 初始化一个 ResultSubpartition 数组
         ResultSubpartition[] subpartitions = new ResultSubpartition[numberOfSubpartitions];
-
+        // 创建 ResultPartition 实例
         final ResultPartition partition;
         if (type == ResultPartitionType.PIPELINED
                 || type == ResultPartitionType.PIPELINED_BOUNDED
                 || type == ResultPartitionType.PIPELINED_APPROXIMATE) {
-            final PipelinedResultPartition pipelinedPartition =
-                    new PipelinedResultPartition(
-                            taskNameWithSubtaskAndId,
-                            partitionIndex,
-                            id,
-                            type,
-                            subpartitions,
-                            maxParallelism,
-                            partitionManager,
-                            bufferCompressor,
-                            bufferPoolFactory);
-
+            // 流处理逻辑，初始化ResultPartition
+            final PipelinedResultPartition pipelinedPartition = new PipelinedResultPartition(
+                    taskNameWithSubtaskAndId,
+                    partitionIndex,
+                    id,
+                    type,
+                    subpartitions,
+                    maxParallelism,
+                    partitionManager,
+                    bufferCompressor,
+                    bufferPoolFactory);
+            // 初始化每个 ResultSubpartition
             for (int i = 0; i < subpartitions.length; i++) {
                 if (type == ResultPartitionType.PIPELINED_APPROXIMATE) {
-                    subpartitions[i] =
-                            new PipelinedApproximateSubpartition(
-                                    i, configuredNetworkBuffersPerChannel, pipelinedPartition);
+                    subpartitions[i] = new PipelinedApproximateSubpartition(
+                            i, configuredNetworkBuffersPerChannel, pipelinedPartition);
                 } else {
-                    subpartitions[i] =
-                            new PipelinedSubpartition(
-                                    i, configuredNetworkBuffersPerChannel, pipelinedPartition);
+                    subpartitions[i] = new PipelinedSubpartition(
+                            i, configuredNetworkBuffersPerChannel, pipelinedPartition);
                 }
             }
-
             partition = pipelinedPartition;
         } else if (type == ResultPartitionType.BLOCKING
                 || type == ResultPartitionType.BLOCKING_PERSISTENT) {
+            // 批处理逻辑
             if (numberOfSubpartitions >= sortShuffleMinParallelism) {
-                partition =
-                        new SortMergeResultPartition(
-                                taskNameWithSubtaskAndId,
-                                partitionIndex,
-                                id,
-                                type,
-                                subpartitions.length,
-                                maxParallelism,
-                                batchShuffleReadBufferPool,
-                                batchShuffleReadIOExecutor,
-                                partitionManager,
-                                channelManager.createChannel().getPath(),
-                                bufferCompressor,
-                                bufferPoolFactory);
+                partition = new SortMergeResultPartition(
+                        taskNameWithSubtaskAndId,
+                        partitionIndex,
+                        id,
+                        type,
+                        subpartitions.length,
+                        maxParallelism,
+                        batchShuffleReadBufferPool,
+                        batchShuffleReadIOExecutor,
+                        partitionManager,
+                        channelManager.createChannel().getPath(),
+                        bufferCompressor,
+                        bufferPoolFactory);
             } else {
                 final BoundedBlockingResultPartition blockingPartition =
                         new BoundedBlockingResultPartition(
@@ -227,23 +226,22 @@ public class ResultPartitionFactory {
             }
         } else if (type == ResultPartitionType.HYBRID_FULL
                 || type == ResultPartitionType.HYBRID_SELECTIVE) {
-            partition =
-                    new HsResultPartition(
-                            taskNameWithSubtaskAndId,
-                            partitionIndex,
-                            id,
-                            type,
-                            subpartitions.length,
-                            maxParallelism,
-                            batchShuffleReadBufferPool,
-                            batchShuffleReadIOExecutor,
-                            partitionManager,
-                            channelManager.createChannel().getPath(),
-                            networkBufferSize,
-                            getHybridShuffleConfiguration(numberOfSubpartitions, type),
-                            bufferCompressor,
-                            isBroadcast,
-                            bufferPoolFactory);
+            partition = new HsResultPartition(
+                    taskNameWithSubtaskAndId,
+                    partitionIndex,
+                    id,
+                    type,
+                    subpartitions.length,
+                    maxParallelism,
+                    batchShuffleReadBufferPool,
+                    batchShuffleReadIOExecutor,
+                    partitionManager,
+                    channelManager.createChannel().getPath(),
+                    networkBufferSize,
+                    getHybridShuffleConfiguration(numberOfSubpartitions, type),
+                    bufferCompressor,
+                    isBroadcast,
+                    bufferPoolFactory);
         } else {
             throw new IllegalArgumentException("Unrecognized ResultPartitionType: " + type);
         }
@@ -329,6 +327,8 @@ public class ResultPartitionFactory {
     SupplierWithException<BufferPool, IOException> createBufferPoolFactory(
             int numberOfSubpartitions, ResultPartitionType type) {
         return () -> {
+            // 如果PartitionType是unbounded，则不限制buffer pool的最大大小
+            // 否则为sub-partition * taskmanager.network.memory.buffers-per-channel
             Pair<Integer, Integer> pair =
                     NettyShuffleUtils.getMinMaxNetworkBuffersPerResultPartition(
                             configuredNetworkBuffersPerChannel,
@@ -337,10 +337,11 @@ public class ResultPartitionFactory {
                             sortShuffleMinBuffers,
                             numberOfSubpartitions,
                             type);
-
+            // 创建一个LocalBufferPool，请求的最少的MemeorySegment数量和sub-partition一致
+            // 如果没有反压，则需要自己处理buffer的回收（主要是在batch模式）
             return bufferPoolFactory.createBufferPool(
-                    pair.getLeft(),
-                    pair.getRight(),
+                    pair.getLeft(),  // 最小值
+                    pair.getRight(), // 最大值
                     numberOfSubpartitions,
                     maxBuffersPerChannel,
                     isOverdraftBufferNeeded(type) ? maxOverdraftBuffersPerGate : 0);

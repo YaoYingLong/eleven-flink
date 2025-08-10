@@ -111,6 +111,7 @@ public class TaskManagerServices {
                 Preconditions.checkNotNull(unresolvedTaskManagerLocation);
         this.managedMemorySize = managedMemorySize;
         this.ioManager = Preconditions.checkNotNull(ioManager);
+        // shuffleEnvironment其实就是NettyShuffleEnvironment
         this.shuffleEnvironment = Preconditions.checkNotNull(shuffleEnvironment);
         this.kvStateService = Preconditions.checkNotNull(kvStateService);
         this.broadcastVariableManager = Preconditions.checkNotNull(broadcastVariableManager);
@@ -279,7 +280,9 @@ public class TaskManagerServices {
      * @param ioExecutor executor for async IO operations
      * @param fatalErrorHandler to handle class loading OOMs
      * @param workingDirectory the working directory of the process
+     *
      * @return task manager components
+     *
      * @throws Exception
      */
     public static TaskManagerServices fromConfiguration(
@@ -293,21 +296,37 @@ public class TaskManagerServices {
 
         // pre-start checks
         checkTempDirs(taskManagerServicesConfiguration.getTmpDirPaths());
-
+        // Flink运行的是流式任务StreamTask（OperatorChain Pipline输入给我调用Transformation执行，输出结果）
         final TaskEventDispatcher taskEventDispatcher = new TaskEventDispatcher();
 
         // start the I/O manager, it will create some temp directories.
+        // 启动一定数量的 WriterThread 和 ReaderThread
         final IOManager ioManager =
                 new IOManagerAsync(taskManagerServicesConfiguration.getTmpDirPaths());
-
-        final ShuffleEnvironment<?, ?> shuffleEnvironment =
-                createShuffleEnvironment(
-                        taskManagerServicesConfiguration,
-                        taskEventDispatcher,
-                        taskManagerMetricGroup,
-                        ioExecutor);
+        /**
+         * 在分布式数据处理系统中，Shuffle 是指将数据从一个任务的输出（上游任务）重新分发到另一个任务的输入（下游任务）。
+         * 这通常涉及数据的重分区（Repartitioning）和重新排序。Shuffle 的方式可以影响任务的性能和资源利用率。
+         * 在 Flink 中，Shuffle 发生在 Task 之间，特别是当上游和下游任务运行在不同的线程或不同的物理节点上时。
+         * Flink 的 Shuffle 机制支持多种数据分发模式（如广播、分区、随机等）
+         *
+         * ShuffleEnvironment是Flink的Shuffle管理组件，它主要负责协调和管理数据在任务之间的传输，包括内存缓冲区、数据分区、数据传输方式等
+         * 1、任务间数据传输：ShuffleEnvironment 是上游任务的输出数据和下游任务的输入数据之间的桥梁
+         * 2、分区和分发：根据不同的 Shuffle 策略（如 Key 分区、广播、随机分发等），ShuffleEnvironment 负责数据的分发逻辑
+         * 3、缓冲区管理：管理数据的缓冲区池（BufferPool），包括内存的分配和释放
+         * 4、ShuffleEnvironment 提供了数据传输的抽象，使得开发者无需关心底层的数据传输实现细节
+         * 5、它为上游和下游任务提供统一的输入（InputGate）和输出（ResultPartitionWriter）接口，屏蔽了数据传输的复杂性
+         *
+         * 这里创建的额shuffleEnvironment其实就是NettyShuffleEnvironment，上游StreamTask和下游StreamTask有shuffle动作。
+         * 在这个动作过程中，肯定需要很多的一些组件来为其服务，创建NettyShuffleEnvironment对象为将来的Shuffle提供各种组件创建的支撑
+         */
+        final ShuffleEnvironment<?, ?> shuffleEnvironment = createShuffleEnvironment(
+                taskManagerServicesConfiguration,
+                taskEventDispatcher,
+                taskManagerMetricGroup,
+                ioExecutor);
+        // 启动过程中，启动了 Netty 服务端 和 客户端，负责 IO 的
         final int listeningDataPort = shuffleEnvironment.start();
-
+        // 初始化状态管理服务
         final KvStateService kvStateService =
                 KvStateService.fromConfiguration(taskManagerServicesConfiguration);
         kvStateService.start();
@@ -324,21 +343,19 @@ public class TaskManagerServices {
                         taskManagerServicesConfiguration.getNodeId());
 
         final BroadcastVariableManager broadcastVariableManager = new BroadcastVariableManager();
-
-        final TaskSlotTable<Task> taskSlotTable =
-                createTaskSlotTable(
-                        taskManagerServicesConfiguration.getNumberOfSlots(),
-                        taskManagerServicesConfiguration.getTaskExecutorResourceSpec(),
-                        taskManagerServicesConfiguration.getTimerServiceShutdownTimeout(),
-                        taskManagerServicesConfiguration.getPageSize(),
-                        ioExecutor);
+        // 当前节点能提供很多的Slot，也会执行很多的Task，到底哪些Task对应到哪些Slot执行，这里面通过一张表进行管理
+        final TaskSlotTable<Task> taskSlotTable = createTaskSlotTable(
+                taskManagerServicesConfiguration.getNumberOfSlots(),
+                taskManagerServicesConfiguration.getTaskExecutorResourceSpec(),
+                taskManagerServicesConfiguration.getTimerServiceShutdownTimeout(),
+                taskManagerServicesConfiguration.getPageSize(),
+                ioExecutor);
 
         final JobTable jobTable = DefaultJobTable.create();
 
-        final JobLeaderService jobLeaderService =
-                new DefaultJobLeaderService(
-                        unresolvedTaskManagerLocation,
-                        taskManagerServicesConfiguration.getRetryingRegistrationConfiguration());
+        final JobLeaderService jobLeaderService = new DefaultJobLeaderService(
+                unresolvedTaskManagerLocation,
+                taskManagerServicesConfiguration.getRetryingRegistrationConfiguration());
 
         final TaskExecutorLocalStateStoresManager taskStateManager =
                 new TaskExecutorLocalStateStoresManager(
@@ -352,16 +369,13 @@ public class TaskManagerServices {
         final TaskExecutorChannelStateExecutorFactoryManager channelStateExecutorFactoryManager =
                 new TaskExecutorChannelStateExecutorFactoryManager();
 
-        final boolean failOnJvmMetaspaceOomError =
-                taskManagerServicesConfiguration
+        final boolean failOnJvmMetaspaceOomError = taskManagerServicesConfiguration
                         .getConfiguration()
                         .getBoolean(CoreOptions.FAIL_ON_USER_CLASS_LOADING_METASPACE_OOM);
-        final boolean checkClassLoaderLeak =
-                taskManagerServicesConfiguration
+        final boolean checkClassLoaderLeak = taskManagerServicesConfiguration
                         .getConfiguration()
                         .getBoolean(CoreOptions.CHECK_LEAKED_CLASSLOADER);
-        final LibraryCacheManager libraryCacheManager =
-                new BlobLibraryCacheManager(
+        final LibraryCacheManager libraryCacheManager = new BlobLibraryCacheManager(
                         permanentBlobService,
                         BlobLibraryCacheManager.defaultClassLoaderFactory(
                                 taskManagerServicesConfiguration.getClassLoaderResolveOrder(),
@@ -427,20 +441,19 @@ public class TaskManagerServices {
             MetricGroup taskManagerMetricGroup,
             Executor ioExecutor)
             throws FlinkException {
-
-        final ShuffleEnvironmentContext shuffleEnvironmentContext =
-                new ShuffleEnvironmentContext(
-                        taskManagerServicesConfiguration.getConfiguration(),
-                        taskManagerServicesConfiguration.getResourceID(),
-                        taskManagerServicesConfiguration.getNetworkMemorySize(),
-                        taskManagerServicesConfiguration.isLocalCommunicationOnly(),
-                        taskManagerServicesConfiguration.getBindAddress(),
-                        taskManagerServicesConfiguration.getNumberOfSlots(),
-                        taskManagerServicesConfiguration.getTmpDirPaths(),
-                        taskEventDispatcher,
-                        taskManagerMetricGroup,
-                        ioExecutor);
-
+        // 构建 Shuffle 上下文对象：ShuffleEnvironmentContext
+        final ShuffleEnvironmentContext shuffleEnvironmentContext = new ShuffleEnvironmentContext(
+                taskManagerServicesConfiguration.getConfiguration(),
+                taskManagerServicesConfiguration.getResourceID(),
+                taskManagerServicesConfiguration.getNetworkMemorySize(),
+                taskManagerServicesConfiguration.isLocalCommunicationOnly(),
+                taskManagerServicesConfiguration.getBindAddress(),
+                taskManagerServicesConfiguration.getNumberOfSlots(),
+                taskManagerServicesConfiguration.getTmpDirPaths(),
+                taskEventDispatcher,
+                taskManagerMetricGroup,
+                ioExecutor);
+        // 通过反射拿到 NettyShuffleServiceFactory 对象
         return ShuffleServiceLoader.loadShuffleServiceFactory(
                         taskManagerServicesConfiguration.getConfiguration())
                 .createShuffleEnvironment(shuffleEnvironmentContext);
@@ -451,8 +464,9 @@ public class TaskManagerServices {
      * created, are proper directories (not files), and are writable.
      *
      * @param tmpDirs The array of directory paths to check.
+     *
      * @throws IOException Thrown if any of the directories does not exist and cannot be created or
-     *     is not writable or is a file, rather than a directory.
+     *         is not writable or is a file, rather than a directory.
      */
     private static void checkTempDirs(String[] tmpDirs) throws IOException {
         for (String dir : tmpDirs) {

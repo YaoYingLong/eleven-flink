@@ -60,7 +60,10 @@ public final class WatermarkToDataOutput implements WatermarkOutput {
     public WatermarkToDataOutput(
             PushingAsyncDataInput.DataOutput<?> output,
             TimestampsAndWatermarks.WatermarkUpdateListener watermarkEmitted) {
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
         this.output = checkNotNull(output);
+        // 传入的watermarkEmitted其实就是SourceOperator，其实现了WatermarkUpdateListener接口
         this.watermarkEmitted = checkNotNull(watermarkEmitted);
         this.maxWatermarkSoFar = Long.MIN_VALUE;
     }
@@ -68,18 +71,20 @@ public final class WatermarkToDataOutput implements WatermarkOutput {
     @Override
     public void emitWatermark(Watermark watermark) {
         final long newWatermark = watermark.getTimestamp();
+        // maxWatermarkSoFar初始值为Long.MIN_VALUE
         if (newWatermark <= maxWatermarkSoFar) {
             return;
         }
-
+        // 将当前水位线赋值给maxWatermarkSoFar
         maxWatermarkSoFar = newWatermark;
+        // 调用SourceOperator的updateCurrentEffectiveWatermark方法
         watermarkEmitted.updateCurrentEffectiveWatermark(maxWatermarkSoFar);
 
         try {
             markActiveInternally();
-
-            output.emitWatermark(
-                    new org.apache.flink.streaming.api.watermark.Watermark(newWatermark));
+            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+            output.emitWatermark(new org.apache.flink.streaming.api.watermark.Watermark(newWatermark));
         } catch (ExceptionInChainedOperatorException e) {
             throw e;
         } catch (Exception e) {
@@ -116,11 +121,15 @@ public final class WatermarkToDataOutput implements WatermarkOutput {
     }
 
     private boolean markActiveInternally() throws Exception {
+        // 如果当前是非空闲状态，则不需要再次发出活动状态
         if (!isIdle) {
             return true;
         }
-
+        // 发送活动状态
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
         output.emitWatermarkStatus(WatermarkStatus.ACTIVE);
+        // 更新SourceOperator的状态
         watermarkEmitted.updateIdle(false);
         isIdle = false;
         return false;

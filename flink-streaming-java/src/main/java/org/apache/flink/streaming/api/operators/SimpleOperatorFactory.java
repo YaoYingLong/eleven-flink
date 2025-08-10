@@ -74,10 +74,12 @@ public class SimpleOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
     @SuppressWarnings("unchecked")
     @Override
     public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
+        // 如果是StreamMap、StreamFilter等Operator，则下面的两个分支都会被执行
         if (operator instanceof AbstractStreamOperator) {
             ((AbstractStreamOperator) operator).setProcessingTimeService(processingTimeService);
         }
         if (operator instanceof SetupableStreamOperator) {
+            // 这里调用AbstractStreamOperator的setup方法
             ((SetupableStreamOperator) operator).setup(
                     parameters.getContainingTask(),
                     parameters.getStreamConfig(),

@@ -126,6 +126,7 @@ public class StreamNode {
         this.operatorName = operatorName;
         this.operatorDescription = operatorName;
         this.operatorFactory = operatorFactory;
+        // 如果是Source对应的是SourceOperatorStreamTask
         this.jobVertexClass = jobVertexClass;
         this.slotSharingGroup = slotSharingGroup;
         this.coLocationGroup = coLocationGroup;
@@ -341,7 +342,7 @@ public class StreamNode {
     public boolean isSameSlotSharingGroup(StreamNode downstreamVertex) {
         return (slotSharingGroup == null && downstreamVertex.slotSharingGroup == null)
                 || (slotSharingGroup != null
-                        && slotSharingGroup.equals(downstreamVertex.slotSharingGroup));
+                && slotSharingGroup.equals(downstreamVertex.slotSharingGroup));
     }
 
     @Override
@@ -394,9 +395,8 @@ public class StreamNode {
     public Optional<OperatorCoordinator.Provider> getCoordinatorProvider(
             String operatorName, OperatorID operatorID) {
         if (operatorFactory instanceof CoordinatedOperatorFactory) {
-            return Optional.of(
-                    ((CoordinatedOperatorFactory) operatorFactory)
-                            .getCoordinatorProvider(operatorName, operatorID));
+            return Optional.of(((CoordinatedOperatorFactory) operatorFactory)
+                    .getCoordinatorProvider(operatorName, operatorID));
         } else {
             return Optional.empty();
         }

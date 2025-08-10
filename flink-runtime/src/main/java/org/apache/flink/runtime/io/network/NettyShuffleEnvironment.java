@@ -189,7 +189,7 @@ public class NettyShuffleEnvironment
      * Report unreleased partitions.
      *
      * @return collection of partitions which still occupy some resources locally on this task
-     *     executor and have been not released yet.
+     *         executor and have been not released yet.
      */
     @Override
     public Collection<ResultPartitionID> getPartitionsOccupyingLocalResources() {
@@ -204,6 +204,7 @@ public class NettyShuffleEnvironment
     public ShuffleIOOwnerContext createShuffleIOOwnerContext(
             String ownerName, ExecutionAttemptID executionAttemptID, MetricGroup parentGroup) {
         MetricGroup nettyGroup = createShuffleIOOwnerMetricGroup(checkNotNull(parentGroup));
+        // 创建 ShuffleIOOwnerContext
         return new ShuffleIOOwnerContext(
                 checkNotNull(ownerName),
                 checkNotNull(executionAttemptID),
@@ -218,18 +219,18 @@ public class NettyShuffleEnvironment
             List<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors) {
         synchronized (lock) {
             Preconditions.checkState(
-                    !isClosed, "The NettyShuffleEnvironment has already been shut down.");
-
+                    !isClosed,
+                    "The NettyShuffleEnvironment has already been shut down.");
+            // 先生成一个容器数组，生成的是PipelinedResultPartition
             ResultPartition[] resultPartitions =
                     new ResultPartition[resultPartitionDeploymentDescriptors.size()];
-            for (int partitionIndex = 0;
-                    partitionIndex < resultPartitions.length;
-                    partitionIndex++) {
-                resultPartitions[partitionIndex] =
-                        resultPartitionFactory.create(
-                                ownerContext.getOwnerName(),
-                                partitionIndex,
-                                resultPartitionDeploymentDescriptors.get(partitionIndex));
+            // 遍历生成
+            for (int partitionIndex = 0; partitionIndex < resultPartitions.length;
+                 partitionIndex++) {
+                // 一个ResultParition关联到一个ResultPartitionWriter
+                resultPartitions[partitionIndex] = resultPartitionFactory.create(
+                        ownerContext.getOwnerName(), partitionIndex,
+                        resultPartitionDeploymentDescriptors.get(partitionIndex));
             }
 
             registerOutputMetrics(
@@ -247,46 +248,43 @@ public class NettyShuffleEnvironment
             List<InputGateDeploymentDescriptor> inputGateDeploymentDescriptors) {
         synchronized (lock) {
             Preconditions.checkState(
-                    !isClosed, "The NettyShuffleEnvironment has already been shut down.");
+                    !isClosed,
+                    "The NettyShuffleEnvironment has already been shut down.");
 
             MetricGroup networkInputGroup = ownerContext.getInputGroup();
 
             InputChannelMetrics inputChannelMetrics =
                     new InputChannelMetrics(networkInputGroup, ownerContext.getParentGroup());
 
+            // 初始化SingleInputGate数组
             SingleInputGate[] inputGates =
                     new SingleInputGate[inputGateDeploymentDescriptors.size()];
             for (int gateIndex = 0; gateIndex < inputGates.length; gateIndex++) {
                 final InputGateDeploymentDescriptor igdd =
                         inputGateDeploymentDescriptors.get(gateIndex);
-                SingleInputGate inputGate =
-                        singleInputGateFactory.create(
-                                ownerContext,
-                                gateIndex,
-                                igdd,
-                                partitionProducerStateProvider,
-                                inputChannelMetrics);
-                InputGateID id =
-                        new InputGateID(
-                                igdd.getConsumedResultId(), ownerContext.getExecutionAttemptID());
-                Set<SingleInputGate> inputGateSet =
-                        inputGatesById.computeIfAbsent(
-                                id, ignored -> ConcurrentHashMap.newKeySet());
+                // 创建 SingleInputGate
+                SingleInputGate inputGate = singleInputGateFactory.create(
+                        ownerContext,
+                        gateIndex,
+                        igdd,
+                        partitionProducerStateProvider,
+                        inputChannelMetrics);
+                InputGateID id = new InputGateID(
+                        igdd.getConsumedResultId(), ownerContext.getExecutionAttemptID());
+                Set<SingleInputGate> inputGateSet = inputGatesById.computeIfAbsent(
+                        id, ignored -> ConcurrentHashMap.newKeySet());
                 inputGateSet.add(inputGate);
                 inputGatesById.put(id, inputGateSet);
-                inputGate
-                        .getCloseFuture()
-                        .thenRun(
-                                () ->
-                                        inputGatesById.computeIfPresent(
-                                                id,
-                                                (key, value) -> {
-                                                    value.remove(inputGate);
-                                                    if (value.isEmpty()) {
-                                                        return null;
-                                                    }
-                                                    return value;
-                                                }));
+                inputGate.getCloseFuture().thenRun(() ->
+                        inputGatesById.computeIfPresent(
+                                id,
+                                (key, value) -> {
+                                    value.remove(inputGate);
+                                    if (value.isEmpty()) {
+                                        return null;
+                                    }
+                                    return value;
+                                }));
                 inputGates[gateIndex] = inputGate;
             }
 

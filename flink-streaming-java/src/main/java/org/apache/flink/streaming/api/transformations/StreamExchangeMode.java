@@ -25,18 +25,24 @@ import org.apache.flink.streaming.api.graph.StreamGraph;
 @Internal
 public enum StreamExchangeMode {
     /**
+     * 生产者和消费者同时在线。 产生的数据将立即被消费者接收。
+     *
      * Producer and consumer are online at the same time. Produced data is received by consumer
      * immediately.
      */
     PIPELINED,
 
     /**
+     * 生产者首先产生其全部结果并完成。 之后，使用者将启动并可以使用数据。
+     *
      * The producer first produces its entire result and finishes. After that, the consumer is
      * started and may consume the data.
      */
     BATCH,
 
     /**
+     * 消费者可以在生产者开始生产数据后随时开始消费数据，这种交换模式是可重新消费的
+     *
      * The consumer can start consuming data anytime as long as the producer has started producing.
      *
      * <p>This exchange mode is re-consumable.
@@ -44,6 +50,8 @@ public enum StreamExchangeMode {
     HYBRID_FULL,
 
     /**
+     * 消费者可以在生产者开始生产数据后随时开始消费数据，这种交换模式不可重新消费
+     *
      * The consumer can start consuming data anytime as long as the producer has started producing.
      *
      * <p>This exchange mode is not re-consumable.
@@ -51,6 +59,10 @@ public enum StreamExchangeMode {
     HYBRID_SELECTIVE,
 
     /**
+     * shuffle mode 未定义。它留给框架来决定随机播放模式
+     * 框架最后将选择{@link StreamExchangeMode＃BATCH}或{@link StreamExchangeMode＃PIPELINED}中的一个
+     * 如果没决定，则由Flink框架自行决定使用 Batch 或者 Pipeline
+     *
      * The exchange mode is undefined. It leaves it up to the framework to decide the exchange mode.
      * The framework will pick one of {@link StreamExchangeMode#BATCH} or {@link
      * StreamExchangeMode#PIPELINED} in the end.

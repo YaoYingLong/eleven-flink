@@ -149,7 +149,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     private final CoordinatorStore coordinatorStore = new CoordinatorStoreImpl();
 
     /** Executor that runs tasks in the job manager's main thread. */
-    @Nonnull private ComponentMainThreadExecutor jobMasterMainThreadExecutor;
+    @Nonnull
+    private ComponentMainThreadExecutor jobMasterMainThreadExecutor;
 
     /** {@code true} if all source tasks are stoppable. */
     private boolean isStoppable = true;
@@ -201,7 +202,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     private DefaultExecutionTopology executionTopology;
 
-    @Nullable private InternalFailuresListener internalTaskFailuresListener;
+    @Nullable
+    private InternalFailuresListener internalTaskFailuresListener;
 
     /** Counts all restarts. Used by other Gauges/Meters and does not register to metric group. */
     private final Counter numberOfRestartsCounter = new SimpleCounter();
@@ -244,7 +246,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     private final ResultPartitionAvailabilityChecker resultPartitionAvailabilityChecker;
 
     /** Future for an ongoing or completed scheduling action. */
-    @Nullable private CompletableFuture<Void> schedulingFuture;
+    @Nullable
+    private CompletableFuture<Void> schedulingFuture;
 
     private final VertexAttemptNumberStore initialAttemptCounts;
 
@@ -253,13 +256,16 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     // ------ Fields that are relevant to the execution and need to be cleared before archiving
     // -------
 
-    @Nullable private CheckpointCoordinatorConfiguration checkpointCoordinatorConfiguration;
+    @Nullable
+    private CheckpointCoordinatorConfiguration checkpointCoordinatorConfiguration;
 
     /** The coordinator for checkpoints, if snapshot checkpoints are enabled. */
-    @Nullable private CheckpointCoordinator checkpointCoordinator;
+    @Nullable
+    private CheckpointCoordinator checkpointCoordinator;
 
     /** TODO, replace it with main thread executor. */
-    @Nullable private ScheduledExecutorService checkpointCoordinatorTimer;
+    @Nullable
+    private ScheduledExecutorService checkpointCoordinatorTimer;
 
     /**
      * Checkpoint stats tracker separate from the coordinator in order to be available after
@@ -268,13 +274,17 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     private CheckpointStatsTracker checkpointStatsTracker;
 
     // ------ Fields that are only relevant for archived execution graphs ------------
-    @Nullable private String stateBackendName;
+    @Nullable
+    private String stateBackendName;
 
-    @Nullable private String checkpointStorageName;
+    @Nullable
+    private String checkpointStorageName;
 
-    @Nullable private String changelogStorageName;
+    @Nullable
+    private String changelogStorageName;
 
-    @Nullable private TernaryBoolean stateChangelogEnabled;
+    @Nullable
+    private TernaryBoolean stateChangelogEnabled;
 
     private String jsonPlan;
 
@@ -427,7 +437,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     @Override
     public TaskDeploymentDescriptorFactory.PartitionLocationConstraint
-            getPartitionLocationConstraint() {
+    getPartitionLocationConstraint() {
         return partitionLocationConstraint;
     }
 
@@ -587,7 +597,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     }
 
     private Collection<OperatorCoordinatorCheckpointContext>
-            buildOpCoordinatorCheckpointContexts() {
+    buildOpCoordinatorCheckpointContexts() {
         final ArrayList<OperatorCoordinatorCheckpointContext> contexts = new ArrayList<>();
         for (final ExecutionJobVertex vertex : verticesInCreationOrder) {
             contexts.addAll(vertex.getOperatorCoordinators());
@@ -843,24 +853,24 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         LOG.debug(
                 "Attaching {} topologically sorted vertices to existing job graph with {} "
                         + "vertices and {} intermediate results.",
-                verticesToAttach.size(),
-                tasks.size(),
-                intermediateResults.size());
-
+                verticesToAttach.size(), tasks.size(), intermediateResults.size());
+        // 遍历所有的 JobVertex
         attachJobVertices(verticesToAttach);
         if (!isDynamic) {
+            // 如果不是动态的，那么就需要初始化所有的 JobVertex
             initializeJobVertices(verticesToAttach);
         }
 
         // the topology assigning should happen before notifying new vertices to failoverStrategy
         executionTopology = DefaultExecutionTopology.fromExecutionGraph(this);
-
+        // 参数DefaultExecutionTopology，返回值RegionPartitionReleaseStrategy
         partitionGroupReleaseStrategy =
                 partitionGroupReleaseStrategyFactory.createInstance(getSchedulingTopology());
     }
 
     /** Attach job vertices without initializing them. */
     private void attachJobVertices(List<JobVertex> topologicallySorted) throws JobException {
+        // 遍历所有的 JobVertex
         for (JobVertex jobVertex : topologicallySorted) {
 
             if (jobVertex.isInputVertex() && !jobVertex.isStoppable()) {
@@ -871,16 +881,15 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                     parallelismStore.getParallelismInfo(jobVertex.getID());
 
             // create the execution job vertex and attach it to the graph
-            ExecutionJobVertex ejv =
-                    executionJobVertexFactory.createExecutionJobVertex(
-                            this, jobVertex, parallelismInfo);
+            // 一个 JobVertex 对应的创建一个 ExecutionJobVertex
+            ExecutionJobVertex ejv = executionJobVertexFactory.createExecutionJobVertex(
+                    this, jobVertex, parallelismInfo);
 
             ExecutionJobVertex previousTask = this.tasks.putIfAbsent(jobVertex.getID(), ejv);
             if (previousTask != null) {
-                throw new JobException(
-                        String.format(
-                                "Encountered two job vertices with ID %s : previous=[%s] / new=[%s]",
-                                jobVertex.getID(), ejv, previousTask));
+                throw new JobException(String.format(
+                        "Encountered two job vertices with ID %s : previous=[%s] / new=[%s]",
+                        jobVertex.getID(), ejv, previousTask));
             }
 
             this.verticesInCreationOrder.add(ejv);
@@ -907,18 +916,22 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         checkNotNull(ejv);
         checkNotNull(jobVertexInputInfos);
 
-        jobVertexInputInfos.forEach(
-                (resultId, info) ->
-                        this.vertexInputInfoStore.put(ejv.getJobVertexId(), resultId, info));
-
+        jobVertexInputInfos.forEach((resultId, info) ->
+                this.vertexInputInfoStore.put(ejv.getJobVertexId(), resultId, info));
+        // 调用ExecutionJobVertex的initialize
         ejv.initialize(
                 executionHistorySizeLimit,
                 rpcTimeout,
                 createTimestamp,
                 this.initialAttemptCounts.getAttemptCounts(ejv.getJobVertexId()),
                 coordinatorStore);
-
+        // 处理JobEdge和IntermediateResult和ExecutionJobVertex中的ExecutionVertex
+        // 对每个JobEdge，获取对应的IntermediateResult，并记录到本节点的输入上
+        // 最后，把每个 ExecutorVertex 和对应的 IntermediateResult 关联起来
         ejv.connectToPredecessors(this.intermediateResults);
+
+        // 一个 ExecutionVertex 就对应到 到时候真正执行的 StreamTask 一个
+        // 正常来说，一个StrewamTask 也需要申请得到一个 Slot
 
         for (IntermediateResult res : ejv.getProducedDataSets()) {
             IntermediateResult previousDataSet =
@@ -927,7 +940,9 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                 throw new JobException(
                         String.format(
                                 "Encountered two intermediate data set with ID %s : previous=[%s] / new=[%s]",
-                                res.getId(), res, previousDataSet));
+                                res.getId(),
+                                res,
+                                previousDataSet));
             }
         }
 
@@ -1067,7 +1082,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         final Execution failedExecution = currentExecutions.get(failingAttempt);
         if (failedExecution != null
                 && (failedExecution.getState() == ExecutionState.RUNNING
-                        || failedExecution.getState() == ExecutionState.INITIALIZING)) {
+                || failedExecution.getState() == ExecutionState.INITIALIZING)) {
             failGlobal(cause);
         } else {
             LOG.debug(
@@ -1493,8 +1508,9 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
      * <p>This method never throws an exception!
      *
      * @param state The task execution state from which to deserialize the accumulators.
+     *
      * @return The deserialized accumulators, of null, if there are no accumulators or an error
-     *     occurred.
+     *         occurred.
      */
     private Map<String, Accumulator<?, ?>> deserializeAccumulators(
             TaskExecutionStateTransition state) {

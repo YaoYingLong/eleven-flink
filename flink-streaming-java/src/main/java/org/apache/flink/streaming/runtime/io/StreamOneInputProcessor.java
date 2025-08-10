@@ -49,9 +49,12 @@ public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 
     public StreamOneInputProcessor(
             StreamTaskInput<IN> input, DataOutput<IN> output, BoundedMultiInput endOfInputAware) {
-
+        // 这里的input是StreamTaskSourceInput
         this.input = checkNotNull(input);
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
         this.output = checkNotNull(output);
+        // 这里的endOfInputAware是OperatorChain
         this.endOfInputAware = checkNotNull(endOfInputAware);
     }
 
@@ -62,9 +65,13 @@ public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 
     @Override
     public DataInputStatus processInput() throws Exception {
+        // 如果是KafkaSource这里的input是StreamTaskSourceInput
+        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
         DataInputStatus status = input.emitNext(output);
 
         if (status == DataInputStatus.END_OF_DATA) {
+            // 只有批处理才会执行相关的逻辑
             endOfInputAware.endInput(input.getInputIndex() + 1);
             output = new FinishedDataOutput<>();
         } else if (status == DataInputStatus.END_OF_RECOVERY) {

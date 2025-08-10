@@ -54,6 +54,7 @@ public class DefaultExecutorServiceLoader implements PipelineExecutorServiceLoad
     public PipelineExecutorFactory getExecutorFactory(final Configuration configuration) {
         checkNotNull(configuration);
 
+        // 加载得到 ExecutorFactory
         final ServiceLoader<PipelineExecutorFactory> loader =
                 ServiceLoader.load(PipelineExecutorFactory.class);
 

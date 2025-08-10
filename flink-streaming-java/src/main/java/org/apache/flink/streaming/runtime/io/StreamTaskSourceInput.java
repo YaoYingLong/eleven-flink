@@ -50,9 +50,12 @@ public class StreamTaskSourceInput<T> implements StreamTaskInput<T>, Checkpointa
 
     public StreamTaskSourceInput(
             SourceOperator<T, ?> operator, int inputGateIndex, int inputIndex) {
+        // 这里的operator实际上是SourceOperatorStreamTask
         this.operator = checkNotNull(operator);
+        // 传入的inputGateIndex和inputIndex默认都是0
         this.inputGateIndex = inputGateIndex;
         inputChannelInfos = Collections.singletonList(new InputChannelInfo(inputGateIndex, 0));
+        // 将isBlockedAvailability的availableFuture设置为AVAILABLE
         isBlockedAvailability.resetAvailable();
         this.inputIndex = inputIndex;
     }
@@ -64,7 +67,11 @@ public class StreamTaskSourceInput<T> implements StreamTaskInput<T>, Checkpointa
          * polls the data from this source while it's blocked, it should return {@link
          * DataInputStatus.NOTHING_AVAILABLE}.
          */
+        // 默认是true
         if (isBlockedAvailability.isApproximatelyAvailable()) {
+            // 这里的operator实际上是SourceOperatorStreamTask调用超类的SourceOperator的emitNext方法
+            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
             return operator.emitNext(output);
         }
         return DataInputStatus.NOTHING_AVAILABLE;

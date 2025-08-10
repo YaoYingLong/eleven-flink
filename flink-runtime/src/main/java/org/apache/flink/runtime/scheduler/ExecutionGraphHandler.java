@@ -84,8 +84,7 @@ public class ExecutionGraphHandler {
             final CheckpointMetrics checkpointMetrics,
             final TaskStateSnapshot checkpointState) {
         processCheckpointCoordinatorMessage(
-                "AcknowledgeCheckpoint",
-                coordinator ->
+                "AcknowledgeCheckpoint", coordinator ->
                         coordinator.receiveAcknowledgeMessage(
                                 new AcknowledgeCheckpoint(
                                         jobID,

@@ -199,7 +199,8 @@ public class SingleInputGate extends IndexedInputGate {
 
     private final CompletableFuture<Void> closeFuture;
 
-    @Nullable private final BufferDecompressor bufferDecompressor;
+    @Nullable
+    private final BufferDecompressor bufferDecompressor;
 
     private final MemorySegmentProvider memorySegmentProvider;
 
@@ -265,12 +266,19 @@ public class SingleInputGate extends IndexedInputGate {
         return inputChannelsWithData;
     }
 
+    //  Bbuffer  MemorySegment
+    //	流式计算引擎：上游Task执行完毕一条数据的计算之后，就会发送这条数据的计算结果给下游Task
+    //	到底怎么给规则是由StreamPartitioiner来指定的，一条数据在一个Task执行完毕之后，就要发送给下游个另外一个Task
+    //	这个网络数据传输过程，是由Netty支持的，具体是由IntputChannel实现Buffer Channel
     @Override
     public void setup() throws IOException {
         checkState(
                 this.bufferPool == null,
                 "Bug in input gate setup logic: Already registered buffer pool.");
-
+        // 设置 BufferPool 内存管理有关！
+        //  1、在海量数据处理中，JVM的堆内存的管理方式有很大的缺陷，每次从堆内存中申请的不是一个32kb的MemorySegement
+        //  2、BufferPool就是管理MemorySegement的
+        // 调用SingleInputGateFactory的createBufferPoolFactory创建的函数表达式
         BufferPool bufferPool = bufferPoolFactory.get();
         setBufferPool(bufferPool);
 
@@ -377,8 +385,8 @@ public class SingleInputGate extends IndexedInputGate {
                         numberOfInputChannels - channelsWithEndOfPartitionEvents.cardinality());
         synchronized (inputChannelsWithData) {
             for (int i = channelsWithEndOfPartitionEvents.nextClearBit(0);
-                    i < numberOfInputChannels;
-                    i = channelsWithEndOfPartitionEvents.nextClearBit(i + 1)) {
+                 i < numberOfInputChannels;
+                 i = channelsWithEndOfPartitionEvents.nextClearBit(i + 1)) {
                 unfinishedChannels.add(getChannel(i).getChannelInfo());
             }
         }
@@ -499,8 +507,7 @@ public class SingleInputGate extends IndexedInputGate {
 
     public void setBufferPool(BufferPool bufferPool) {
         checkState(
-                this.bufferPool == null,
-                "Bug in input gate setup logic: buffer pool has"
+                this.bufferPool == null, "Bug in input gate setup logic: buffer pool has"
                         + "already been set for this input gate.");
 
         this.bufferPool = checkNotNull(bufferPool);
@@ -519,7 +526,9 @@ public class SingleInputGate extends IndexedInputGate {
         // Next allocate the exclusive buffers per channel when the number of exclusive buffer is
         // larger than 0.
         synchronized (requestLock) {
+            // 一个InputGate中，根据需要上游的几个Task拉取数据，就会有多少个InputChannel
             for (InputChannel inputChannel : inputChannels.values()) {
+                // 调用RemoteInputChannel的setup方法
                 inputChannel.setup();
             }
         }
@@ -541,9 +550,9 @@ public class SingleInputGate extends IndexedInputGate {
                         inputChannel.getPartitionId().getPartitionId();
                 int subpartitionIndex = inputChannel.getConsumedSubpartitionIndex();
                 if (inputChannels.put(
-                                        new SubpartitionInfo(partitionId, subpartitionIndex),
-                                        inputChannel)
-                                == null
+                        new SubpartitionInfo(partitionId, subpartitionIndex),
+                        inputChannel)
+                        == null
                         && inputChannel instanceof UnknownInputChannel) {
 
                     numberOfUninitializedChannels++;
@@ -565,8 +574,8 @@ public class SingleInputGate extends IndexedInputGate {
                     shuffleDescriptor.getResultPartitionID().getPartitionId();
 
             for (int subpartitionIndex = subpartitionIndexRange.getStartIndex();
-                    subpartitionIndex <= subpartitionIndexRange.getEndIndex();
-                    ++subpartitionIndex) {
+                 subpartitionIndex <= subpartitionIndexRange.getEndIndex();
+                 ++subpartitionIndex) {
                 SubpartitionInfo subpartitionInfo =
                         new SubpartitionInfo(partitionId, subpartitionIndex);
                 InputChannel current = inputChannels.get(subpartitionInfo);
@@ -997,15 +1006,15 @@ public class SingleInputGate extends IndexedInputGate {
     private void queueChannel(
             InputChannel channel, @Nullable Integer prioritySequenceNumber, boolean forcePriority) {
         try (GateNotificationHelper notification =
-                new GateNotificationHelper(this, inputChannelsWithData)) {
+                     new GateNotificationHelper(this, inputChannelsWithData)) {
             synchronized (inputChannelsWithData) {
                 boolean priority = prioritySequenceNumber != null || forcePriority;
 
                 if (!forcePriority
                         && priority
                         && isOutdated(
-                                prioritySequenceNumber,
-                                lastPrioritySequenceNumber[channel.getChannelIndex()])) {
+                        prioritySequenceNumber,
+                        lastPrioritySequenceNumber[channel.getChannelIndex()])) {
                     // priority event at the given offset already polled (notification is not atomic
                     // in respect to
                     // buffer enqueuing), so just ignore the notification
@@ -1040,7 +1049,7 @@ public class SingleInputGate extends IndexedInputGate {
      * raising the priority.
      *
      * @return true iff it has been enqueued/prioritized = some change to {@link
-     *     #inputChannelsWithData} happened
+     *         #inputChannelsWithData} happened
      */
     private boolean queueChannelUnsafe(InputChannel channel, boolean priority) {
         assert Thread.holdsLock(inputChannelsWithData);

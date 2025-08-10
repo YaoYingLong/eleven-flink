@@ -52,6 +52,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
     @GuardedBy("lock")
     private final Deque<SplitFetcherTask> taskQueue = new ArrayDeque<>();
     // track the assigned splits so we can suspend the reader when there is no splits assigned.
+    // 跟踪已分配的分片，这样当没有分配任何分片时，我们可以暂停读取器
     private final Map<String, SplitT> assignedSplits = new HashMap<>();
     private final FutureCompletingBlockingQueue<RecordsWithSplitIds<E>> elementsQueue;
     private final SplitReader<E, SplitT> splitReader;
@@ -89,15 +90,19 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
             Consumer<Collection<String>> splitFinishedHook,
             boolean allowUnalignedSourceSplits) {
         this.id = id;
+        // elementsQueue是FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
         this.elementsQueue = checkNotNull(elementsQueue);
+        // splitReader为KafkaPartitionSplitReader
         this.splitReader = checkNotNull(splitReader);
         this.errorHandler = checkNotNull(errorHandler);
-        this.shutdownHook = checkNotNull(shutdownHook);
-        this.allowUnalignedSourceSplits = allowUnalignedSourceSplits;
 
+        this.shutdownHook = checkNotNull(shutdownHook);
+        // 默认false
+        this.allowUnalignedSourceSplits = allowUnalignedSourceSplits;
         this.fetchTask = new FetchTask<>(
                 splitReader, elementsQueue, ids -> {
             ids.forEach(assignedSplits::remove);
+            // splitFinishedHook默认空实现
             splitFinishedHook.accept(ids);
             LOG.info("Finished reading from splits {}", ids);
         }, id);
@@ -107,6 +112,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
     public void run() {
         LOG.info("Starting split fetcher {}", id);
         try {
+            // 一致执行runOnce方法
             while (runOnce()) {
                 // nothing to do, everything is inside #runOnce.
             }
@@ -135,9 +141,11 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
         SplitFetcherTask task;
         lock.lock();
         try {
+            // closed初始值默认是false
             if (closed) {
                 return false;
             }
+            // 获取下一个任务，如果没有任务则阻塞等待
             task = getNextTaskUnsafe();
             if (task == null) {
                 // (spurious) wakeup, so just repeat
@@ -153,6 +161,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
         // execute the task outside of lock, so that it can be woken up
         boolean taskFinished;
         try {
+            // 执行任务
             taskFinished = task.run();
         } catch (Exception e) {
             throw new RuntimeException(
@@ -174,15 +183,18 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
 
     private void processTaskResultUnsafe(SplitFetcherTask task, boolean taskFinished) {
         assert lock.isHeldByCurrentThread();
+        // 如果任务完成
         if (taskFinished) {
             LOG.debug("Finished running task {}", task);
             if (assignedSplits.isEmpty() && taskQueue.isEmpty()) {
                 // because the method might get invoked past the point when the source reader
                 // last checked the elements queue, we need to notify availability in the case
                 // when we become idle
+                // 因为该方法可能在源读取器最后检查元素队列之后被调用，所以在我们变得空闲的情况下，我们需要通知可用性
                 elementsQueue.notifyAvailable();
             }
         } else if (task != fetchTask) {
+            // 如果任务未完成，并且任务不是fetchTask，将任务添加会队列
             // task was woken up, so repeat
             taskQueue.addFirst(task);
             LOG.debug("Reenqueuing woken task {}", task);
@@ -193,6 +205,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
     private SplitFetcherTask getNextTaskUnsafe() {
         assert lock.isHeldByCurrentThread();
         try {
+            // 初始值默认为false
             if (paused) {
                 resumed.await();
                 // if it was paused, ensure that fetcher was not shutdown
@@ -200,18 +213,22 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
             }
             if (!taskQueue.isEmpty()) {
                 // a specific task is avail, so take that in FIFO
+                // 第一次获取到的是调用kafka原生KafkaConsumer类的commitAsync来提交offset的SplitFetcherTask
                 return taskQueue.poll();
             } else if (!assignedSplits.isEmpty()) {
                 // use fallback task = fetch if there is at least one split
+                // 如果至少存在一个分片，则使用fetchTask
                 return fetchTask;
             } else {
                 // nothing to do, wait for signal
+                // 阻塞等待任务队列有任务
                 nonEmpty.await();
                 return taskQueue.poll();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("The thread was interrupted while waiting for a fetcher task.");
+            throw new RuntimeException(
+                    "The thread was interrupted while waiting for a fetcher task.");
         }
     }
 
@@ -223,6 +240,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
     public void addSplits(List<SplitT> splitsToAdd) {
         lock.lock();
         try {
+            // 添加异步任务AddSplitsTask到任务队列中
             enqueueTaskUnsafe(new AddSplitsTask<>(splitReader, splitsToAdd, assignedSplits));
             wakeUpUnsafe(true);
         } finally {
@@ -242,12 +260,13 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
             Collection<SplitT> splitsToPause, Collection<SplitT> splitsToResume) {
         lock.lock();
         try {
-            enqueueTaskUnsafe(
-                    new PauseOrResumeSplitsTask<>(
-                            splitReader,
-                            splitsToPause,
-                            splitsToResume,
-                            allowUnalignedSourceSplits));
+            // 这里其实就是异步执行PauseOrResumeSplitsTask的run方法
+            // 异步调用KafkaPartitionSplitReader的pauseOrResumeSplits方法
+            enqueueTaskUnsafe(new PauseOrResumeSplitsTask<>(
+                    splitReader,
+                    splitsToPause,
+                    splitsToResume,
+                    allowUnalignedSourceSplits));
             wakeUpUnsafe(true);
         } finally {
             lock.unlock();
@@ -265,6 +284,7 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
 
     private void enqueueTaskUnsafe(SplitFetcherTask task) {
         assert lock.isHeldByCurrentThread();
+        // 将SplitFetcherTask添加到任务队列中
         taskQueue.add(task);
         nonEmpty.signal();
     }

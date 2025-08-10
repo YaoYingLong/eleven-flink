@@ -130,6 +130,7 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * the partition is not found.
      *
      * @param id of the intermediate result partition
+     *
      * @return intermediate result partition
      */
     IntermediateResultPartition getResultPartitionOrThrow(final IntermediateResultPartitionID id);
@@ -197,8 +198,9 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * "FINISHED", this also updates the accumulators.
      *
      * @param state The state update.
+     *
      * @return True, if the task update was properly applied, false, if the execution attempt was
-     *     not found.
+     *         not found.
      */
     boolean updateState(TaskExecutionStateTransition state);
 
@@ -215,11 +217,13 @@ public interface ExecutionGraph extends AccessExecutionGraph {
 
     default void initializeJobVertex(ExecutionJobVertex ejv, long createTimestamp)
             throws JobException {
+        // 调用DefaultExecutionGraph的initializeJobVertex方法
         initializeJobVertex(
                 ejv,
                 createTimestamp,
                 VertexInputInfoComputationUtils.computeVertexInputInfos(
-                        ejv, getAllIntermediateResults()::get));
+                        ejv,
+                        getAllIntermediateResults()::get));
     }
 
     /**
@@ -228,7 +232,7 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      *
      * @param ejv The execution job vertex that needs to be initialized.
      * @param createTimestamp The timestamp for creating execution vertices, used to initialize the
-     *     first Execution with.
+     *         first Execution with.
      * @param jobVertexInputInfos The input infos of this job vertex.
      */
     void initializeJobVertex(

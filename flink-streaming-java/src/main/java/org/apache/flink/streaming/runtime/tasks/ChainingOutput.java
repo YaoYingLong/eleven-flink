@@ -52,6 +52,7 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
             @Nullable Counter prevNumRecordsOut,
             OperatorMetricGroup curOperatorMetricGroup,
             @Nullable OutputTag<T> outputTag) {
+        // input其实就是当前算子对应的Operator，即StreamMap、StreamFlatMap、StreamFilter等具体算子的Operator
         this.input = input;
         if (prevNumRecordsOut != null) {
             this.numRecordsOut = prevNumRecordsOut;
@@ -71,7 +72,7 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
             // we are not responsible for emitting to the main output.
             return;
         }
-
+        // 跳转到下一个 Operator 来处理元素，StreamMap、StreamFlatMap、StreamFilter 等算子
         pushToOperator(record);
     }
 
@@ -91,6 +92,10 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
 
             numRecordsOut.inc();
             numRecordsIn.inc();
+            // 调用Operator的processElement来处理castRecord数据记录
+            // 假设下一个算子是 keyBy， 则跳转到 ： KeyedProcessOperator
+            // 因为之后要 shuffle 了，所以之后就没有其他的 Operator 了
+            // map() = StreamOperator = StreamMap = operator
             recordProcessor.accept(castRecord);
         } catch (Exception e) {
             throw new ExceptionInChainedOperatorException(e);

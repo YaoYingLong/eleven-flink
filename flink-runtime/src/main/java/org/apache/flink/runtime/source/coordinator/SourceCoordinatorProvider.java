@@ -43,7 +43,8 @@ public class SourceCoordinatorProvider<SplitT extends SourceSplit>
     private final Source<?, SplitT, ?> source;
     private final int numWorkerThreads;
     private final WatermarkAlignmentParams alignmentParams;
-    @Nullable private final String coordinatorListeningID;
+    @Nullable
+    private final String coordinatorListeningID;
 
     /**
      * Construct the {@link SourceCoordinatorProvider}.
@@ -52,9 +53,9 @@ public class SourceCoordinatorProvider<SplitT extends SourceSplit>
      * @param operatorID the ID of the operator this coordinator corresponds to.
      * @param source the Source that will be used for this coordinator.
      * @param numWorkerThreads the number of threads the should provide to the SplitEnumerator for
-     *     doing async calls. See {@link
-     *     org.apache.flink.api.connector.source.SplitEnumeratorContext#callAsync(Callable,
-     *     BiConsumer) SplitEnumeratorContext.callAsync()}.
+     *         doing async calls. See {@link
+     *         org.apache.flink.api.connector.source.SplitEnumeratorContext#callAsync(Callable,
+     *         BiConsumer) SplitEnumeratorContext.callAsync()}.
      */
     public SourceCoordinatorProvider(
             String operatorName,
@@ -78,13 +79,12 @@ public class SourceCoordinatorProvider<SplitT extends SourceSplit>
                 new CoordinatorExecutorThreadFactory(coordinatorThreadName, context);
 
         SimpleVersionedSerializer<SplitT> splitSerializer = source.getSplitSerializer();
-        SourceCoordinatorContext<SplitT> sourceCoordinatorContext =
-                new SourceCoordinatorContext<>(
-                        coordinatorThreadFactory,
-                        numWorkerThreads,
-                        context,
-                        splitSerializer,
-                        context.isConcurrentExecutionAttemptsSupported());
+        SourceCoordinatorContext<SplitT> sourceCoordinatorContext = new SourceCoordinatorContext<>(
+                coordinatorThreadFactory,
+                numWorkerThreads,
+                context,
+                splitSerializer,
+                context.isConcurrentExecutionAttemptsSupported());
         return new SourceCoordinator<>(
                 operatorName,
                 source,
@@ -103,7 +103,8 @@ public class SourceCoordinatorProvider<SplitT extends SourceSplit>
         private final ClassLoader cl;
         private final Thread.UncaughtExceptionHandler errorHandler;
 
-        @Nullable private Thread t;
+        @Nullable
+        private Thread t;
 
         CoordinatorExecutorThreadFactory(
                 final String coordinatorThreadName, final OperatorCoordinator.Context context) {

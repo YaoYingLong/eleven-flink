@@ -40,15 +40,19 @@ public final class IndexedCombinedWatermarkStatus {
     }
 
     public static IndexedCombinedWatermarkStatus forInputsCount(int inputsCount) {
+        // inputsCount传入的是2
         CombinedWatermarkStatus.PartialWatermark[] partialWatermarks =
                 IntStream.range(0, inputsCount).mapToObj(
+                        // 这里new的PartialWatermark传入的WatermarkUpdateListener相当于是一个空实现
                                 i -> new CombinedWatermarkStatus.PartialWatermark(watermark -> {
                                 }))
                         .toArray(CombinedWatermarkStatus.PartialWatermark[]::new);
         CombinedWatermarkStatus combinedWatermarkStatus = new CombinedWatermarkStatus();
+        // 将上面生成的partialWatermarks添加到combinedWatermarkStatus中
         for (CombinedWatermarkStatus.PartialWatermark partialWatermark : partialWatermarks) {
             combinedWatermarkStatus.add(partialWatermark);
         }
+        // 将CombinedWatermarkStatus和partialWatermarks封装成IndexedCombinedWatermarkStatus返回
         return new IndexedCombinedWatermarkStatus(combinedWatermarkStatus, partialWatermarks);
     }
 

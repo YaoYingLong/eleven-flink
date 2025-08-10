@@ -56,6 +56,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
         this.context = context;
         this.provider = provider;
         this.coordinator = new DeferrableCoordinator(context.getOperatorId());
+        // 关键代码，创建新的内部协调器
         this.coordinator.createNewInternalCoordinator(context, provider);
         this.coordinator.processPendingCalls();
         this.closingTimeoutMs = closingTimeoutMs;
@@ -335,6 +336,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
             // which is invoked in the scheduler main thread.
             try {
                 internalQuiesceableContext = new QuiesceableContext(context);
+                // 创建SourceCoordinatorProvider
                 internalCoordinator = provider.getCoordinator(internalQuiesceableContext);
             } catch (Exception e) {
                 LOG.error("Failed to create new internal coordinator due to ", e);

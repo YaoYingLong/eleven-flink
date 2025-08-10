@@ -64,6 +64,7 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
 
     public void run(final Object lockingObject, final OperatorChain<?, ?> operatorChain)
             throws Exception {
+        // 运行 SourceOperator
         run(lockingObject, output, operatorChain);
     }
 
@@ -73,9 +74,9 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
             final OperatorChain<?, ?> operatorChain)
             throws Exception {
 
-        // 获取时间类型，事件时间、处理时间或无时间特性
+        // 获取时间类型，事件时间、处理时间或无时间特性（ProcessingTime， IngestionTime， EventTime）
         final TimeCharacteristic timeCharacteristic = getOperatorConfig().getTimeCharacteristic();
-
+        // 获取配置
         final Configuration configuration =
                 this.getContainingTask().getEnvironment().getTaskManagerInfo().getConfiguration();
         // 默认值是0
@@ -97,7 +98,7 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
         // 水位线间隔，默认200毫秒
         final long watermarkInterval =
                 getRuntimeContext().getExecutionConfig().getAutoWatermarkInterval();
-
+        // 获取 Operator 的执行上下文对象
         this.ctx = StreamSourceContexts.getSourceContext(
                 timeCharacteristic,
                 getProcessingTimeService(),
@@ -109,6 +110,11 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
                 emitProgressiveWatermarks);
 
         try {
+            // 真正运行用户的 Operator
+            // 1、如果你使用：env.socketTextStream()则调用：SocketTextStreamFunction
+            // 2、如果你使用：Kafka数据源，则调用：FlinkKafkaConsumerBase
+            // function --> transformation ---> streamOperator
+            // headOperator.run();
             userFunction.run(ctx);
         } finally {
             if (latencyEmitter != null) {

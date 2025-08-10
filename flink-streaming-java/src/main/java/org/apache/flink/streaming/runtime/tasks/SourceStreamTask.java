@@ -60,8 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @param <OP> Type of the stream source operator
  */
 @Internal
-public class SourceStreamTask<
-                OUT, SRC extends SourceFunction<OUT>, OP extends StreamSource<OUT, SRC>>
+public class SourceStreamTask<OUT, SRC extends SourceFunction<OUT>, OP extends StreamSource<OUT, SRC>>
         extends StreamTask<OUT, OP> {
 
     private final LegacySourceFunctionThread sourceThread;
@@ -102,9 +101,7 @@ public class SourceStreamTask<
 
     private SourceStreamTask(Environment env, Object lock) throws Exception {
         super(
-                env,
-                null,
-                FatalExitExceptionHandler.INSTANCE,
+                env, null, FatalExitExceptionHandler.INSTANCE,
                 StreamTaskActionExecutor.synchronizedExecutor(lock));
         this.lock = Preconditions.checkNotNull(lock);
         this.sourceThread = new LegacySourceFunctionThread();
@@ -158,12 +155,9 @@ public class SourceStreamTask<
 
             ((ExternallyInducedSource<?, ?>) source).setCheckpointTrigger(triggerHook);
         }
-        getEnvironment()
-                .getMetricGroup()
-                .getIOMetricGroup()
-                .gauge(
-                        MetricNames.CHECKPOINT_START_DELAY_TIME,
-                        this::getAsyncCheckpointStartDelayNanos);
+        getEnvironment().getMetricGroup().getIOMetricGroup().gauge(
+                MetricNames.CHECKPOINT_START_DELAY_TIME,
+                this::getAsyncCheckpointStartDelayNanos);
         recordWriter.setMaxOverdraftBuffersPerGate(0);
     }
 
@@ -190,16 +184,14 @@ public class SourceStreamTask<
 
         sourceThread.start();
 
-        sourceThread
-                .getCompletionFuture()
-                .whenComplete(
-                        (Void ignore, Throwable sourceThreadThrowable) -> {
-                            if (sourceThreadThrowable != null) {
-                                mailboxProcessor.reportThrowable(sourceThreadThrowable);
-                            } else {
-                                mailboxProcessor.suspend();
-                            }
-                        });
+        sourceThread.getCompletionFuture().whenComplete(
+                (Void ignore, Throwable sourceThreadThrowable) -> {
+                    if (sourceThreadThrowable != null) {
+                        mailboxProcessor.reportThrowable(sourceThreadThrowable);
+                    } else {
+                        mailboxProcessor.suspend();
+                    }
+                });
     }
 
     @Override
@@ -330,6 +322,7 @@ public class SourceStreamTask<
                     LOG.debug(
                             "Legacy source {} skip execution since the task is finished on restore",
                             getTaskNameWithSubtaskAndId());
+                    // 调用StreamSource的run
                     mainOperator.run(lock, operatorChain);
                 }
                 completeProcessing();
@@ -338,7 +331,7 @@ public class SourceStreamTask<
                 // Note, t can be also an InterruptedException
                 if (isCanceled()
                         && ExceptionUtils.findThrowable(t, InterruptedException.class)
-                                .isPresent()) {
+                        .isPresent()) {
                     completionFuture.completeExceptionally(new CancelTaskException(t));
                 } else {
                     completionFuture.completeExceptionally(t);
@@ -370,8 +363,8 @@ public class SourceStreamTask<
 
         /**
          * @return future that is completed once this thread completes. If this task {@link
-         *     #isFailing()} and this thread is not alive (e.g. not started) returns a normally
-         *     completed future.
+         *         #isFailing()} and this thread is not alive (e.g. not started) returns a normally
+         *         completed future.
          */
         CompletableFuture<Void> getCompletionFuture() {
             return isFailing() && !isAlive()

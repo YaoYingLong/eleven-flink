@@ -192,6 +192,8 @@ public class StreamSourceContexts {
         @Override
         public void collect(T element) {
             synchronized (lock) {
+                // 这里的output其实是CountingOutput，reuse是装一条数据的带序列化的容器
+                // collect 执行 collect 会对 reuse 对象执行序列化
                 output.collect(reuse.replace(element));
             }
         }
@@ -268,6 +270,8 @@ public class StreamSourceContexts {
         @Override
         protected void processAndCollect(T element) {
             lastRecordTime = this.timeService.getCurrentProcessingTime();
+            // 这里的output其实是CountingOutput，reuse是装一条数据的带序列化的容器
+            // collect 执行 collect 会对 reuse 对象执行序列化
             output.collect(reuse.replace(element, lastRecordTime));
 
             // this is to avoid lock contention in the lockingObject by
@@ -278,7 +282,6 @@ public class StreamSourceContexts {
                 final long watermarkTime = lastRecordTime - (lastRecordTime % watermarkInterval);
                 nextWatermarkTime = watermarkTime + watermarkInterval;
                 output.emitWatermark(new Watermark(watermarkTime));
-
                 // we do not need to register another timer here
                 // because the emitting task will do so.
             }

@@ -103,7 +103,8 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
 
     protected void emit(T record, int targetSubpartition) throws IOException {
         checkErroneous();
-
+        // 首先通过serializeRecord对record进行序列化，将数据写入到serializer中病返回ByteBuffer
+        // 这里的targetPartition是ResultPartitionWriter，其实就是刷数据到网络
         targetPartition.emitRecord(serializeRecord(serializer, record), targetSubpartition);
 
         if (flushAlways) {
@@ -138,6 +139,7 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
         serializer.setPositionUnsafe(4);
 
         // write data
+        // 将数据写入到serializer中
         record.write(serializer);
 
         // write length

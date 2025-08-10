@@ -298,8 +298,7 @@ public class StateBackendLoader {
             @Nullable Logger logger)
             throws IllegalConfigurationException, DynamicCodeLoadingException, IOException {
 
-        StateBackend rootBackend =
-                loadFromApplicationOrConfigOrDefaultInternal(
+        StateBackend rootBackend = loadFromApplicationOrConfigOrDefaultInternal(
                         fromApplication, config, classLoader, logger);
 
         // Configuration from application will override the one from env.

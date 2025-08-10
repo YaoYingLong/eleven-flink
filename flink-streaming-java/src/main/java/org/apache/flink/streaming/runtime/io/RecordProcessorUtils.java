@@ -39,23 +39,26 @@ public class RecordProcessorUtils {
      * Input#setKeyContextElement} if it doesn't have key context.
      *
      * @param input the {@link Input}
+     *
      * @return the record processor
      */
     public static <T> ThrowingConsumer<StreamRecord<T>, Exception> getRecordProcessor(
             Input<T> input) {
         boolean canOmitSetKeyContext;
+        // 如果是kafka这里的input其实是SourceOperator
         if (input instanceof AbstractStreamOperator) {
+            // 如果是AbstractStreamOperator，判断是否有key context，默认返回false
             canOmitSetKeyContext = canOmitSetKeyContext((AbstractStreamOperator<?>) input, 0);
         } else {
-            canOmitSetKeyContext =
-                    input instanceof KeyContextHandler
-                            && !((KeyContextHandler) input).hasKeyContext();
+            canOmitSetKeyContext = input instanceof KeyContextHandler
+                    && !((KeyContextHandler) input).hasKeyContext();
         }
 
         if (canOmitSetKeyContext) {
             return input::processElement;
         } else {
             return record -> {
+                // 调用OneInputStreamOperator的setKeyContextElement
                 input.setKeyContextElement(record);
                 input.processElement(record);
             };
@@ -67,6 +70,7 @@ public class RecordProcessorUtils {
      * call of {@link StreamOperator#setKeyContextElement1} if it doesn't have key context.
      *
      * @param operator the {@link TwoInputStreamOperator}
+     *
      * @return the record processor
      */
     public static <T> ThrowingConsumer<StreamRecord<T>, Exception> getRecordProcessor1(
@@ -95,6 +99,7 @@ public class RecordProcessorUtils {
      * call of {@link StreamOperator#setKeyContextElement2} if it doesn't have key context.
      *
      * @param operator the {@link TwoInputStreamOperator}
+     *
      * @return the record processor
      */
     public static <T> ThrowingConsumer<StreamRecord<T>, Exception> getRecordProcessor2(
@@ -130,8 +135,10 @@ public class RecordProcessorUtils {
 
     private static boolean hasKeyContext(AbstractStreamOperator<?> operator, int input) {
         if (input == 0) {
+            // 返回true
             return operator.hasKeyContext1();
         } else {
+            // 返回true
             return operator.hasKeyContext2();
         }
     }
@@ -141,15 +148,15 @@ public class RecordProcessorUtils {
         if (input == 0) {
             if (operator instanceof OneInputStreamOperator) {
                 return methodIsOverridden(
-                                operator,
-                                OneInputStreamOperator.class,
-                                METHOD_SET_KEY_CONTEXT_ELEMENT,
-                                StreamRecord.class)
+                        operator,
+                        OneInputStreamOperator.class,
+                        METHOD_SET_KEY_CONTEXT_ELEMENT,
+                        StreamRecord.class)
                         || methodIsOverridden(
-                                operator,
-                                AbstractStreamOperator.class,
-                                METHOD_SET_KEY_CONTEXT_ELEMENT1,
-                                StreamRecord.class);
+                        operator,
+                        AbstractStreamOperator.class,
+                        METHOD_SET_KEY_CONTEXT_ELEMENT1,
+                        StreamRecord.class);
             } else {
                 return methodIsOverridden(
                         operator,
@@ -184,5 +191,6 @@ public class RecordProcessorUtils {
     }
 
     /** Private constructor to prevent instantiation. */
-    private RecordProcessorUtils() {}
+    private RecordProcessorUtils() {
+    }
 }

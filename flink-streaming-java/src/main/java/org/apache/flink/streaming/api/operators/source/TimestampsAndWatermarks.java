@@ -46,17 +46,28 @@ public interface TimestampsAndWatermarks<T> {
     @Internal
     interface WatermarkUpdateListener {
 
-        /** It should be called once the idle is changed. */
+        /**
+         * It should be called once the idle is changed.
+         *
+         * 更新空闲状态
+         */
         void updateIdle(boolean isIdle);
 
         /**
          * Update the effective watermark. If an output becomes idle, please call {@link
          * this#updateIdle} instead of update the watermark to {@link Long#MAX_VALUE}. Because the
          * output needs to distinguish between idle and real watermark.
+         *
+         * 更新有效的水位线。如果某个输出变为空闲，请调用 {@link this#updateIdle}，而不是将水位线更新为
+         * {@link Long#MAX_VALUE}。因为输出需要区分空闲状态和实际的水位线
          */
         void updateCurrentEffectiveWatermark(long watermark);
 
-        /** Notifies about changes to per split watermarks. */
+        /**
+         * Notifies about changes to per split watermarks.
+         *
+         * 通知关于每个分片的水位线的变化
+         */
         void updateCurrentSplitWatermark(String splitId, long watermark);
     }
 
@@ -91,14 +102,16 @@ public interface TimestampsAndWatermarks<T> {
             long periodicWatermarkIntervalMillis) {
 
         final TimestampsAndWatermarksContext context = new TimestampsAndWatermarksContext(metrics);
+        // 调用自定义的水位线策略，获取TimestampAssigner，其实就是我们传入的
         final TimestampAssigner<E> timestampAssigner =
                 watermarkStrategy.createTimestampAssigner(context);
 
         return new ProgressiveTimestampsAndWatermarks<>(
                 timestampAssigner,
-                watermarkStrategy,
+                watermarkStrategy, // 自定义的水位线策略
                 context,
-                timeService,
+                timeService, // ProcessingTimeServiceImpl
+                // 默认200毫秒
                 Duration.ofMillis(periodicWatermarkIntervalMillis));
     }
 

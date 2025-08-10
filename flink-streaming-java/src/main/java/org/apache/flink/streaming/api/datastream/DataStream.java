@@ -140,10 +140,9 @@ public class DataStream<T> {
      * @param environment The StreamExecutionEnvironment
      */
     public DataStream(StreamExecutionEnvironment environment, Transformation<T> transformation) {
-        this.environment =
-                Preconditions.checkNotNull(environment, "Execution Environment must not be null.");
-        this.transformation = Preconditions.checkNotNull(
-                transformation, "Stream Transformation must not be null.");
+        // 到最后只是创建了一个DataStream对象，然后设置了StreamExecutionEnvironment和Transformation
+        this.environment = Preconditions.checkNotNull(environment, "Execution Environment must not be null.");
+        this.transformation = Preconditions.checkNotNull(transformation, "Stream Transformation must not be null.");
     }
 
     /**
@@ -590,7 +589,7 @@ public class DataStream<T> {
      * @return The transformed {@link DataStream}.
      */
     public <R> SingleOutputStreamOperator<R> map(MapFunction<T, R> mapper) {
-
+        // 输出类型
         TypeInformation<R> outType = TypeExtractor.getMapReturnTypes(
                 clean(mapper), getType(), Utils.getCallLocationName(), true);
 
@@ -1205,10 +1204,11 @@ public class DataStream<T> {
      */
     @PublicEvolving
     public <R> SingleOutputStreamOperator<R> transform(
+            // 操作名称
             String operatorName,
+            // 输出类型
             TypeInformation<R> outTypeInfo,
             OneInputStreamOperator<T, R> operator) {
-
         return doTransform(operatorName, outTypeInfo, SimpleOperatorFactory.of(operator));
     }
 
@@ -1231,7 +1231,7 @@ public class DataStream<T> {
             String operatorName,
             TypeInformation<R> outTypeInfo,
             OneInputStreamOperatorFactory<T, R> operatorFactory) {
-
+        // 用反射拿到了flatMap、filte等算子的输出类型、然后生成了一个Operator
         return doTransform(operatorName, outTypeInfo, operatorFactory);
     }
 
@@ -1239,25 +1239,24 @@ public class DataStream<T> {
             String operatorName,
             TypeInformation<R> outTypeInfo,
             StreamOperatorFactory<R> operatorFactory) {
-
+        // 如果数据源是kafka，这里的transformation是SourceTransformation
         // read the output type of the input Transform to coax out errors about MissingTypeInfo
         transformation.getOutputType();
-
-        OneInputTransformation<T, R> resultTransform =
-                new OneInputTransformation<>(
-                        this.transformation,
-                        operatorName,
-                        operatorFactory,
-                        outTypeInfo,
-                        environment.getParallelism(),
-                        false);
-
+        // 构建OneInputTransformation，由于flatMap、map、filter等算子操作只接受一个输入
+        // 所以再被进一步包装为OneInputTransformation，需要注意的是这里将transformation作为了input
+        OneInputTransformation<T, R> resultTransform = new OneInputTransformation<>(
+                this.transformation,
+                operatorName,
+                operatorFactory,
+                outTypeInfo,
+                environment.getParallelism(),
+                false);
+        // 再次new了一个SingleOutputStreamOperator，且将resultTransform作为参数传入
         @SuppressWarnings({"unchecked", "rawtypes"})
         SingleOutputStreamOperator<R> returnStream =
                 new SingleOutputStreamOperator(environment, resultTransform);
-
+        // 将该transformation注册到执行环境中，当执行generate方法时，生成StreamGraph图结构
         getExecutionEnvironment().addOperator(resultTransform);
-
         return returnStream;
     }
 

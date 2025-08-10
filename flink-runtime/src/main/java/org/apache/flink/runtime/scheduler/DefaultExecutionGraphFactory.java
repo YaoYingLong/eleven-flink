@@ -159,32 +159,31 @@ public class DefaultExecutionGraphFactory implements ExecutionGraphFactory {
                     }
                 };
 
-        final ExecutionGraph newExecutionGraph =
-                DefaultExecutionGraphBuilder.buildGraph(
-                        jobGraph,
-                        configuration,
-                        futureExecutor,
-                        ioExecutor,
-                        userCodeClassLoader,
-                        completedCheckpointStore,
-                        checkpointsCleaner,
-                        checkpointIdCounter,
-                        rpcTimeout,
-                        blobWriter,
-                        log,
-                        shuffleMaster,
-                        jobMasterPartitionTracker,
-                        partitionLocationConstraint,
-                        executionDeploymentListener,
-                        combinedExecutionStateUpdateListener,
-                        initializationTimestamp,
-                        vertexAttemptNumberStore,
-                        vertexParallelismStore,
-                        checkpointStatsTrackerFactory,
-                        isDynamicGraph,
-                        executionJobVertexFactory,
-                        markPartitionFinishedStrategy,
-                        nonFinishedHybridPartitionShouldBeUnknown);
+        final ExecutionGraph newExecutionGraph = DefaultExecutionGraphBuilder.buildGraph(
+                jobGraph,
+                configuration,
+                futureExecutor,
+                ioExecutor,
+                userCodeClassLoader,
+                completedCheckpointStore,
+                checkpointsCleaner,
+                checkpointIdCounter,
+                rpcTimeout,
+                blobWriter,
+                log,
+                shuffleMaster,
+                jobMasterPartitionTracker,
+                partitionLocationConstraint,
+                executionDeploymentListener,
+                combinedExecutionStateUpdateListener,
+                initializationTimestamp,
+                vertexAttemptNumberStore,
+                vertexParallelismStore,
+                checkpointStatsTrackerFactory,
+                isDynamicGraph,
+                executionJobVertexFactory,
+                markPartitionFinishedStrategy,
+                nonFinishedHybridPartitionShouldBeUnknown);
 
         final CheckpointCoordinator checkpointCoordinator =
                 newExecutionGraph.getCheckpointCoordinator();
@@ -209,7 +208,8 @@ public class DefaultExecutionGraphFactory implements ExecutionGraphFactory {
      *
      * @param executionGraphToRestore {@link ExecutionGraph} which is supposed to be restored
      * @param savepointRestoreSettings {@link SavepointRestoreSettings} containing information about
-     *     the savepoint to restore from
+     *         the savepoint to restore from
+     *
      * @throws Exception if the {@link ExecutionGraph} could not be restored
      */
     private void tryRestoreExecutionGraphFromSavepoint(

@@ -98,6 +98,7 @@ public class KafkaSourceBuilder<OUT> {
     private OffsetsInitializer stoppingOffsetsInitializer;
     // Boundedness
     private Boundedness boundedness;
+    // 一般是我们自己定义的如：LogKafkaDeserializationSchema
     private KafkaRecordDeserializationSchema<OUT> deserializationSchema;
     // The configurations.
     protected Properties props;

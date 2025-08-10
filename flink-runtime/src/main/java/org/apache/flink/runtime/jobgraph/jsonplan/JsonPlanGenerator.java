@@ -72,37 +72,39 @@ public class JsonPlanGenerator {
             VertexParallelism vertexParallelism) {
         try {
             final StringWriter writer = new StringWriter(1024);
-
+            // 通过 JsonFactory 获取一个 JsonGenerator
             final JsonFactory factory = new JsonFactory();
             final JsonGenerator gen = factory.createGenerator(writer);
 
             // start of everything
+            // 写入 {
             gen.writeStartObject();
+            // 写入 jid -> jobID
             gen.writeStringField("jid", jobID.toString());
+            // 写入 name -> JobGraph name
             gen.writeStringField("name", jobName);
             gen.writeStringField("type", jobType.name());
+            // 开始写入 nodes -> JobVertex
             gen.writeArrayFieldStart("nodes");
 
             // info per vertex
+            // 遍历每个 JobVertex 出来
             for (JobVertex vertex : vertices) {
-
-                String operator =
-                        vertex.getOperatorName() != null ? vertex.getOperatorName() : NOT_SET;
-
-                String operatorDescr =
-                        vertex.getOperatorDescription() != null
-                                ? vertex.getOperatorDescription()
-                                : NOT_SET;
-
-                String optimizerProps =
-                        vertex.getResultOptimizerProperties() != null
-                                ? vertex.getResultOptimizerProperties()
-                                : EMPTY;
-
-                String description =
-                        vertex.getOperatorPrettyName() != null
-                                ? vertex.getOperatorPrettyName()
-                                : vertex.getName();
+                // 获取 operator name
+                String operator = vertex.getOperatorName() != null ?
+                        vertex.getOperatorName() : NOT_SET;
+                // 获取 operator desc
+                String operatorDescr = vertex.getOperatorDescription() != null
+                        ? vertex.getOperatorDescription()
+                        : NOT_SET;
+                // 获取 optimizer props
+                String optimizerProps = vertex.getResultOptimizerProperties() != null
+                        ? vertex.getResultOptimizerProperties()
+                        : EMPTY;
+                // 获取 jobVertex name
+                String description = vertex.getOperatorPrettyName() != null
+                        ? vertex.getOperatorPrettyName()
+                        : vertex.getName();
 
                 // make sure the encoding is HTML pretty
                 description = StringEscapeUtils.escapeHtml4(description);
@@ -115,6 +117,12 @@ public class JsonPlanGenerator {
                 gen.writeStartObject();
 
                 // write the core properties
+                // 写入核心5个属性
+                // 1、id -> jobvertex ID
+                // 2、parallelism -> jobvertex 并行度
+                // 3、operator -> 算子
+                // 4、operator_strategy -> 算子策略
+                // 5、description -> jobvertex 描述
                 JobVertexID vertexID = vertex.getID();
                 int storeParallelism = vertexParallelism.getParallelism(vertexID);
                 gen.writeStringField("id", vertexID.toString());
@@ -143,6 +151,7 @@ public class JsonPlanGenerator {
                         String operatorLevelCaching = edge.getOperatorLevelCachingDescription();
 
                         gen.writeStartObject();
+                        // 在inputs节点下面，再写入num和id子节点
                         gen.writeNumberField("num", inputNum);
                         gen.writeStringField("id", predecessor.getID().toString());
 
@@ -155,27 +164,30 @@ public class JsonPlanGenerator {
                         if (operatorLevelCaching != null) {
                             gen.writeStringField("caching", operatorLevelCaching);
                         }
-
+                        // 在inputs节点下面，再写入exchange子节点
                         gen.writeStringField(
-                                "exchange", edge.getSource().getResultType().name().toLowerCase());
-
+                                "exchange",
+                                edge.getSource().getResultType().name().toLowerCase());
+                        // 写入 }
                         gen.writeEndObject();
                     }
-
+                    // 写入 ]
                     gen.writeEndArray();
                 }
 
                 // write the optimizer properties
+                // 最后写入一个节点： optimizer_properties -> optimizerProps
                 gen.writeFieldName("optimizer_properties");
                 gen.writeRawValue(optimizerProps);
-
+                // 对象结束 }
                 gen.writeEndObject();
             }
 
             // end of everything
+            // 数组结束 ]
             gen.writeEndArray();
             gen.writeEndObject();
-
+            // 关闭
             gen.close();
 
             return writer.toString();

@@ -63,19 +63,24 @@ import static org.apache.flink.runtime.shuffle.ShuffleUtils.applyWithShuffleType
 public class SingleInputGateFactory {
     private static final Logger LOG = LoggerFactory.getLogger(SingleInputGateFactory.class);
 
-    @Nonnull protected final ResourceID taskExecutorResourceId;
+    @Nonnull
+    protected final ResourceID taskExecutorResourceId;
 
     protected final int partitionRequestInitialBackoff;
 
     protected final int partitionRequestMaxBackoff;
 
-    @Nonnull protected final ConnectionManager connectionManager;
+    @Nonnull
+    protected final ConnectionManager connectionManager;
 
-    @Nonnull protected final ResultPartitionManager partitionManager;
+    @Nonnull
+    protected final ResultPartitionManager partitionManager;
 
-    @Nonnull protected final TaskEventPublisher taskEventPublisher;
+    @Nonnull
+    protected final TaskEventPublisher taskEventPublisher;
 
-    @Nonnull protected final NetworkBufferPool networkBufferPool;
+    @Nonnull
+    protected final NetworkBufferPool networkBufferPool;
 
     private final Optional<Integer> maxRequiredBuffersPerGate;
 
@@ -123,15 +128,15 @@ public class SingleInputGateFactory {
             @Nonnull InputGateDeploymentDescriptor igdd,
             @Nonnull PartitionProducerStateProvider partitionProducerStateProvider,
             @Nonnull InputChannelMetrics metrics) {
-        GateBuffersSpec gateBuffersSpec =
-                createGateBuffersSpec(
-                        maxRequiredBuffersPerGate,
-                        configuredNetworkBuffersPerChannel,
-                        floatingNetworkBuffersPerGate,
-                        igdd.getConsumedPartitionType(),
-                        calculateNumChannels(
-                                igdd.getShuffleDescriptors().length,
-                                igdd.getConsumedSubpartitionIndexRange()));
+        GateBuffersSpec gateBuffersSpec = createGateBuffersSpec(
+                maxRequiredBuffersPerGate,
+                configuredNetworkBuffersPerChannel,
+                floatingNetworkBuffersPerGate,
+                igdd.getConsumedPartitionType(),
+                calculateNumChannels(
+                        igdd.getShuffleDescriptors().length,
+                        igdd.getConsumedSubpartitionIndexRange()));
+        // 创建 BufferPoolFactory
         SupplierWithException<BufferPool, IOException> bufferPoolFactory =
                 createBufferPoolFactory(
                         networkBufferPool,
@@ -148,24 +153,23 @@ public class SingleInputGateFactory {
         final MetricGroup networkInputGroup = owner.getInputGroup();
 
         IndexRange subpartitionIndexRange = igdd.getConsumedSubpartitionIndexRange();
-        SingleInputGate inputGate =
-                new SingleInputGate(
-                        owningTaskName,
-                        gateIndex,
-                        igdd.getConsumedResultId(),
-                        igdd.getConsumedPartitionType(),
-                        subpartitionIndexRange,
-                        calculateNumChannels(
-                                igdd.getShuffleDescriptors().length, subpartitionIndexRange),
-                        partitionProducerStateProvider,
-                        bufferPoolFactory,
-                        bufferDecompressor,
-                        networkBufferPool,
-                        networkBufferSize,
-                        new ThroughputCalculator(SystemClock.getInstance()),
-                        maybeCreateBufferDebloater(
-                                owningTaskName, gateIndex, networkInputGroup.addGroup(gateIndex)));
-
+        // 创建 SingleInputGate
+        SingleInputGate inputGate = new SingleInputGate(
+                owningTaskName,
+                gateIndex,
+                igdd.getConsumedResultId(),
+                igdd.getConsumedPartitionType(),
+                subpartitionIndexRange,
+                calculateNumChannels(igdd.getShuffleDescriptors().length, subpartitionIndexRange),
+                partitionProducerStateProvider,
+                bufferPoolFactory,
+                bufferDecompressor,
+                networkBufferPool,
+                networkBufferSize,
+                new ThroughputCalculator(SystemClock.getInstance()),
+                maybeCreateBufferDebloater(
+                        owningTaskName, gateIndex, networkInputGroup.addGroup(gateIndex)));
+        // 创建该 InputGate 中的多个 InputChannel
         createInputChannels(
                 owningTaskName, igdd, inputGate, subpartitionIndexRange, gateBuffersSpec, metrics);
         return inputGate;
@@ -200,34 +204,35 @@ public class SingleInputGateFactory {
             IndexRange subpartitionIndexRange,
             GateBuffersSpec gateBuffersSpec,
             InputChannelMetrics metrics) {
+        // 先生成一个 ShuffleDescriptor 数组
         ShuffleDescriptor[] shuffleDescriptors =
                 inputGateDeploymentDescriptor.getShuffleDescriptors();
 
         // Create the input channels. There is one input channel for each consumed subpartition.
-        InputChannel[] inputChannels =
-                new InputChannel
-                        [calculateNumChannels(shuffleDescriptors.length, subpartitionIndexRange)];
+        //  初始化InputChannel数组
+        InputChannel[] inputChannels = new InputChannel
+                [calculateNumChannels(shuffleDescriptors.length, subpartitionIndexRange)];
 
         ChannelStatistics channelStatistics = new ChannelStatistics();
 
         int channelIdx = 0;
         for (int i = 0; i < shuffleDescriptors.length; ++i) {
             for (int subpartitionIndex = subpartitionIndexRange.getStartIndex();
-                    subpartitionIndex <= subpartitionIndexRange.getEndIndex();
-                    ++subpartitionIndex) {
-                inputChannels[channelIdx] =
-                        createInputChannel(
-                                inputGate,
-                                channelIdx,
-                                gateBuffersSpec.getEffectiveExclusiveBuffersPerChannel(),
-                                shuffleDescriptors[i],
-                                subpartitionIndex,
-                                channelStatistics,
-                                metrics);
+                 subpartitionIndex <= subpartitionIndexRange.getEndIndex();
+                 ++subpartitionIndex) {
+                // 创建 InputChannel
+                inputChannels[channelIdx] = createInputChannel(
+                        inputGate,
+                        channelIdx,
+                        gateBuffersSpec.getEffectiveExclusiveBuffersPerChannel(),
+                        shuffleDescriptors[i],
+                        subpartitionIndex,
+                        channelStatistics,
+                        metrics);
                 channelIdx++;
             }
         }
-
+        // 将创建好的 InputChannel 设置到 InputGate 中
         inputGate.setInputChannels(inputChannels);
 
         LOG.debug(
@@ -245,11 +250,14 @@ public class SingleInputGateFactory {
             int consumedSubpartitionIndex,
             ChannelStatistics channelStatistics,
             InputChannelMetrics metrics) {
+        // 做了一个包装，其实就是判断如果shuffleDescriptor的isUnknown返回true则创建UnknownInputChannel
+        // 否则创建如果shuffleDescriptor的class为NettyShuffleDescriptor，则创建KnownInputChannel
         return applyWithShuffleTypeCheck(
                 NettyShuffleDescriptor.class,
                 shuffleDescriptor,
                 unknownShuffleDescriptor -> {
                     channelStatistics.numUnknownChannels++;
+                    // 创建 UnknownInputChannel
                     return new UnknownInputChannel(
                             inputGate,
                             index,
@@ -263,15 +271,15 @@ public class SingleInputGateFactory {
                             buffersPerChannel,
                             metrics);
                 },
-                nettyShuffleDescriptor ->
-                        createKnownInputChannel(
-                                inputGate,
-                                index,
-                                buffersPerChannel,
-                                nettyShuffleDescriptor,
-                                consumedSubpartitionIndex,
-                                channelStatistics,
-                                metrics));
+                // 创建 createKnownInputChannel
+                nettyShuffleDescriptor -> createKnownInputChannel(
+                        inputGate,
+                        index,
+                        buffersPerChannel,
+                        nettyShuffleDescriptor,
+                        consumedSubpartitionIndex,
+                        channelStatistics,
+                        metrics));
     }
 
     private static int calculateNumChannels(
@@ -290,6 +298,7 @@ public class SingleInputGateFactory {
             ChannelStatistics channelStatistics,
             InputChannelMetrics metrics) {
         ResultPartitionID partitionId = inputChannelDescriptor.getResultPartitionID();
+        // 创建 LocalRecoveredInputChannel
         if (inputChannelDescriptor.isLocalTo(taskExecutorResourceId)) {
             // Consuming task is deployed to the same TaskManager as the partition => local
             channelStatistics.numLocalChannels++;
@@ -306,6 +315,7 @@ public class SingleInputGateFactory {
                     metrics);
         } else {
             // Different instances => remote
+            // 创建 RemoteRecoveredInputChannel
             channelStatistics.numRemoteChannels++;
             return new RemoteRecoveredInputChannel(
                     inputGate,
@@ -326,6 +336,7 @@ public class SingleInputGateFactory {
             BufferPoolFactory bufferPoolFactory,
             int minFloatingBuffersPerGate,
             int maxFloatingBuffersPerGate) {
+        // 创建 BufferPool，在SingleInputGate的setup方法中被调用
         Pair<Integer, Integer> pair = Pair.of(minFloatingBuffersPerGate, maxFloatingBuffersPerGate);
         return () -> bufferPoolFactory.createBufferPool(pair.getLeft(), pair.getRight());
     }

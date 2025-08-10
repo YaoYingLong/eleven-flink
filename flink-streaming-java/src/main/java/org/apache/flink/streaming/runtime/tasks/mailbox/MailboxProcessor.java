@@ -135,15 +135,20 @@ public class MailboxProcessor implements Closeable {
             TaskMailbox mailbox,
             StreamTaskActionExecutor actionExecutor,
             MailboxMetricsController mailboxMetricsControl) {
+        // mailboxDefaultAction为StreamTask的processInput的函数表达式
         this.mailboxDefaultAction = Preconditions.checkNotNull(mailboxDefaultAction);
+        // actionExecutor为StreamTaskActionExecutor.IMMEDIATE
         this.actionExecutor = Preconditions.checkNotNull(actionExecutor);
+        // mailbox为TaskMailboxImpl
         this.mailbox = Preconditions.checkNotNull(mailbox);
         this.mailboxLoopRunning = true;
         this.suspendedDefaultAction = null;
+        // 指标相关
         this.mailboxMetricsControl = mailboxMetricsControl;
     }
 
     public MailboxExecutor getMainMailboxExecutor() {
+        // mailbox为TaskMailboxImpl，MIN_PRIORITY默认为-1，actionExecutor为StreamTaskActionExecutor.IMMEDIATE
         return new MailboxExecutorImpl(mailbox, MIN_PRIORITY, actionExecutor);
     }
 
@@ -163,6 +168,7 @@ public class MailboxProcessor implements Closeable {
      */
     @VisibleForTesting
     public MailboxMetricsController getMailboxMetricsControl() {
+        // mailboxDefaultAction为StreamTask的processInput的函数表达式
         return this.mailboxMetricsControl;
     }
 
@@ -213,10 +219,11 @@ public class MailboxProcessor implements Closeable {
      * be called again.
      */
     public void runMailboxLoop() throws Exception {
+        // mailboxLoopRunning默认为true
         suspended = !mailboxLoopRunning;
 
         final TaskMailbox localMailbox = mailbox;
-
+        // Mailbox 的线程检查 和 状态检查
         checkState(
                 localMailbox.isMailboxThread(),
                 "Method must be executed by declared mailbox thread!");
@@ -224,13 +231,17 @@ public class MailboxProcessor implements Closeable {
         assert localMailbox.getState() == TaskMailbox.State.OPEN : "Mailbox must be opened!";
 
         final MailboxController mailboxController = new MailboxController(this);
-
+        // 主要没有被暂停，通过MailboxProcessor来轮询MailBox处理Mail，执行mailbox处理，正式工作
         while (isNextLoopPossible()) {
             // The blocking `processMail` call will not return until default action is available.
+            // 处理Mail
+            //  1、如果有mail需要处理，这里会进行相应的处理，处理完才会进行下面的event processing
+            //  2、进行task的default action，也就是调用processInput()
             processMail(localMailbox, false);
             if (isNextLoopPossible()) {
-                mailboxDefaultAction.runDefaultAction(
-                        mailboxController); // lock is acquired inside default action as needed
+                // lock is acquired inside default action as needed
+                // mailboxDefaultAction为StreamTask的processInput的函数表达式，这里其实就是调用processInput()
+                mailboxDefaultAction.runDefaultAction(mailboxController);
             }
         }
     }
@@ -320,12 +331,11 @@ public class MailboxProcessor implements Closeable {
      */
     private void sendControlMail(
             RunnableWithException mail, String descriptionFormat, Object... descriptionArgs) {
-        mailbox.putFirst(
-                new Mail(
-                        mail,
-                        Integer.MAX_VALUE /*not used with putFirst*/,
-                        descriptionFormat,
-                        descriptionArgs));
+        mailbox.putFirst(new Mail(
+                mail,
+                Integer.MAX_VALUE /*not used with putFirst*/,
+                descriptionFormat,
+                descriptionArgs));
     }
 
     /**
@@ -343,7 +353,9 @@ public class MailboxProcessor implements Closeable {
         boolean isBatchAvailable = mailbox.createBatch();
 
         // Take mails in a non-blockingly and execute them.
+        // 进行此检查是一种优化，以仅在预期的热路径中读取易失性数据，只有在此之后才能获取锁定
         boolean processed = isBatchAvailable && processMailsNonBlocking(singleStep);
+        // singleStep默认传入的false
         if (singleStep) {
             return processed;
         }
@@ -377,11 +389,14 @@ public class MailboxProcessor implements Closeable {
         long processedMails = 0;
         Optional<Mail> maybeMail;
 
+        // 如果有mail需要处理，且batch中还有mail，就一直处理
         while (isNextLoopPossible() && (maybeMail = mailbox.tryTakeFromBatch()).isPresent()) {
             if (processedMails++ == 0) {
                 maybePauseIdleTimer();
             }
+            // 运行 Mail，执行Mail的run方法
             runMail(maybeMail.get());
+            // singleStep默认是false
             if (singleStep) {
                 break;
             }
@@ -409,6 +424,7 @@ public class MailboxProcessor implements Closeable {
     }
 
     private void maybePauseIdleTimer() {
+        // suspendedDefaultAction默认为null
         if (suspendedDefaultAction != null && suspendedDefaultAction.suspensionTimer != null) {
             suspendedDefaultAction.suspensionTimer.markEnd();
         }

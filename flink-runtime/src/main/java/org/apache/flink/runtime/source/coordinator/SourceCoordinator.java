@@ -114,7 +114,8 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
      * An ID that the coordinator will register self in the coordinator store with. Other
      * coordinators may send events to this coordinator by the ID.
      */
-    @Nullable private final String coordinatorListeningID;
+    @Nullable
+    private final String coordinatorListeningID;
 
     public SourceCoordinator(
             String operatorName,
@@ -130,6 +131,10 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
                 null);
     }
 
+    /**
+     * SourceCoordinator的作用是协调Source的SplitEnumerator和SourceReader之间的交互。
+     * 它负责处理来自SourceReader的事件，管理Split的分配和回收，以及协调水印对齐等功能。
+     */
     public SourceCoordinator(
             String operatorName,
             Source<?, SplitT, EnumChkT> source,
@@ -140,9 +145,11 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
         this.operatorName = operatorName;
         this.source = source;
         this.enumCheckpointSerializer = source.getEnumeratorCheckpointSerializer();
+        // 传入的是SourceCoordinatorContext
         this.context = context;
         this.coordinatorStore = coordinatorStore;
         this.watermarkAlignmentParams = watermarkAlignmentParams;
+        // coordinatorListeningID一般是null
         this.coordinatorListeningID = coordinatorListeningID;
 
         if (watermarkAlignmentParams.isEnabled()
@@ -158,21 +165,19 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
         checkState(
                 watermarkAlignmentParams != WatermarkAlignmentParams.WATERMARK_ALIGNMENT_DISABLED);
 
-        Watermark globalCombinedWatermark =
-                coordinatorStore.apply(
-                        watermarkAlignmentParams.getWatermarkGroup(),
-                        (value) -> {
-                            WatermarkAggregator aggregator = (WatermarkAggregator) value;
-                            return new Watermark(
-                                    aggregator.getAggregatedWatermark().getTimestamp());
-                        });
+        Watermark globalCombinedWatermark = coordinatorStore.apply(
+                watermarkAlignmentParams.getWatermarkGroup(),
+                (value) -> {
+                    WatermarkAggregator aggregator = (WatermarkAggregator) value;
+                    return new Watermark(
+                            aggregator.getAggregatedWatermark().getTimestamp());
+                });
 
         long maxAllowedWatermark;
         try {
-            maxAllowedWatermark =
-                    Math.addExact(
-                            globalCombinedWatermark.getTimestamp(),
-                            watermarkAlignmentParams.getMaxAllowedWatermarkDrift());
+            maxAllowedWatermark = Math.addExact(
+                    globalCombinedWatermark.getTimestamp(),
+                    watermarkAlignmentParams.getMaxAllowedWatermarkDrift());
         } catch (ArithmeticException e) {
             // when the source is idle, globalCombinedWatermark.getTimestamp() is Long.MAX_VALUE,
             // and maxAllowedWatermark arithmetic overflow
@@ -214,10 +219,11 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
         //  (2) Source.createEnumerator, in which case it has not been created, yet, and we create
         // it here
         if (enumerator == null) {
-            final ClassLoader userCodeClassLoader =
-                    context.getCoordinatorContext().getUserCodeClassloader();
-            try (TemporaryClassLoaderContext ignored =
-                    TemporaryClassLoaderContext.of(userCodeClassLoader)) {
+            final ClassLoader userCodeClassLoader = context
+                    .getCoordinatorContext().getUserCodeClassloader();
+            try (TemporaryClassLoaderContext ignored = TemporaryClassLoaderContext
+                    .of(userCodeClassLoader)) {
+                // 调用KafkaSource的createEnumerator方法，创建KafkaSourceEnumerator
                 enumerator = source.createEnumerator(context);
             } catch (Throwable t) {
                 ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
@@ -230,12 +236,13 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
         // The start sequence is the first task in the coordinator executor.
         // We rely on the single-threaded coordinator executor to guarantee
         // the other methods are invoked after the enumerator has started.
+        // 这里其实就是调用分区发现器KafkaSourceEnumerator的start方法，获取当前kafka的所有分区
         runInEventLoop(() -> enumerator.start(), "starting the SplitEnumerator.");
 
+        // coordinatorListeningID一般是null
         if (coordinatorListeningID != null) {
             coordinatorStore.compute(
-                    coordinatorListeningID,
-                    (key, oldValue) -> {
+                    coordinatorListeningID, (key, oldValue) -> {
                         // The value for a listener ID can be a source coordinator listening to an
                         // event, or an event waiting to be retrieved
                         if (oldValue == null || oldValue instanceof OperatorCoordinator) {
@@ -245,8 +252,7 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
                         } else {
                             checkState(
                                     oldValue instanceof OperatorEvent,
-                                    "The existing value for "
-                                            + coordinatorStore
+                                    "The existing value for " + coordinatorStore
                                             + "is expected to be an operator event, but it is in fact "
                                             + oldValue);
                             LOG.info(
@@ -443,7 +449,7 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
         final ClassLoader userCodeClassLoader =
                 context.getCoordinatorContext().getUserCodeClassloader();
         try (TemporaryClassLoaderContext ignored =
-                TemporaryClassLoaderContext.of(userCodeClassLoader)) {
+                     TemporaryClassLoaderContext.of(userCodeClassLoader)) {
             final EnumChkT enumeratorCheckpoint = deserializeCheckpoint(checkpointData);
             enumerator = source.restoreEnumerator(context, enumeratorCheckpoint);
         }
@@ -504,6 +510,7 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
      * themselves may already be a problem regardless of how the serialization is implemented.
      *
      * @return A byte array containing the serialized state of the source coordinator.
+     *
      * @throws Exception When something goes wrong in serialization.
      */
     private byte[] toBytes(long checkpointId) throws Exception {
@@ -517,7 +524,7 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
             throws Exception {
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputViewStreamWrapper(baos)) {
+             DataOutputStream out = new DataOutputViewStreamWrapper(baos)) {
 
             writeCoordinatorSerdeVersion(out);
             out.writeInt(enumeratorCheckpointSerializer.getVersion());
@@ -534,11 +541,12 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
      * Restore the state of this source coordinator from the state bytes.
      *
      * @param bytes The checkpoint bytes that was returned from {@link #toBytes(long)}
+     *
      * @throws Exception When the deserialization failed.
      */
     private EnumChkT deserializeCheckpoint(byte[] bytes) throws Exception {
         try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-                DataInputStream in = new DataInputViewStreamWrapper(bais)) {
+             DataInputStream in = new DataInputViewStreamWrapper(bais)) {
             final int coordinatorSerdeVersion = readAndVerifyCoordinatorSerdeVersion(in);
             int enumSerializerVersion = in.readInt();
             int serializedEnumChkptSize = in.readInt();
@@ -654,7 +662,7 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
          * Update the {@link Watermark} for the given {@code key)}.
          *
          * @return the new updated combined {@link Watermark} if the value has changed. {@code
-         *     Optional.empty()} otherwise.
+         *         Optional.empty()} otherwise.
          */
         public Optional<Watermark> aggregate(T key, Watermark watermark) {
             watermarks.put(key, watermark);

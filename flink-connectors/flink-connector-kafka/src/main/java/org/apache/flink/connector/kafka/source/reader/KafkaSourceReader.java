@@ -67,6 +67,7 @@ public class KafkaSourceReader<T> extends
             Configuration config,
             SourceReaderContext context,
             KafkaSourceReaderMetrics kafkaSourceReaderMetrics) {
+        // 调用超类SingleThreadMultiplexSourceReaderBase的构造方法，最终调用SourceReaderBase的构造方法
         super(elementsQueue, kafkaSourceFetcherManager, recordEmitter, config, context);
         this.offsetsToCommit = Collections.synchronizedSortedMap(new TreeMap<>());
         this.offsetsOfFinishedSplits = new ConcurrentHashMap<>();
@@ -169,6 +170,7 @@ public class KafkaSourceReader<T> extends
     public void pauseOrResumeSplits(
             Collection<String> splitsToPause,
             Collection<String> splitsToResume) {
+        // 其实就是异步调用KafkaPartitionSplitReader的pauseOrResumeSplits方法
         splitFetcherManager.pauseOrResumeSplits(splitsToPause, splitsToResume);
     }
 

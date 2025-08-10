@@ -42,9 +42,10 @@ public class PipelineExecutorUtils {
      *
      * @param pipeline the pipeline whose job graph we are computing.
      * @param configuration the configuration with the necessary information such as jars and
-     *     classpaths to be included, the parallelism of the job and potential savepoint settings
-     *     used to bootstrap its state.
+     *         classpaths to be included, the parallelism of the job and potential savepoint settings
+     *         used to bootstrap its state.
      * @param userClassloader the classloader which can load user classes.
+     *
      * @return the corresponding {@link JobGraph}.
      */
     public static JobGraph getJobGraph(
@@ -54,18 +55,16 @@ public class PipelineExecutorUtils {
             throws MalformedURLException {
         checkNotNull(pipeline);
         checkNotNull(configuration);
-
         final ExecutionConfigAccessor executionConfigAccessor =
                 ExecutionConfigAccessor.fromConfiguration(configuration);
-        final JobGraph jobGraph =
-                FlinkPipelineTranslationUtil.getJobGraph(
-                        userClassloader,
-                        pipeline,
-                        configuration,
-                        executionConfigAccessor.getParallelism());
+        // pipeline其实就是StreamGraph，通过StreamGraphTranslator将StreamGraph转换为JobGraph
+        final JobGraph jobGraph = FlinkPipelineTranslationUtil.getJobGraph(
+                userClassloader,
+                pipeline,
+                configuration,
+                executionConfigAccessor.getParallelism());
 
-        configuration
-                .getOptional(PipelineOptionsInternal.PIPELINE_FIXED_JOB_ID)
+        configuration.getOptional(PipelineOptionsInternal.PIPELINE_FIXED_JOB_ID)
                 .ifPresent(strJobID -> jobGraph.setJobID(JobID.fromHexString(strJobID)));
 
         if (configuration.getBoolean(DeploymentOptions.ATTACHED)

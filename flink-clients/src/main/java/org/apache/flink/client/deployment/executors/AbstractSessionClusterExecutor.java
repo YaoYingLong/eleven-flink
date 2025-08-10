@@ -49,11 +49,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * @param <ClusterID> the type of the id of the cluster.
  * @param <ClientFactory> the type of the {@link ClusterClientFactory} used to create/retrieve a
- *     client to the target cluster.
+ *         client to the target cluster.
  */
 @Internal
 public class AbstractSessionClusterExecutor<
-                ClusterID, ClientFactory extends ClusterClientFactory<ClusterID>>
+        ClusterID, ClientFactory extends ClusterClientFactory<ClusterID>>
         implements CacheSupportedPipelineExecutor {
 
     private final ClientFactory clusterClientFactory;
@@ -68,35 +68,34 @@ public class AbstractSessionClusterExecutor<
             @Nonnull final Configuration configuration,
             @Nonnull final ClassLoader userCodeClassloader)
             throws Exception {
+        // pipeline 其实就是 StreamGraph
         final JobGraph jobGraph =
                 PipelineExecutorUtils.getJobGraph(pipeline, configuration, userCodeClassloader);
 
+        // clusterDescriptor其实就是StandaloneClusterDescriptor
         try (final ClusterDescriptor<ClusterID> clusterDescriptor =
-                clusterClientFactory.createClusterDescriptor(configuration)) {
+                     clusterClientFactory.createClusterDescriptor(configuration)) {
             final ClusterID clusterID = clusterClientFactory.getClusterId(configuration);
             checkState(clusterID != null);
 
+            // 用于创建 RestClusterClient 的Provider: ClusterClientProvider
             final ClusterClientProvider<ClusterID> clusterClientProvider =
                     clusterDescriptor.retrieve(clusterID);
+            // 这里的clusterClient其实就是RestClusterClient
             ClusterClient<ClusterID> clusterClient = clusterClientProvider.getClusterClient();
-            return clusterClient
-                    .submitJob(jobGraph)
-                    .thenApplyAsync(
-                            FunctionUtils.uncheckedFunction(
-                                    jobId -> {
-                                        ClientUtils.waitUntilJobInitializationFinished(
-                                                () -> clusterClient.getJobStatus(jobId).get(),
-                                                () -> clusterClient.requestJobResult(jobId).get(),
-                                                userCodeClassloader);
-                                        return jobId;
-                                    }))
-                    .thenApplyAsync(
-                            jobID ->
-                                    (JobClient)
-                                            new ClusterClientJobClientAdapter<>(
-                                                    clusterClientProvider,
-                                                    jobID,
-                                                    userCodeClassloader))
+            // 提交执行，MiniClusterClient本地执行，RestClusterClient提交到FlinkRest服务接收处理
+            return clusterClient.submitJob(jobGraph).thenApplyAsync(FunctionUtils.uncheckedFunction(
+                            jobId -> {
+                                ClientUtils.waitUntilJobInitializationFinished(
+                                        () -> clusterClient.getJobStatus(jobId).get(),
+                                        () -> clusterClient.requestJobResult(jobId).get(),
+                                        userCodeClassloader);
+                                return jobId;
+                            }))
+                    .thenApplyAsync(jobID -> (JobClient) new ClusterClientJobClientAdapter<>(
+                            clusterClientProvider,
+                            jobID,
+                            userCodeClassloader))
                     .whenCompleteAsync((ignored1, ignored2) -> clusterClient.close());
         }
     }
@@ -106,7 +105,7 @@ public class AbstractSessionClusterExecutor<
             Configuration configuration, ClassLoader userCodeClassloader) throws Exception {
 
         try (final ClusterDescriptor<ClusterID> clusterDescriptor =
-                clusterClientFactory.createClusterDescriptor(configuration)) {
+                     clusterClientFactory.createClusterDescriptor(configuration)) {
             final ClusterID clusterID = clusterClientFactory.getClusterId(configuration);
             checkState(clusterID != null);
 
@@ -125,7 +124,7 @@ public class AbstractSessionClusterExecutor<
             ClassLoader userCodeClassloader)
             throws Exception {
         try (final ClusterDescriptor<ClusterID> clusterDescriptor =
-                clusterClientFactory.createClusterDescriptor(configuration)) {
+                     clusterClientFactory.createClusterDescriptor(configuration)) {
             final ClusterID clusterID = clusterClientFactory.getClusterId(configuration);
             checkState(clusterID != null);
 

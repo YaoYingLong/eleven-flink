@@ -96,6 +96,7 @@ public class DataStreamSource<T> extends SingleOutputStreamOperator<T> {
         WatermarkStrategy<T> watermarkStrategy,
         TypeInformation<T> outTypeInfo,
         String sourceName) {
+        // 注意这里将KafkaSource封装成了SourceTransformation，其是一个Transformation
         super(environment, new SourceTransformation<>(
             sourceName,
             source,

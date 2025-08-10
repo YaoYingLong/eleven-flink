@@ -88,6 +88,8 @@ public abstract class ResultPartition implements ResultPartitionWriter {
     /** Type of this partition. Defines the concrete subpartition implementation to use. */
     protected final ResultPartitionType partitionType;
 
+    // 跟踪管理 ResultPartition 的存在于 TaskManager 之上的一个管理器
+    // ResultPartitionManager 管理当前 TaskManager 所有的 ResultPartition
     protected final ResultPartitionManager partitionManager;
 
     protected final int numSubpartitions;
@@ -95,7 +97,7 @@ public abstract class ResultPartition implements ResultPartitionWriter {
     private final int numTargetKeyGroups;
 
     // - Runtime state --------------------------------------------------------
-
+    // 当前 ResultPartition 是否已经被释放
     private final AtomicBoolean isReleased = new AtomicBoolean();
 
     protected BufferPool bufferPool;
@@ -149,12 +151,19 @@ public abstract class ResultPartition implements ResultPartitionWriter {
      */
     @Override
     public void setup() throws IOException {
-        checkState(
-                this.bufferPool == null,
+        checkState(this.bufferPool == null,
                 "Bug in result partition setup logic: Already registered buffer pool.");
 
+        // 调用ResultPartitionFactory中通过createBufferPoolFactory创建的函数表达式创建LocalBufferPool
         this.bufferPool = checkNotNull(bufferPoolFactory.get());
+        // 这里只是校验保证MemorySegment > Subpartition
         setupInternal();
+        // 注册ResultPartition启动好了之后，会注册在ResultPartitionWriter中
+        // partitionManager负责这个Task之上的所有的数据的输出
+        // 当前这个Task输出的所有数据就被抽象成一个整体ResultPartition
+        // 这个Task输出的数据有可能要被分发到下游的多个Task，就证明产出多个分区ResultSubpartition
+        // ResultPartition包含多个ResultSubpartition
+        // TaskManager - TaskExecutor - ResultPartitionManager（管理多个ResultPartition）
         partitionManager.registerResultPartition(this);
     }
 
@@ -253,12 +262,10 @@ public abstract class ResultPartition implements ResultPartitionWriter {
     public void release(Throwable cause) {
         if (isReleased.compareAndSet(false, true)) {
             LOG.debug("{}: Releasing {}.", owningTaskName, this);
-
             // Set the error cause
             if (cause != null) {
                 this.cause = cause;
             }
-
             releaseInternal();
         }
     }

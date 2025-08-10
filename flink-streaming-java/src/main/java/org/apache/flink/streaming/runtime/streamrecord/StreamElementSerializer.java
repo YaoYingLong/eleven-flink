@@ -59,6 +59,7 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
                     "StreamRecordSerializer given to StreamRecordSerializer as value TypeSerializer: "
                             + serializer);
         }
+        // 输出类型
         this.typeSerializer = requireNonNull(serializer);
     }
 

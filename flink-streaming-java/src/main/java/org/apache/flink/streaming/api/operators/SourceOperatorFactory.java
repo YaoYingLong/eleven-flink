@@ -68,6 +68,7 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
             Source<OUT, ?, ?> source,
             WatermarkStrategy<OUT> watermarkStrategy,
             boolean emitProgressiveWatermarks) {
+        // emitProgressiveWatermarks默认为ture
         this(source, watermarkStrategy, emitProgressiveWatermarks, 1);
     }
 
@@ -78,7 +79,9 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
             int numCoordinatorWorkerThread) {
         this.source = checkNotNull(source);
         this.watermarkStrategy = checkNotNull(watermarkStrategy);
+        // emitProgressiveWatermarks默认为true
         this.emitProgressiveWatermarks = emitProgressiveWatermarks;
+        // numCoordinatorWorkerThread默认为1
         this.numCoordinatorWorkerThread = numCoordinatorWorkerThread;
     }
 
@@ -96,7 +99,7 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
         final OperatorEventGateway gateway = parameters.getOperatorEventDispatcher()
                 .getOperatorEventGateway(operatorId);
 
-        // 以Kafka为例
+        // 以Kafka为例，这里其实是new的一个SourceOperator，其实就是调用SourceOperator的构造方法
         final SourceOperator<OUT, ?> sourceOperator = instantiateSourceOperator(
                 // 创建KafkaSourceReader
                 source::createReader,
@@ -104,19 +107,15 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
                 source.getSplitSerializer(),
                 watermarkStrategy,
                 parameters.getProcessingTimeService(),
-                parameters
-                        .getContainingTask()
-                        .getEnvironment()
-                        .getTaskManagerInfo()
-                        .getConfiguration(),
-                parameters
-                        .getContainingTask()
-                        .getEnvironment()
-                        .getTaskManagerInfo()
-                        .getTaskManagerExternalAddress(),
+                parameters.getContainingTask().getEnvironment()
+                        .getTaskManagerInfo().getConfiguration(),
+                parameters.getContainingTask().getEnvironment()
+                        .getTaskManagerInfo().getTaskManagerExternalAddress(),
+                // emitProgressiveWatermarks默认为true
                 emitProgressiveWatermarks,
                 parameters.getContainingTask().getCanEmitBatchOfRecords());
-
+        // 调用SourceOperator的setup方法
+        // 这里的output要么是ChainingOutput，要么就是RecordWriterOutput，最终都会被封装为CountingOutput
         sourceOperator.setup(
                 parameters.getContainingTask(),
                 parameters.getStreamConfig(),
@@ -161,8 +160,7 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
     @SuppressWarnings("unchecked")
     private static <T, SplitT extends SourceSplit>
     SourceOperator<T, SplitT> instantiateSourceOperator(
-            FunctionWithException<SourceReaderContext, SourceReader<T, ?>, Exception>
-                    readerFactory,
+            FunctionWithException<SourceReaderContext, SourceReader<T, ?>, Exception> readerFactory,
             OperatorEventGateway eventGateway,
             SimpleVersionedSerializer<?> splitSerializer,
             WatermarkStrategy<T> watermarkStrategy,
@@ -174,15 +172,15 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
 
         // jumping through generics hoops: cast the generics away to then cast them back more
         // strictly typed
+        // 这里的typedReaderFactory其实就是KafkaSource::createReader的函数表达式
         final FunctionWithException<SourceReaderContext, SourceReader<T, SplitT>, Exception>
                 typedReaderFactory =
-                (FunctionWithException<
-                        SourceReaderContext, SourceReader<T, SplitT>, Exception>)
+                (FunctionWithException<SourceReaderContext, SourceReader<T, SplitT>, Exception>)
                         (FunctionWithException<?, ?, ?>) readerFactory;
 
         final SimpleVersionedSerializer<SplitT> typedSplitSerializer =
                 (SimpleVersionedSerializer<SplitT>) splitSerializer;
-
+        // 调用SourceOperator的构造方法
         return new SourceOperator<>(
                 typedReaderFactory,
                 eventGateway,
@@ -191,6 +189,7 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
                 timeService,
                 config,
                 localHostName,
+                // emitProgressiveWatermarks默认为true
                 emitProgressiveWatermarks,
                 canEmitBatchOfRecords);
     }

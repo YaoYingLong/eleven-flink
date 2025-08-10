@@ -132,7 +132,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
             final VertexParallelismStore vertexParallelismStore,
             final ExecutionDeployer.Factory executionDeployerFactory)
             throws Exception {
-
+        // 调用超类SchedulerBase的构造方法
         super(
                 log,
                 jobGraph,

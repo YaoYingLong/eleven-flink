@@ -70,25 +70,27 @@ abstract class AbstractOneInputTransformationTranslator<IN, OUT, OP extends Tran
                 transformation.getOutputType(),
                 transformation.getName());
 
+        // 一般来说stateKeySelector是为null的，只有在需要state的时候才会有
         if (stateKeySelector != null) {
             TypeSerializer<?> keySerializer = stateKeyType.createSerializer(executionConfig);
             streamGraph.setOneInputStateKey(transformationId, stateKeySelector, keySerializer);
         }
-
-        int parallelism =
-                transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
-                        ? transformation.getParallelism()
-                        : executionConfig.getParallelism();
-        streamGraph.setParallelism(
-                transformationId, parallelism, transformation.isParallelismConfigured());
+        // 获取并行度，如果transformation没有设置并行度，则使用executionConfig的默认并行度
+        int parallelism = transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
+                ? transformation.getParallelism()
+                : executionConfig.getParallelism();
+        // 设置当前transformation的并行度
+        streamGraph.setParallelism(transformationId, parallelism, transformation.isParallelismConfigured());
+        // 设置当前transformation的最大并行度
         streamGraph.setMaxParallelism(transformationId, transformation.getMaxParallelism());
 
+        // 获取当前transformation的所有输入
         final List<Transformation<?>> parentTransformations = transformation.getInputs();
-        checkState(
-                parentTransformations.size() == 1,
+        checkState(parentTransformations.size() == 1,
                 "Expected exactly one input transformation but found "
                         + parentTransformations.size());
 
+        // 因为是OneInput所以只会有一个输入，获取输入的id，与当前的transformationId添加一条边的关系
         for (Integer inputId : context.getStreamNodeIds(parentTransformations.get(0))) {
             streamGraph.addEdge(inputId, transformationId, 0);
         }
@@ -96,8 +98,8 @@ abstract class AbstractOneInputTransformationTranslator<IN, OUT, OP extends Tran
         if (transformation instanceof PhysicalTransformation) {
             streamGraph.setSupportsConcurrentExecutionAttempts(
                     transformationId,
-                    ((PhysicalTransformation<OUT>) transformation)
-                            .isSupportsConcurrentExecutionAttempts());
+                    // 默认为true
+                    ((PhysicalTransformation<OUT>) transformation).isSupportsConcurrentExecutionAttempts());
         }
 
         return Collections.singleton(transformationId);

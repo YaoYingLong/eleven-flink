@@ -36,10 +36,10 @@ public final class FlinkPipelineTranslationUtil {
             Pipeline pipeline,
             Configuration optimizerConfiguration,
             int defaultParallelism) {
-
+        // 这里返回的是StreamGraphTranslator
         FlinkPipelineTranslator pipelineTranslator =
                 getPipelineTranslator(userClassloader, pipeline);
-
+        // Translator来实现StreamGraph到JobGraph的翻译
         return pipelineTranslator.translateToJobGraph(
                 pipeline, optimizerConfiguration, defaultParallelism);
     }
@@ -84,12 +84,7 @@ public final class FlinkPipelineTranslationUtil {
             return streamGraphTranslator;
         }
 
-        throw new RuntimeException(
-                "Translator "
-                        + streamGraphTranslator
-                        + " cannot translate "
-                        + "the given pipeline "
-                        + pipeline
-                        + ".");
+        throw new RuntimeException("Translator " + streamGraphTranslator +
+                " cannot translate the given pipeline " + pipeline + ".");
     }
 }

@@ -1990,14 +1990,17 @@ public class StreamExecutionEnvironment implements AutoCloseable {
         TypeInformation<OUT> resolvedTypeInfo =
             getTypeInfo(function, sourceName, SourceFunction.class, typeInfo);
 
+        // 判断是否是并行
         boolean isParallel = function instanceof ParallelSourceFunction;
 
         clean(function);
 
         // 如果是调用的socketTextStream，这里的function是SocketTextStreamFunction
         // StreamSource是一个StreamOperator，其中有一个run方法，内部调用了userFunction.run(ctx)来将流元素写入flink
+        // 它是SourceFunction的子类，也是StreamOperator的子类
         final StreamSource<OUT, ?> sourceOperator = new StreamSource<>(function);
         // DataStreamSource是一个DataStream，生成了一个LegacySourceTransformation，指代生成DataStreamSource的操作
+        // 抽象有四种：DataStream、KeyedDataStream、DataStreamSource、DataStreamSink
         return new DataStreamSource<>(
             this, resolvedTypeInfo, sourceOperator, isParallel, sourceName, boundedness);
     }
@@ -2053,7 +2056,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
         String sourceName,
         TypeInformation<OUT> typeInfo) {
 
-        // 如果typeInfo为空，则使用Source的返回类型
+        // 获取数据输出类型，如果typeInfo为空，则使用Source的返回类型
         final TypeInformation<OUT> resolvedTypeInfo =
             getTypeInfo(source, sourceName, Source.class, typeInfo);
 
@@ -2091,13 +2094,17 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @throws Exception which occurs during job execution.
      */
     public JobExecutionResult execute(String jobName) throws Exception {
+        // transformations中的内容，是在执行DataStream的map、filter等算子时添加的
         final List<Transformation<?>> originalTransformations = new ArrayList<>(transformations);
+        // 获取StreamGraph，StreamGraph是一个有向无环图，表示数据流的拓扑结构
         StreamGraph streamGraph = getStreamGraph();
+        // 设置jobName
         if (jobName != null) {
             streamGraph.setJobName(jobName);
         }
 
         try {
+            // 执行StreamGraph，返回JobExecutionResult
             return execute(streamGraph);
         } catch (Throwable t) {
             Optional<ClusterDatasetCorruptedException> clusterDatasetCorruptedException =
@@ -2105,7 +2112,6 @@ public class StreamExecutionEnvironment implements AutoCloseable {
             if (!clusterDatasetCorruptedException.isPresent()) {
                 throw t;
             }
-
             // Retry without cache if it is caused by corrupted cluster dataset.
             invalidateCacheTransformations(originalTransformations);
             streamGraph = getStreamGraph(originalTransformations);
@@ -2237,10 +2243,11 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     public JobClient executeAsync(StreamGraph streamGraph) throws Exception {
         checkNotNull(streamGraph, "StreamGraph cannot be null.");
         final PipelineExecutor executor = getPipelineExecutor();
-
+        // 异步提交执行StreamGraph，跳转到：AbstractSessionClusterExecutor的execute()方法
         CompletableFuture<JobClient> jobClientFuture =
             executor.execute(streamGraph, configuration, userClassloader);
 
+        // 阻塞获取 StreamGraph 的执行结果
         try {
             JobClient jobClient = jobClientFuture.get();
             jobListeners.forEach(jobListener -> jobListener.onJobSubmitted(jobClient, null));
@@ -2267,6 +2274,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      */
     @Internal
     public StreamGraph getStreamGraph() {
+        // 生成 StreamGraph
         return getStreamGraph(true);
     }
 
@@ -2281,7 +2289,9 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      */
     @Internal
     public StreamGraph getStreamGraph(boolean clearTransformations) {
+        // 注意Source的transformation是不包含在transformations中的
         final StreamGraph streamGraph = getStreamGraph(transformations);
+        // 清空所有的算子，因为当StreamGraph生成好了，则之前各种算子转换得到的DataStream就没用了
         if (clearTransformations) {
             transformations.clear();
         }
@@ -2290,6 +2300,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
 
     private StreamGraph getStreamGraph(List<Transformation<?>> transformations) {
         synchronizeClusterDatasetStatus();
+        // getStreamGraphGenerator返回的是StreamGraphGenerator，调用generate()方法生成StreamGragh
         return getStreamGraphGenerator(transformations).generate();
     }
 
@@ -2329,6 +2340,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
 
         // We copy the transformation so that newly added transformations cannot intervene with the
         // stream graph generation.
+        // 数据处理操作都在StreamGraphGenerator中transformations列表里
         return new StreamGraphGenerator(
             new ArrayList<>(transformations), config, checkpointCfg, configuration)
             .setStateBackend(defaultStateBackend)
@@ -2762,6 +2774,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
         checkNotNull(configuration.get(DeploymentOptions.TARGET),
             "No execution.target specified in your configuration file.");
 
+        // 这里的executorServiceLoader为DefaultExecutorServiceLoader
+        // 这里其实就是通过SPI的方式加载实现了PipelineExecutorFactory接口的类
         final PipelineExecutorFactory executorFactory =
             executorServiceLoader.getExecutorFactory(configuration);
 

@@ -175,15 +175,14 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
         // before closing the operator
         // step 3. send a closed mail to ensure that the mails that are from the operator and still
         // in the mailbox are completed before exiting the following mailbox processing loop
-        CompletableFuture<Void> finishedFuture =
-                quiesceProcessingTimeService()
-                        .thenCompose(
-                                unused -> deferFinishOperatorToMailbox(actionExecutor, stopMode))
-                        .thenCompose(unused -> sendFinishedMail());
+        CompletableFuture<Void> finishedFuture = quiesceProcessingTimeService().thenCompose(
+                        unused -> deferFinishOperatorToMailbox(actionExecutor, stopMode))
+                .thenCompose(unused -> sendFinishedMail());
 
         // run the mailbox processing loop until all operations are finished
         while (!finishedFuture.isDone()) {
-            while (mailboxExecutor.tryYield()) {}
+            while (mailboxExecutor.tryYield()) {
+            }
 
             // we wait a little bit to avoid unnecessary CPU occupation due to empty loops,
             // such as when all mails of the operator have been processed but the closed future
@@ -241,7 +240,7 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
 
     static class ReadIterator
             implements Iterator<StreamOperatorWrapper<?, ?>>,
-                    Iterable<StreamOperatorWrapper<?, ?>> {
+            Iterable<StreamOperatorWrapper<?, ?>> {
 
         private final boolean reverse;
 

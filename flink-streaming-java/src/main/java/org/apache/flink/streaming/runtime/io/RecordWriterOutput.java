@@ -63,17 +63,21 @@ public class RecordWriterOutput<OUT> implements WatermarkGaugeExposingOutput<Str
             TypeSerializer<OUT> outSerializer,
             OutputTag outputTag,
             boolean supportsUnalignedCheckpoints) {
-
         checkNotNull(recordWriter);
+        // 如果有旁路输出的话，旁路输出的outputTag不为null
         this.outputTag = outputTag;
         // generic hack: cast the writer to generic Object type so we can use it
         // with multiplexed records and watermarks
-        this.recordWriter =
-                (RecordWriter<SerializationDelegate<StreamElement>>) (RecordWriter<?>) recordWriter;
 
+        // 这里recordWriter是将ChannelSelectorRecordWriter封装到SingleRecordWriter，在StreamTask构造方法中被初始化
+        this.recordWriter = (RecordWriter<SerializationDelegate<StreamElement>>)
+                (RecordWriter<?>) recordWriter;
+        // 这里的outSerializer其实就是该Operator的输出类型
+        // StreamElementSerializer是序列化和反序列化工具
         TypeSerializer<StreamElement> outRecordSerializer =
                 new StreamElementSerializer<>(outSerializer);
 
+        // 一般Operator的输出类型是不为空的
         if (outSerializer != null) {
             serializationDelegate = new SerializationDelegate<>(outRecordSerializer);
         }
@@ -99,9 +103,10 @@ public class RecordWriterOutput<OUT> implements WatermarkGaugeExposingOutput<Str
     }
 
     private <X> void pushToRecordWriter(StreamRecord<X> record) {
+        // 这里的serializationDelegate其实就是SerializationDelegate
         serializationDelegate.setInstance(record);
-
         try {
+            // 这里recordWriter是将ChannelSelectorRecordWriter封装到SingleRecordWriter，在StreamTask构造方法中被初始化
             recordWriter.emit(serializationDelegate);
         } catch (IOException e) {
             throw new UncheckedIOException(e.getMessage(), e);

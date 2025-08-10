@@ -42,6 +42,7 @@ class LatencyMarkerEmitter<OUT> {
                     @Override
                     public void onProcessingTime(long timestamp) {
                         try {
+                            // emitAction其实就是output::emitLatencyMarker
                             emitAction.emitLatencyMarker(new LatencyMarker(
                                     processingTimeService.getCurrentProcessingTime(),
                                     operatorId,

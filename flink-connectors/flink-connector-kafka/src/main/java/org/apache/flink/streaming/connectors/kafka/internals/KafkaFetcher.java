@@ -126,19 +126,15 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
         try {
             // kick off the actual Kafka consumer
             consumerThread.start();
-
             while (running) {
                 // this blocks until we get the next records
                 // it automatically re-throws exceptions encountered in the consumer thread
                 final ConsumerRecords<byte[], byte[]> records = handover.pollNext();
-
                 // get the records for each topic partition
                 for (KafkaTopicPartitionState<T, TopicPartition> partition :
                         subscribedPartitionStates()) {
-
                     List<ConsumerRecord<byte[], byte[]>> partitionRecords =
                             records.records(partition.getKafkaPartitionHandle());
-
                     partitionConsumerRecordsHandler(partitionRecords, partition);
                 }
             }

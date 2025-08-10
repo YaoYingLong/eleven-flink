@@ -64,7 +64,8 @@ import static org.apache.flink.util.Preconditions.checkState;
 @Internal
 public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamOperator<IN, OUT>> {
 
-    @Nullable private CheckpointBarrierHandler checkpointBarrierHandler;
+    @Nullable
+    private CheckpointBarrierHandler checkpointBarrierHandler;
 
     private final WatermarkGauge inputWatermarkGauge = new WatermarkGauge();
 
@@ -101,7 +102,9 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
         if (numberOfInputs > 0) {
             CheckpointedInputGate inputGate = createCheckpointedInputGate();
             Counter numRecordsIn = setupNumRecordsInCounter(mainOperator);
+            // 创建一个StreamTaskNetworkOutput
             DataOutput<IN> output = createDataOutput(numRecordsIn);
+            // 创建的是StreamTaskNetworkInput
             StreamTaskInput<IN> input = createTaskInput(inputGate);
 
             StreamConfig.InputConfig[] inputConfigs =
@@ -114,19 +117,15 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
                 input = wrapWithSorted(input);
             }
 
-            getEnvironment()
-                    .getMetricGroup()
-                    .getIOMetricGroup()
+            getEnvironment().getMetricGroup().getIOMetricGroup()
                     .reuseRecordsInputCounter(numRecordsIn);
-
+            // 这里的input是StreamTaskNetworkInput，output是StreamTaskNetworkOutput
             inputProcessor = new StreamOneInputProcessor<>(input, output, operatorChain);
         }
-        mainOperator
-                .getMetricGroup()
+        mainOperator.getMetricGroup()
                 .gauge(MetricNames.IO_CURRENT_INPUT_WATERMARK, inputWatermarkGauge);
         // wrap watermark gauge since registered metrics must be unique
-        getEnvironment()
-                .getMetricGroup()
+        getEnvironment().getMetricGroup()
                 .gauge(MetricNames.IO_CURRENT_INPUT_WATERMARK, inputWatermarkGauge::getValue);
     }
 

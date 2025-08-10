@@ -48,14 +48,14 @@ import static org.apache.flink.configuration.PipelineOptions.ALLOW_UNALIGNED_SOU
 
 /**
  * 负责启动并管理SplitFetcher的生命周期
- *
+ * <p>
  * 支持几个开箱即用（out-of-the-box）的线程模型，取决于 SplitFetcherManager 的行为模式
  * SplitFetcherManager创建和维护一个分片提取器SplitFetchers池，同时每个分片提取器使用一个SplitReader进行提取
  * 它还决定如何分配分片给分片提取器。
- *
+ * <p>
  * A class responsible for starting the {@link SplitFetcher} and manage the life cycles of them.
  * This class works with the {@link SourceReaderBase}.
- *
+ * <p>
  * 通过以不同方式实现 {@link #addSplits(List)} 方法，分片抓取器管理器（split fetcher manager）
  * 可以支持不同的线程模型。例如，单线程的分片抓取器管理器只会启动一个抓取器，并将所有分片分配给它。
  * 而每分片一个线程的抓取器则会在每次分配新的分片时启动一个新线程。
@@ -114,7 +114,9 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
             FutureCompletingBlockingQueue<RecordsWithSplitIds<E>> elementsQueue,
             Supplier<SplitReader<E, SplitT>> splitReaderFactory,
             Configuration configuration) {
-        this(elementsQueue, splitReaderFactory, configuration, (ignore) -> {});
+        this(
+                elementsQueue, splitReaderFactory, configuration, (ignore) -> {
+                });
     }
 
     /**
@@ -131,6 +133,7 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
             Supplier<SplitReader<E, SplitT>> splitReaderFactory,
             Configuration configuration,
             Consumer<Collection<String>> splitFinishedHook) {
+        // elementsQueue是FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
         this.elementsQueue = elementsQueue;
         this.errorHandler = new Consumer<Throwable>() {
             @Override
@@ -144,11 +147,16 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
                 elementsQueue.notifyAvailable();
             }
         };
+        // splitReaderFactory其实就是new KafkaPartitionSplitReader
         this.splitReaderFactory = splitReaderFactory;
+        // splitFinishedHook是一个空实现
         this.splitFinishedHook = splitFinishedHook;
         this.uncaughtFetcherException = new AtomicReference<>(null);
         this.fetcherIdGenerator = new AtomicInteger(0);
         this.fetchers = new ConcurrentHashMap<>();
+        // 默认是false，如果使用水位线对齐，具有多个分片的源将尝试暂停/恢复分片读取器，以避免源分片的水位线漂移
+        // 如果分片读取器不支持暂停/恢复操作，那么在尝试暂停/恢复时会抛出 UnsupportedOperationException 异常
+        // 为了允许使用不支持暂停/恢复的分片读取器，并因此在使用水位线对齐的同时允许未对齐的分片，可以将此参数设置为true
         this.allowUnalignedSourceSplits = configuration.get(ALLOW_UNALIGNED_SOURCE_SPLITS);
 
         // Create the executor with a thread factory that fails the source reader if one of
@@ -165,9 +173,13 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
             Collection<String> splitIdsToPause, Collection<String> splitIdsToResume) {
         for (SplitFetcher<E, SplitT> fetcher : fetchers.values()) {
             Map<String, SplitT> idToSplit = fetcher.assignedSplits();
+            // 找出需要暂定的分片
             List<SplitT> splitsToPause = lookupInAssignment(splitIdsToPause, idToSplit);
+            // 找出需要恢复的分片
             List<SplitT> splitsToResume = lookupInAssignment(splitIdsToResume, idToSplit);
+            // 如果暂停或恢复的分片不为空，则调用fetcher的pauseOrResumeSplits方法
             if (!splitsToPause.isEmpty() || !splitsToResume.isEmpty()) {
+                // 其实就是异步调用KafkaPartitionSplitReader的pauseOrResumeSplits方法
                 fetcher.pauseOrResumeSplits(splitsToPause, splitsToResume);
             }
         }
@@ -205,23 +217,21 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
         // 如果是kafka数据源创建的是KafkaPartitionSplitReader
         SplitReader<E, SplitT> splitReader = splitReaderFactory.get();
 
+        // 自增id
         int fetcherId = fetcherIdGenerator.getAndIncrement();
+        // elementsQueue是FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
         SplitFetcher<E, SplitT> splitFetcher = new SplitFetcher<>(
-                        fetcherId,
-                        elementsQueue,
-                        splitReader,
-                        errorHandler,
-                        () -> {
-                            fetchers.remove(fetcherId);
-                            // We need this to synchronize status of fetchers to concurrent partners
-                            // as
-                            // ConcurrentHashMap's aggregate status methods including size, isEmpty,
-                            // and
-                            // containsValue are not designed for program control.
-                            elementsQueue.notifyAvailable();
-                        },
-                        this.splitFinishedHook,
-                        allowUnalignedSourceSplits);
+                // splitReader为KafkaPartitionSplitReader
+                fetcherId, elementsQueue, splitReader, errorHandler,
+                () -> {
+                    fetchers.remove(fetcherId);
+                    // We need this to synchronize status of fetchers to concurrent partners as
+                    // ConcurrentHashMap's aggregate status methods including size, isEmpty,
+                    // and containsValue are not designed for program control.
+                    elementsQueue.notifyAvailable();
+                }, this.splitFinishedHook, // 空实现
+                // allowUnalignedSourceSplits默认false
+                allowUnalignedSourceSplits);
         fetchers.put(fetcherId, splitFetcher);
         return splitFetcher;
     }
@@ -232,16 +242,19 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
      * @return true if all the fetchers have completed the work, false otherwise.
      */
     public boolean maybeShutdownFinishedFetchers() {
+        // 作用是遍历所有的SplitFetcher
         Iterator<Map.Entry<Integer, SplitFetcher<E, SplitT>>> iter = fetchers.entrySet().iterator();
         while (iter.hasNext()) {
             Map.Entry<Integer, SplitFetcher<E, SplitT>> entry = iter.next();
             SplitFetcher<E, SplitT> fetcher = entry.getValue();
             if (fetcher.isIdle()) {
                 LOG.info("Closing splitFetcher {} because it is idle.", entry.getKey());
+                // 如果fetcher是空闲的，说明它已经完成了工作，执行shutdown以及从map中移除
                 fetcher.shutdown();
                 iter.remove();
             }
         }
+        // 如果fetchers为空，说明所有的分片提取器都已经完成了工作
         return fetchers.isEmpty();
     }
 

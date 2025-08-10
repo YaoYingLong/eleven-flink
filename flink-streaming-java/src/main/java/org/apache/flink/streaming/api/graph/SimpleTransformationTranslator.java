@@ -57,11 +57,17 @@ public abstract class SimpleTransformationTranslator<OUT, T extends Transformati
             final T transformation, final Context context) {
         checkNotNull(transformation);
         checkNotNull(context);
-
-        // 调用实现的translateForStreamingInternal方法
+        // 这里调用具体实现的的translateForStreamingInternal方法
         // 比如水位线的TimestampsAndWatermarksTransformationTranslator
+
+        // 比如OneInputTransformation对应OneInputTransformationTranslator
+        // 比如SourceTransformation对应SourceTransformationTranslator
+        // 比如SideOutputTransformation对应SideOutputTransformationTranslator
+        // 比如TimestampsAndWatermarksTransformation对应TimestampsAndWatermarksTransformationTranslator
+        // 比如KeyedBroadcastStateTransformation对应KeyedBroadcastStateTransformationTranslator
         final Collection<Integer> transformedIds =
                 translateForStreamingInternal(transformation, context);
+        // 做一些配置工作
         configure(transformation, context);
 
         return transformedIds;

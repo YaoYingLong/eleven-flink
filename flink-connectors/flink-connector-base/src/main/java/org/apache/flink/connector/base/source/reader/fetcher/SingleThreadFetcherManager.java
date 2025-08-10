@@ -97,16 +97,20 @@ public class SingleThreadFetcherManager<E, SplitT extends SourceSplit>
             Supplier<SplitReader<E, SplitT>> splitReaderSupplier,
             Configuration configuration,
             Consumer<Collection<String>> splitFinishedHook) {
+        // splitFinishedHook是一个空实现，splitReaderSupplier其实就是new KafkaPartitionSplitReader
         super(elementsQueue, splitReaderSupplier, configuration, splitFinishedHook);
     }
 
     @Override
     public void addSplits(List<SplitT> splitsToAdd) {
+        // 获取超类SplitFetcherManager中的fetchers列表
         SplitFetcher<E, SplitT> fetcher = getRunningFetcher();
         if (fetcher == null) {
+            // 如果列表为空，则创建一个新的SplitFetcher实例
             fetcher = createSplitFetcher();
             // Add the splits to the fetchers.
             fetcher.addSplits(splitsToAdd);
+            // 开启线程SplitFetcher
             startFetcher(fetcher);
         } else {
             fetcher.addSplits(splitsToAdd);

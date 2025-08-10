@@ -161,6 +161,7 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
 
     private void startOperatorCoordinators(Collection<OperatorCoordinatorHolder> coordinators) {
         try {
+            // 获取当前JobGragh的所有OperatorCoordinator，并启动
             for (OperatorCoordinatorHolder coordinator : coordinators) {
                 coordinator.start();
             }

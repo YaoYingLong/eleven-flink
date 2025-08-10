@@ -65,8 +65,7 @@ public class PartitionTransformationTranslator<OUT>
         final StreamGraph streamGraph = context.getStreamGraph();
 
         final List<Transformation<?>> parentTransformations = transformation.getInputs();
-        checkState(
-                parentTransformations.size() == 1,
+        checkState(parentTransformations.size() == 1,
                 "Expected exactly one input transformation but found "
                         + parentTransformations.size());
         final Transformation<?> input = parentTransformations.get(0);

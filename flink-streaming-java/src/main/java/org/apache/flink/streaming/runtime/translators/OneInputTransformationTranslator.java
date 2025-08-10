@@ -42,8 +42,8 @@ public final class OneInputTransformationTranslator<IN, OUT>
     public Collection<Integer> translateForBatchInternal(
             final OneInputTransformation<IN, OUT> transformation, final Context context) {
         KeySelector<IN, ?> keySelector = transformation.getStateKeySelector();
-        Collection<Integer> ids =
-                translateInternal(
+        // 调用的AbstractOneInputTransformationTranslator中的translateInternal方法
+        Collection<Integer> ids = translateInternal(
                         transformation,
                         transformation.getOperatorFactory(),
                         transformation.getInputType(),
@@ -62,6 +62,7 @@ public final class OneInputTransformationTranslator<IN, OUT>
     @Override
     public Collection<Integer> translateForStreamingInternal(
             final OneInputTransformation<IN, OUT> transformation, final Context context) {
+        // 调用的AbstractOneInputTransformationTranslator中的translateInternal方法
         return translateInternal(
                 transformation,
                 transformation.getOperatorFactory(),

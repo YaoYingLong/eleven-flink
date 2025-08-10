@@ -173,8 +173,7 @@ public class KafkaSourceEnumerator
                     partitionDiscoveryIntervalMs);
         } else {
             LOG.info(
-                    "Starting the KafkaSourceEnumerator for consumer group {} "
-                            + "without periodic partition discovery.",
+                    "Starting the KafkaSourceEnumerator for consumer group {} without periodic partition discovery.",
                     consumerGroupId);
             context.callAsync(this::getSubscribedTopicPartitions, this::checkPartitionChanges);
         }
@@ -227,6 +226,7 @@ public class KafkaSourceEnumerator
      * @return Set of subscribed {@link TopicPartition}s
      */
     private Set<TopicPartition> getSubscribedTopicPartitions() {
+        // subscriber默认是TopicListSubscriber，获取所有的TopicPartition
         return subscriber.getSubscribedTopicPartitions(adminClient);
     }
 
@@ -294,7 +294,8 @@ public class KafkaSourceEnumerator
         for (TopicPartition tp : newPartitions) {
             Long startingOffset = startingOffsets.get(tp);
             // 如果不存在返回Long.MIN_VALUE
-            long stoppingOffset = stoppingOffsets.getOrDefault(tp, KafkaPartitionSplit.NO_STOPPING_OFFSET);
+            long stoppingOffset =
+                    stoppingOffsets.getOrDefault(tp, KafkaPartitionSplit.NO_STOPPING_OFFSET);
             partitionSplits.add(new KafkaPartitionSplit(tp, startingOffset, stoppingOffset));
         }
         return new PartitionSplitChange(partitionSplits, partitionChange.getRemovedPartitions());

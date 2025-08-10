@@ -36,6 +36,7 @@ final class CopyingChainingOutput<T> extends ChainingOutput<T> {
             @Nullable Counter prevRecordsOutCounter,
             OperatorMetricGroup curOperatorMetricGroup,
             @Nullable OutputTag<T> outputTag) {
+        // input其实就是当前算子对应的Operator，即StreamMap、StreamFlatMap、StreamFilter等具体算子的Operator
         super(input, prevRecordsOutCounter, curOperatorMetricGroup, outputTag);
         this.serializer = serializer;
     }
@@ -71,18 +72,18 @@ final class CopyingChainingOutput<T> extends ChainingOutput<T> {
 
             numRecordsOut.inc();
             numRecordsIn.inc();
+            // 这里即是与ChainingOutput处理数据唯一差别多了两次copy
             StreamRecord<T> copy = castRecord.copy(serializer.copy(castRecord.getValue()));
             recordProcessor.accept(copy);
         } catch (ClassCastException e) {
             if (outputTag != null) {
                 // Enrich error message
-                ClassCastException replace =
-                        new ClassCastException(
-                                String.format(
-                                        "%s. Failed to push OutputTag with id '%s' to operator. "
-                                                + "This can occur when multiple OutputTags with different types "
-                                                + "but identical names are being used.",
-                                        e.getMessage(), outputTag.getId()));
+                ClassCastException replace = new ClassCastException(
+                        String.format(
+                                "%s. Failed to push OutputTag with id '%s' to operator. "
+                                        + "This can occur when multiple OutputTags with different types "
+                                        + "but identical names are being used.",
+                                e.getMessage(), outputTag.getId()));
 
                 throw new ExceptionInChainedOperatorException(replace);
             } else {

@@ -202,8 +202,7 @@ public class NetworkBufferPool
     @Override
     public List<MemorySegment> requestUnpooledMemorySegments(int numberOfSegmentsToRequest)
             throws IOException {
-        checkArgument(
-                numberOfSegmentsToRequest >= 0,
+        checkArgument(numberOfSegmentsToRequest >= 0,
                 "Number of buffers to request must be non-negative.");
 
         synchronized (factoryLock) {
@@ -385,9 +384,9 @@ public class NetworkBufferPool
         return totalNumberOfMemorySegments == 0
                 ? 0
                 : Math.toIntExact(
-                        100L
-                                * getEstimatedNumberOfRequestedMemorySegments()
-                                / totalNumberOfMemorySegments);
+                100L
+                        * getEstimatedNumberOfRequestedMemorySegments()
+                        / totalNumberOfMemorySegments);
     }
 
     @VisibleForTesting
@@ -451,10 +450,8 @@ public class NetworkBufferPool
     // ------------------------------------------------------------------------
 
     @Override
-    public BufferPool createBufferPool(int numRequiredBuffers, int maxUsedBuffers)
-            throws IOException {
-        return internalCreateBufferPool(
-                numRequiredBuffers, maxUsedBuffers, 0, Integer.MAX_VALUE, 0);
+    public BufferPool createBufferPool(int numRequiredBuffers, int maxUsedBuffers) throws IOException {
+        return internalCreateBufferPool(numRequiredBuffers, maxUsedBuffers, 0, Integer.MAX_VALUE, 0);
     }
 
     @Override
@@ -465,6 +462,7 @@ public class NetworkBufferPool
             int maxBuffersPerChannel,
             int maxOverdraftBuffersPerGate)
             throws IOException {
+        // 创建 BufferPool
         return internalCreateBufferPool(
                 numRequiredBuffers,
                 maxUsedBuffers,
@@ -491,27 +489,26 @@ public class NetworkBufferPool
             // Ensure that the number of required buffers can be satisfied.
             // With dynamic memory management this should become obsolete.
             if (numTotalRequiredBuffers + numRequiredBuffers > totalNumberOfMemorySegments) {
-                throw new IOException(
-                        String.format(
-                                "Insufficient number of network buffers: "
-                                        + "required %d, but only %d available. %s.",
-                                numRequiredBuffers,
-                                totalNumberOfMemorySegments - numTotalRequiredBuffers,
-                                getConfigDescription()));
+                throw new IOException(String.format(
+                        "Insufficient number of network buffers: "
+                                + "required %d, but only %d available. %s.",
+                        numRequiredBuffers,
+                        totalNumberOfMemorySegments - numTotalRequiredBuffers,
+                        getConfigDescription()));
             }
 
             this.numTotalRequiredBuffers += numRequiredBuffers;
 
             // We are good to go, create a new buffer pool and redistribute
             // non-fixed size buffers.
-            LocalBufferPool localBufferPool =
-                    new LocalBufferPool(
-                            this,
-                            numRequiredBuffers,
-                            maxUsedBuffers,
-                            numSubpartitions,
-                            maxBuffersPerChannel,
-                            maxOverdraftBuffersPerGate);
+            // 创建一个 LocalBufferPool
+            LocalBufferPool localBufferPool = new LocalBufferPool(
+                    this,
+                    numRequiredBuffers,
+                    maxUsedBuffers,
+                    numSubpartitions,
+                    maxBuffersPerChannel,
+                    maxOverdraftBuffersPerGate);
 
             allBufferPools.add(localBufferPool);
 
@@ -621,9 +618,8 @@ public class NetworkBufferPool
         long totalCapacity = 0; // long to avoid int overflow
 
         for (LocalBufferPool bufferPool : resizableBufferPools) {
-            int excessMax =
-                    bufferPool.getMaxNumberOfMemorySegments()
-                            - bufferPool.getNumberOfRequiredMemorySegments();
+            int excessMax = bufferPool.getMaxNumberOfMemorySegments()
+                    - bufferPool.getNumberOfRequiredMemorySegments();
             totalCapacity += Math.min(numAvailableMemorySegment, excessMax);
         }
 
@@ -641,9 +637,8 @@ public class NetworkBufferPool
         long totalPartsUsed = 0; // of totalCapacity
         int numDistributedMemorySegment = 0;
         for (LocalBufferPool bufferPool : resizableBufferPools) {
-            int excessMax =
-                    bufferPool.getMaxNumberOfMemorySegments()
-                            - bufferPool.getNumberOfRequiredMemorySegments();
+            int excessMax = bufferPool.getMaxNumberOfMemorySegments()
+                    - bufferPool.getNumberOfRequiredMemorySegments();
 
             // shortcut
             if (excessMax == 0) {
@@ -656,10 +651,9 @@ public class NetworkBufferPool
             // re-distributed up until here
             // the downcast will always succeed, because both arguments of the subtraction are in
             // the 'int' domain
-            final int mySize =
-                    MathUtils.checkedDownCast(
-                            memorySegmentsToDistribute * totalPartsUsed / totalCapacity
-                                    - numDistributedMemorySegment);
+            final int mySize = MathUtils.checkedDownCast(
+                    memorySegmentsToDistribute * totalPartsUsed / totalCapacity
+                            - numDistributedMemorySegment);
 
             numDistributedMemorySegment += mySize;
             bufferPool.setNumBuffers(bufferPool.getNumberOfRequiredMemorySegments() + mySize);

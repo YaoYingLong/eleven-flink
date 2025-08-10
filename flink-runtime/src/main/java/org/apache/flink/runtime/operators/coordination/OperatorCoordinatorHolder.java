@@ -178,6 +178,7 @@ public class OperatorCoordinatorHolder
     public void start() throws Exception {
         mainThreadExecutor.assertRunningInMainThread();
         checkState(context.isInitialized(), "Coordinator Context is not yet initialized");
+        // OperatorCoordinator 启动
         coordinator.start();
     }
 
@@ -191,10 +192,8 @@ public class OperatorCoordinatorHolder
             throws Exception {
         mainThreadExecutor.assertRunningInMainThread();
         if (event instanceof AcknowledgeCheckpointEvent) {
-            subtaskGatewayMap
-                    .get(subtask)
-                    .openGatewayAndUnmarkCheckpoint(
-                            ((AcknowledgeCheckpointEvent) event).getCheckpointID());
+            subtaskGatewayMap.get(subtask).openGatewayAndUnmarkCheckpoint(
+                    ((AcknowledgeCheckpointEvent) event).getCheckpointID());
             return;
         }
         coordinator.handleEventFromOperator(subtask, attemptNumber, event);

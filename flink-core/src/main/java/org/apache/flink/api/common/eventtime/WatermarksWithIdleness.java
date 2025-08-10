@@ -65,6 +65,7 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
 
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
+        // output是将splitId生成的对应的PartialWatermark封装成ImmediateOutput
         // 将事件传递给原始的水位线生成器，用于提取时间戳和生成水位线
         watermarks.onEvent(event, eventTimestamp, output);
         // 当有数据触发时就将counter++，每条数据都会调用该方法

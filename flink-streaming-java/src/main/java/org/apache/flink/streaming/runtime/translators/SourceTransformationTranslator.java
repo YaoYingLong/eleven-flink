@@ -64,17 +64,19 @@ public class SourceTransformationTranslator<OUT, SplitT extends SourceSplit, Enu
             boolean emitProgressiveWatermarks) {
         checkNotNull(transformation);
         checkNotNull(context);
-
+        // 这个Context其实就是ContextImpl
         final StreamGraph streamGraph = context.getStreamGraph();
         final String slotSharingGroup = context.getSlotSharingGroup();
         final int transformationId = transformation.getId();
         final ExecutionConfig executionConfig = streamGraph.getExecutionConfig();
 
+        // emitProgressiveWatermarks传入的默认是true
         SourceOperatorFactory<OUT> operatorFactory = new SourceOperatorFactory<>(
                 transformation.getSource(),
                 transformation.getWatermarkStrategy(),
                 emitProgressiveWatermarks);
 
+        // ChainingStrategy默认是ALWAYS
         operatorFactory.setChainingStrategy(transformation.getChainingStrategy());
         operatorFactory.setCoordinatorListeningID(transformation.getCoordinatorListeningID());
 
@@ -87,8 +89,8 @@ public class SourceTransformationTranslator<OUT, SplitT extends SourceSplit, Enu
                 transformation.getOutputType(),
                 "Source: " + transformation.getName());
 
-        final int parallelism =
-                transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
+        // 获取并行度
+        final int parallelism = transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
                         ? transformation.getParallelism()
                         : executionConfig.getParallelism();
 

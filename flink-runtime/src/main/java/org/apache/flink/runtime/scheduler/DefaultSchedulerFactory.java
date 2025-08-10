@@ -77,21 +77,16 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
             final BlocklistOperations blocklistOperations)
             throws Exception {
 
-        final SlotPool slotPool =
-                slotPoolService
-                        .castInto(SlotPool.class)
-                        .orElseThrow(
-                                () ->
-                                        new IllegalStateException(
-                                                "The DefaultScheduler requires a SlotPool."));
+        final SlotPool slotPool = slotPoolService.castInto(SlotPool.class)
+                .orElseThrow(
+                        () -> new IllegalStateException("The DefaultScheduler requires a SlotPool."));
 
-        final DefaultSchedulerComponents schedulerComponents =
-                createSchedulerComponents(
-                        jobGraph.getJobType(),
-                        jobGraph.isApproximateLocalRecoveryEnabled(),
-                        jobMasterConfiguration,
-                        slotPool,
-                        slotRequestTimeout);
+        final DefaultSchedulerComponents schedulerComponents = createSchedulerComponents(
+                jobGraph.getJobType(),
+                jobGraph.isApproximateLocalRecoveryEnabled(),
+                jobMasterConfiguration,
+                slotPool,
+                slotRequestTimeout);
         final RestartBackoffTimeStrategy restartBackoffTimeStrategy =
                 RestartBackoffTimeStrategyFactoryLoader.createRestartBackoffTimeStrategyFactory(
                                 jobGraph.getSerializedExecutionConfig()
@@ -106,18 +101,17 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
                 jobGraph.getName(),
                 jobGraph.getJobID());
 
-        final ExecutionGraphFactory executionGraphFactory =
-                new DefaultExecutionGraphFactory(
-                        jobMasterConfiguration,
-                        userCodeLoader,
-                        executionDeploymentTracker,
-                        futureExecutor,
-                        ioExecutor,
-                        rpcTimeout,
-                        jobManagerJobMetricGroup,
-                        blobWriter,
-                        shuffleMaster,
-                        partitionTracker);
+        final ExecutionGraphFactory executionGraphFactory = new DefaultExecutionGraphFactory(
+                jobMasterConfiguration,
+                userCodeLoader,
+                executionDeploymentTracker,
+                futureExecutor,
+                ioExecutor,
+                rpcTimeout,
+                jobManagerJobMetricGroup,
+                blobWriter,
+                shuffleMaster,
+                partitionTracker);
 
         return new DefaultScheduler(
                 log,

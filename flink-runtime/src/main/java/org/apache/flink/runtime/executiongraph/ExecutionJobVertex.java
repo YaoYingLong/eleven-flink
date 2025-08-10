@@ -91,19 +91,24 @@ public class ExecutionJobVertex
 
     private final JobVertex jobVertex;
 
-    @Nullable private ExecutionVertex[] taskVertices;
+    @Nullable
+    private ExecutionVertex[] taskVertices;
 
-    @Nullable private IntermediateResult[] producedDataSets;
+    @Nullable
+    private IntermediateResult[] producedDataSets;
 
-    @Nullable private List<IntermediateResult> inputs;
+    @Nullable
+    private List<IntermediateResult> inputs;
 
     private final VertexParallelismInformation parallelismInfo;
 
     private final SlotSharingGroup slotSharingGroup;
 
-    @Nullable private final CoLocationGroup coLocationGroup;
+    @Nullable
+    private final CoLocationGroup coLocationGroup;
 
-    @Nullable private InputSplit[] inputSplits;
+    @Nullable
+    private InputSplit[] inputSplits;
 
     private final ResourceProfile resourceProfile;
 
@@ -117,21 +122,22 @@ public class ExecutionJobVertex
     private Either<SerializedValue<TaskInformation>, PermanentBlobKey> taskInformationOrBlobKey =
             null;
 
-    @Nullable private Collection<OperatorCoordinatorHolder> operatorCoordinators;
+    @Nullable
+    private Collection<OperatorCoordinatorHolder> operatorCoordinators;
 
-    @Nullable private InputSplitAssigner splitAssigner;
+    @Nullable
+    private InputSplitAssigner splitAssigner;
 
     @VisibleForTesting
     public ExecutionJobVertex(
             InternalExecutionGraphAccessor graph,
             JobVertex jobVertex,
-            VertexParallelismInformation parallelismInfo)
-            throws JobException {
+            VertexParallelismInformation parallelismInfo) throws JobException {
 
         if (graph == null || jobVertex == null) {
             throw new NullPointerException();
         }
-
+        // 当前ExecutionJobVertex对应的ExecutionGraph和对应的JobGraph中的JobVertex
         this.graph = graph;
         this.jobVertex = jobVertex;
 
@@ -177,25 +183,23 @@ public class ExecutionJobVertex
         for (int i = 0; i < jobVertex.getProducedDataSets().size(); i++) {
             final IntermediateDataSet result = jobVertex.getProducedDataSets().get(i);
 
-            this.producedDataSets[i] =
-                    new IntermediateResult(
-                            result,
-                            this,
-                            this.parallelismInfo.getParallelism(),
-                            result.getResultType());
+            this.producedDataSets[i] = new IntermediateResult(
+                    result,
+                    this,
+                    this.parallelismInfo.getParallelism(),
+                    result.getResultType());
         }
 
         // create all task vertices
         for (int i = 0; i < this.parallelismInfo.getParallelism(); i++) {
-            ExecutionVertex vertex =
-                    createExecutionVertex(
-                            this,
-                            i,
-                            producedDataSets,
-                            timeout,
-                            createTimestamp,
-                            executionHistorySizeLimit,
-                            initialAttemptCounts.getAttemptCount(i));
+            ExecutionVertex vertex = createExecutionVertex(
+                    this,
+                    i,
+                    producedDataSets,
+                    timeout,
+                    createTimestamp,
+                    executionHistorySizeLimit,
+                    initialAttemptCounts.getAttemptCount(i));
 
             this.taskVertices[i] = vertex;
         }
@@ -219,9 +223,9 @@ public class ExecutionJobVertex
             try {
                 for (final SerializedValue<OperatorCoordinator.Provider> provider :
                         coordinatorProviders) {
-                    coordinators.add(
-                            createOperatorCoordinatorHolder(
-                                    provider, graph.getUserClassLoader(), coordinatorStore));
+                    // 调用ExecutionJobVertex的createOperatorCoordinatorHolder方法创建OperatorCoordinatorHolder
+                    coordinators.add(createOperatorCoordinatorHolder(
+                            provider, graph.getUserClassLoader(), coordinatorStore));
                 }
             } catch (Exception | LinkageError e) {
                 IOUtils.closeAllQuietly(coordinators);
@@ -441,7 +445,7 @@ public class ExecutionJobVertex
             Map<IntermediateDataSetID, IntermediateResult> intermediateDataSets)
             throws JobException {
         checkState(isInitialized());
-
+        // 获取该 jobVertex 的所有输入 JobEdge
         List<JobEdge> inputs = jobVertex.getInputs();
 
         if (LOG.isDebugEnabled()) {
@@ -450,8 +454,9 @@ public class ExecutionJobVertex
                             "Connecting ExecutionJobVertex %s (%s) to %d predecessors.",
                             jobVertex.getID(), jobVertex.getName(), inputs.size()));
         }
-
+        // 遍历每个 JobEdge
         for (int num = 0; num < inputs.size(); num++) {
+            // 遍历到一个 JobEdge
             JobEdge edge = inputs.get(num);
 
             if (LOG.isDebugEnabled()) {
@@ -478,13 +483,16 @@ public class ExecutionJobVertex
             // fetch the intermediate result via ID. if it does not exist, then it either has not
             // been created, or the order
             // in which this method is called for the job vertices is not a topological order
+
+            // 获取到 JobEdge 链接的 IntermediateResult
             IntermediateResult ires = intermediateDataSets.get(edge.getSourceId());
             if (ires == null) {
                 throw new JobException(
                         "Cannot connect this job graph to the previous graph. No previous intermediate result found for ID "
                                 + edge.getSourceId());
             }
-
+            // 将当前 IntermediateResult 作为 ExecutionJobVertex 的输入
+            // 加入 inputs 集合，作为 ExecutionJobVertex 的输入
             this.inputs.add(ires);
 
             EdgeManagerBuildUtil.connectVertexToResult(this, ires);
@@ -592,8 +600,9 @@ public class ExecutionJobVertex
      * on.
      *
      * @param verticesPerState The number of vertices in each state (indexed by the ordinal of the
-     *     ExecutionState values).
+     *         ExecutionState values).
      * @param parallelism The parallelism of the ExecutionJobVertex
+     *
      * @return The aggregate state of this ExecutionJobVertex.
      */
     public static ExecutionState getAggregateJobVertexState(

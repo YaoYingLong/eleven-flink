@@ -49,6 +49,7 @@ public class TaskExecutorPartitionTrackerImpl
     private final ShuffleEnvironment<?, ?> shuffleEnvironment;
 
     public TaskExecutorPartitionTrackerImpl(ShuffleEnvironment<?, ?> shuffleEnvironment) {
+        // shuffleEnvironment其实就是NettyShuffleEnvironment
         this.shuffleEnvironment = shuffleEnvironment;
     }
 
@@ -125,15 +126,13 @@ public class TaskExecutorPartitionTrackerImpl
 
     @Override
     public ClusterPartitionReport createClusterPartitionReport() {
-        List<ClusterPartitionReport.ClusterPartitionReportEntry> reportEntries =
-                clusterPartitions.entrySet().stream()
-                        .map(
-                                entry ->
-                                        new ClusterPartitionReport.ClusterPartitionReportEntry(
-                                                entry.getKey(),
-                                                entry.getValue().getTotalNumberOfPartitions(),
-                                                entry.getValue().getShuffleDescriptors()))
-                        .collect(Collectors.toList());
+        List<ClusterPartitionReport.ClusterPartitionReportEntry> reportEntries = clusterPartitions
+                .entrySet().stream().map(entry ->
+                        new ClusterPartitionReport.ClusterPartitionReportEntry(
+                                entry.getKey(),
+                                entry.getValue().getTotalNumberOfPartitions(),
+                                entry.getValue().getShuffleDescriptors()))
+                .collect(Collectors.toList());
 
         return new ClusterPartitionReport(reportEntries);
     }

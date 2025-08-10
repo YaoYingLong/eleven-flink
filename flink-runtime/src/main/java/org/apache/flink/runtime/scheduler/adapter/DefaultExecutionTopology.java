@@ -164,7 +164,7 @@ public class DefaultExecutionTopology implements SchedulingTopology {
     }
 
     private static Map<JobVertexID, DefaultLogicalPipelinedRegion>
-            computeLogicalPipelinedRegionsByJobVertexId(final ExecutionGraph executionGraph) {
+    computeLogicalPipelinedRegionsByJobVertexId(final ExecutionGraph executionGraph) {
         List<JobVertex> topologicallySortedJobVertices =
                 IterableUtils.toStream(executionGraph.getVerticesTopologically())
                         .map(ExecutionJobVertex::getJobVertex)
@@ -237,15 +237,13 @@ public class DefaultExecutionTopology implements SchedulingTopology {
         checkNotNull(executionGraph, "execution graph can not be null");
 
         EdgeManager edgeManager = executionGraph.getEdgeManager();
-
-        DefaultExecutionTopology schedulingTopology =
-                new DefaultExecutionTopology(
-                        () ->
-                                IterableUtils.toStream(executionGraph.getAllExecutionVertices())
-                                        .map(ExecutionVertex::getID)
-                                        .collect(Collectors.toList()),
-                        edgeManager,
-                        computeLogicalPipelinedRegionsByJobVertexId(executionGraph));
+        // 默认实现DefaultExecutionTopology主要作用是把ExecutionGraph中的ExecutionVertex封装成待调度的DefaultExecutionVertex
+        DefaultExecutionTopology schedulingTopology = new DefaultExecutionTopology(
+                () -> IterableUtils.toStream(executionGraph.getAllExecutionVertices())
+                        .map(ExecutionVertex::getID)
+                        .collect(Collectors.toList()),
+                edgeManager,
+                computeLogicalPipelinedRegionsByJobVertexId(executionGraph));
 
         schedulingTopology.notifyExecutionGraphUpdated(
                 executionGraph,
@@ -303,7 +301,7 @@ public class DefaultExecutionTopology implements SchedulingTopology {
                                                 () ->
                                                         irp.hasDataAllProduced()
                                                                 ? ResultPartitionState
-                                                                        .ALL_DATA_PRODUCED
+                                                                .ALL_DATA_PRODUCED
                                                                 : ResultPartitionState.CREATED,
                                                 () ->
                                                         partitionConsumerVertexGroupsRetriever

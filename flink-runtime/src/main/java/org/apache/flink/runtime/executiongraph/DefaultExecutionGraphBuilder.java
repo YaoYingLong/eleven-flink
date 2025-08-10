@@ -98,22 +98,21 @@ public class DefaultExecutionGraphBuilder {
             throws JobExecutionException, JobException {
 
         checkNotNull(jobGraph, "job graph cannot be null");
-
+        // 从 JobGraph 中获取 JobName 和 JobID
         final String jobName = jobGraph.getName();
         final JobID jobId = jobGraph.getJobID();
-
-        final JobInformation jobInformation =
-                new JobInformation(
-                        jobId,
-                        jobName,
-                        jobGraph.getSerializedExecutionConfig(),
-                        jobGraph.getJobConfiguration(),
-                        jobGraph.getUserJarBlobKeys(),
-                        jobGraph.getClasspaths());
+        // 构建包含 job 信息的 JobInformation 对象
+        final JobInformation jobInformation = new JobInformation(
+                jobId,
+                jobName,
+                jobGraph.getSerializedExecutionConfig(),
+                jobGraph.getJobConfiguration(),
+                jobGraph.getUserJarBlobKeys(),
+                jobGraph.getClasspaths());
 
         final int executionHistorySizeLimit =
                 jobManagerConfig.getInteger(JobManagerOptions.MAX_ATTEMPTS_HISTORY_SIZE);
-
+        // 释放 IntermediateResultPartition 的策略: RegionPartitionReleaseStrategy
         final PartitionGroupReleaseStrategy.Factory partitionGroupReleaseStrategyFactory =
                 PartitionGroupReleaseStrategyFactoryLoader.loadPartitionGroupReleaseStrategyFactory(
                         jobManagerConfig);
@@ -121,29 +120,29 @@ public class DefaultExecutionGraphBuilder {
         // create a new execution graph, if none exists so far
         final DefaultExecutionGraph executionGraph;
         try {
-            executionGraph =
-                    new DefaultExecutionGraph(
-                            jobInformation,
-                            futureExecutor,
-                            ioExecutor,
-                            rpcTimeout,
-                            executionHistorySizeLimit,
-                            classLoader,
-                            blobWriter,
-                            partitionGroupReleaseStrategyFactory,
-                            shuffleMaster,
-                            partitionTracker,
-                            partitionLocationConstraint,
-                            executionDeploymentListener,
-                            executionStateUpdateListener,
-                            initializationTimestamp,
-                            vertexAttemptNumberStore,
-                            vertexParallelismStore,
-                            isDynamicGraph,
-                            executionJobVertexFactory,
-                            jobGraph.getJobStatusHooks(),
-                            markPartitionFinishedStrategy,
-                            nonFinishedHybridPartitionShouldBeUnknown);
+            // 获取 ExecutionGraph， 只是创建了一个 ExecutionGraph 对象而已
+            executionGraph = new DefaultExecutionGraph(
+                    jobInformation,
+                    futureExecutor,
+                    ioExecutor,
+                    rpcTimeout,
+                    executionHistorySizeLimit,
+                    classLoader,
+                    blobWriter,
+                    partitionGroupReleaseStrategyFactory,
+                    shuffleMaster,
+                    partitionTracker,
+                    partitionLocationConstraint,
+                    executionDeploymentListener,
+                    executionStateUpdateListener,
+                    initializationTimestamp,
+                    vertexAttemptNumberStore,
+                    vertexParallelismStore,
+                    isDynamicGraph,
+                    executionJobVertexFactory,
+                    jobGraph.getJobStatusHooks(),
+                    markPartitionFinishedStrategy,
+                    nonFinishedHybridPartitionShouldBeUnknown);
         } catch (IOException e) {
             throw new JobException("Could not create the ExecutionGraph.", e);
         }
@@ -151,6 +150,9 @@ public class DefaultExecutionGraphBuilder {
         // set the basic properties
 
         try {
+            // 设置 ExecutionGraph 的一些基本属性
+            // 1、JsonPlanGenerator.generatePlan(jobGraph) 根据 JobGraph 生成一个 JsonPlan
+            // 2、executionGraph.setJsonPlan(JsonPlan) 把 JsonPlan 设置到 ExecutionGraph
             executionGraph.setJsonPlan(JsonPlanGenerator.generatePlan(jobGraph));
         } catch (Throwable t) {
             log.warn("Cannot create JSON plan for job", t);
@@ -163,26 +165,26 @@ public class DefaultExecutionGraphBuilder {
 
         final long initMasterStart = System.nanoTime();
         log.info("Running initialization on master for job {} ({}).", jobName, jobId);
-
+        // 遍历每个 JobVertex 执行初始化
         for (JobVertex vertex : jobGraph.getVertices()) {
+            // executableClass其实就是在构造StreamGraph时设置的invokableClassName
+            // 例如KafkaSource的invokableClassName是SourceOperatorStreamTask
             String executableClass = vertex.getInvokableClassName();
+            // 如果executableClass为空，则抛出异常
             if (executableClass == null || executableClass.isEmpty()) {
                 throw new JobSubmissionException(
-                        jobId,
-                        "The vertex "
-                                + vertex.getID()
-                                + " ("
-                                + vertex.getName()
-                                + ") has no invokable class.");
+                        jobId, "The vertex " + vertex.getID() + " ("
+                        + vertex.getName() + ") has no invokable class.");
             }
-
+            // 如果是InputFormatVertex和OutputFormatVertex，则可以进行一些初始化
+            // 1、File output format 在这一步准备好输出目录
+            // 2、Input splits 在这一步创建对应的 splits
             try {
-                vertex.initializeOnMaster(
-                        new SimpleInitializeOnMasterContext(
-                                classLoader,
-                                vertexParallelismStore
-                                        .getParallelismInfo(vertex.getID())
-                                        .getParallelism()));
+                vertex.initializeOnMaster(new SimpleInitializeOnMasterContext(
+                        classLoader,
+                        vertexParallelismStore
+                                .getParallelismInfo(vertex.getID())
+                                .getParallelism()));
             } catch (Throwable t) {
                 throw new JobExecutionException(
                         jobId,
@@ -204,6 +206,8 @@ public class DefaultExecutionGraphBuilder {
                     jobName,
                     jobId);
         }
+        // 关键代码：ExecutionGraph事实上只是改动了JobGraph的每个节点，而没有对整个拓扑结构进行变动，
+        // 所以代码里只是挨个遍历jobVertex并进行处理
         executionGraph.attachJobGraph(sortedTopology);
 
         if (log.isDebugEnabled()) {
@@ -270,14 +274,13 @@ public class DefaultExecutionGraphBuilder {
 
             final CheckpointStorage rootStorage;
             try {
-                rootStorage =
-                        CheckpointStorageLoader.load(
-                                applicationConfiguredStorage,
-                                null,
-                                rootBackend,
-                                jobManagerConfig,
-                                classLoader,
-                                log);
+                rootStorage = CheckpointStorageLoader.load(
+                        applicationConfiguredStorage,
+                        null,
+                        rootBackend,
+                        jobManagerConfig,
+                        classLoader,
+                        log);
             } catch (IllegalConfigurationException | DynamicCodeLoadingException e) {
                 throw new JobExecutionException(
                         jobId, "Could not instantiate configured checkpoint storage", e);
@@ -340,5 +343,6 @@ public class DefaultExecutionGraphBuilder {
     // ------------------------------------------------------------------------
 
     /** This class is not supposed to be instantiated. */
-    private DefaultExecutionGraphBuilder() {}
+    private DefaultExecutionGraphBuilder() {
+    }
 }
