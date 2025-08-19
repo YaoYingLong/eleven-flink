@@ -103,17 +103,16 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
         this.deserializer = deserializer;
         this.handover = new Handover();
 
-        this.consumerThread =
-                new KafkaConsumerThread(
-                        LOG,
-                        handover,
-                        kafkaProperties,
-                        unassignedPartitionsQueue,
-                        getFetcherName() + " for " + taskNameWithSubtasks,
-                        pollTimeout,
-                        useMetrics,
-                        consumerMetricGroup,
-                        subtaskMetricGroup);
+        this.consumerThread = new KafkaConsumerThread(
+                LOG,
+                handover,
+                kafkaProperties,
+                unassignedPartitionsQueue,
+                getFetcherName() + " for " + taskNameWithSubtasks,
+                pollTimeout,
+                useMetrics,
+                consumerMetricGroup,
+                subtaskMetricGroup);
         this.kafkaCollector = new KafkaCollector();
     }
 
@@ -251,6 +250,7 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
         }
 
         @Override
-        public void close() {}
+        public void close() {
+        }
     }
 }

@@ -71,7 +71,7 @@ import java.util.function.Function;
  * @param <M> type of the message parameters
  */
 public abstract class AbstractHandler<
-                T extends RestfulGateway, R extends RequestBody, M extends MessageParameters>
+        T extends RestfulGateway, R extends RequestBody, M extends MessageParameters>
         extends LeaderRetrievalHandler<T> implements AutoCloseableAsync {
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
@@ -175,13 +175,12 @@ public abstract class AbstractHandler<
             final HandlerRequest<R> handlerRequest;
 
             try {
-                handlerRequest =
-                        HandlerRequest.resolveParametersAndCreate(
-                                request,
-                                untypedResponseMessageHeaders.getUnresolvedMessageParameters(),
-                                routedRequest.getRouteResult().pathParams(),
-                                routedRequest.getRouteResult().queryParams(),
-                                uploadedFiles.getUploadedFiles());
+                handlerRequest = HandlerRequest.resolveParametersAndCreate(
+                        request,
+                        untypedResponseMessageHeaders.getUnresolvedMessageParameters(),
+                        routedRequest.getRouteResult().pathParams(),
+                        routedRequest.getRouteResult().queryParams(),
+                        uploadedFiles.getUploadedFiles());
             } catch (HandlerRequestException hre) {
                 log.error("Could not create the handler request.", hre);
                 throw new RestHandlerException(
@@ -196,17 +195,15 @@ public abstract class AbstractHandler<
                     respondToRequest(ctx, httpRequest, handlerRequest, gateway);
 
             final FileUploads finalUploadedFiles = uploadedFiles;
-            requestProcessingFuture
-                    .handle(
-                            (Void ignored, Throwable throwable) -> {
-                                if (throwable != null) {
-                                    return handleException(
-                                            ExceptionUtils.stripCompletionException(throwable),
-                                            ctx,
-                                            httpRequest);
-                                }
-                                return CompletableFuture.<Void>completedFuture(null);
-                            })
+            requestProcessingFuture.handle((Void ignored, Throwable throwable) -> {
+                        if (throwable != null) {
+                            return handleException(
+                                    ExceptionUtils.stripCompletionException(throwable),
+                                    ctx,
+                                    httpRequest);
+                        }
+                        return CompletableFuture.<Void>completedFuture(null);
+                    })
                     .thenCompose(Function.identity())
                     .whenComplete(
                             (Void ignored, Throwable throwable) -> {
@@ -319,7 +316,9 @@ public abstract class AbstractHandler<
      * @param httpRequest original http request
      * @param handlerRequest typed handler request
      * @param gateway leader gateway
+     *
      * @return Future which is completed once the request has been processed
+     *
      * @throws RestHandlerException if an exception occurred while responding
      */
     protected abstract CompletableFuture<Void> respondToRequest(

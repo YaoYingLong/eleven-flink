@@ -67,7 +67,8 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
     private final TaskEventPublisher taskEventPublisher;
 
     /** The consumed subpartition. */
-    @Nullable private volatile ResultSubpartitionView subpartitionView;
+    @Nullable
+    private volatile ResultSubpartitionView subpartitionView;
 
     private volatile boolean isReleased;
 
@@ -115,23 +116,17 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
 
     @Override
     protected void requestSubpartition() throws IOException {
-
         boolean retriggerRequest = false;
         boolean notifyDataAvailable = false;
-
         // The lock is required to request only once in the presence of retriggered requests.
         synchronized (requestLock) {
             checkState(!isReleased, "LocalInputChannel has been released already");
-
             if (subpartitionView == null) {
                 LOG.debug(
                         "{}: Requesting LOCAL subpartition {} of partition {}. {}",
-                        this,
-                        consumedSubpartitionIndex,
-                        partitionId,
-                        channelStatePersister);
-
+                        this, consumedSubpartitionIndex, partitionId, channelStatePersister);
                 try {
+                    // 这里调用BufferWritingResultPartition的createSubpartitionView方法创建的是PipelinedSubpartition
                     ResultSubpartitionView subpartitionView =
                             partitionManager.createSubpartitionView(
                                     partitionId, consumedSubpartitionIndex, this);
@@ -177,7 +172,6 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
     void retriggerSubpartitionRequest(Timer timer) {
         synchronized (requestLock) {
             checkState(subpartitionView == null, "already requested partition");
-
             timer.schedule(
                     new TimerTask() {
                         @Override
@@ -188,8 +182,7 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
                                 setError(t);
                             }
                         }
-                    },
-                    getCurrentBackoff());
+                    }, getCurrentBackoff());
         }
     }
 

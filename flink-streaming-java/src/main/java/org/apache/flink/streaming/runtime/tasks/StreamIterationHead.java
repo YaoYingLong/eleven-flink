@@ -71,10 +71,9 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 
     @Override
     protected void processInput(MailboxDefaultAction.Controller controller) throws Exception {
-        StreamRecord<OUT> nextRecord =
-                shouldWait
-                        ? dataChannel.poll(iterationWaitTime, TimeUnit.MILLISECONDS)
-                        : dataChannel.take();
+        StreamRecord<OUT> nextRecord = shouldWait
+                ? dataChannel.poll(iterationWaitTime, TimeUnit.MILLISECONDS)
+                : dataChannel.take();
 
         if (nextRecord != null) {
             for (RecordWriterOutput<OUT> output : streamOutputs) {
@@ -124,6 +123,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
      * @param jid The job ID.
      * @param iterationID The id of the iteration in the job.
      * @param subtaskIndex The parallel subtask number
+     *
      * @return The identification string.
      */
     public static String createBrokerIdString(JobID jid, String iterationID, int subtaskIndex) {

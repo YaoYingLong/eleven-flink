@@ -114,7 +114,8 @@ import java.util.concurrent.CompletionException;
  */
 public class SavepointHandlers {
 
-    @Nullable private final String defaultSavepointDir;
+    @Nullable
+    private final String defaultSavepointDir;
 
     public SavepointHandlers(@Nullable final String defaultSavepointDir) {
         this.defaultSavepointDir = defaultSavepointDir;
@@ -122,7 +123,7 @@ public class SavepointHandlers {
 
     private abstract static class SavepointHandlerBase<B extends RequestBody>
             extends AbstractRestHandler<
-                    RestfulGateway, B, TriggerResponse, SavepointTriggerMessageParameters> {
+            RestfulGateway, B, TriggerResponse, SavepointTriggerMessageParameters> {
 
         SavepointHandlerBase(
                 final GatewayRetriever<? extends RestfulGateway> leaderRetriever,
@@ -146,17 +147,16 @@ public class SavepointHandlers {
                 throws RestHandlerException {
             final AsynchronousJobOperationKey operationKey = createOperationKey(request);
 
-            return triggerOperation(request, operationKey, gateway)
-                    .handle(
-                            (acknowledge, throwable) -> {
-                                if (throwable == null) {
-                                    return new TriggerResponse(operationKey.getTriggerId());
-                                } else {
-                                    throw new CompletionException(
-                                            createInternalServerError(
-                                                    throwable, operationKey, "triggering"));
-                                }
-                            });
+            return triggerOperation(request, operationKey, gateway).handle(
+                    (acknowledge, throwable) -> {
+                        if (throwable == null) {
+                            return new TriggerResponse(operationKey.getTriggerId());
+                        } else {
+                            throw new CompletionException(
+                                    createInternalServerError(
+                                            throwable, operationKey, "triggering"));
+                        }
+                    });
         }
 
         protected abstract CompletableFuture<Acknowledge> triggerOperation(
@@ -248,10 +248,9 @@ public class SavepointHandlers {
                         HttpResponseStatus.BAD_REQUEST);
             }
 
-            final TriggerSavepointMode savepointMode =
-                    request.getRequestBody().isCancelJob()
-                            ? TriggerSavepointMode.CANCEL_WITH_SAVEPOINT
-                            : TriggerSavepointMode.SAVEPOINT;
+            final TriggerSavepointMode savepointMode = request.getRequestBody().isCancelJob()
+                    ? TriggerSavepointMode.CANCEL_WITH_SAVEPOINT
+                    : TriggerSavepointMode.SAVEPOINT;
             final String targetDirectory = requestedTargetDirectory.orElse(defaultSavepointDir);
             final SavepointFormatType formatType = request.getRequestBody().getFormatType();
             return gateway.triggerSavepoint(
@@ -262,10 +261,10 @@ public class SavepointHandlers {
     /** HTTP handler to query for the status of the savepoint. */
     public static class SavepointStatusHandler
             extends AbstractRestHandler<
-                    RestfulGateway,
-                    EmptyRequestBody,
-                    AsynchronousOperationResult<SavepointInfo>,
-                    SavepointStatusMessageParameters> {
+            RestfulGateway,
+            EmptyRequestBody,
+            AsynchronousOperationResult<SavepointInfo>,
+            SavepointStatusMessageParameters> {
 
         public SavepointStatusHandler(
                 final GatewayRetriever<? extends RestfulGateway> leaderRetriever,
@@ -324,7 +323,8 @@ public class SavepointHandlers {
                         new RestHandlerException(
                                 String.format(
                                         "There is no savepoint operation with triggerId=%s for job %s.",
-                                        key.getTriggerId(), key.getJobId()),
+                                        key.getTriggerId(),
+                                        key.getJobId()),
                                 HttpResponseStatus.NOT_FOUND));
             }
             return Optional.empty();
@@ -351,7 +351,9 @@ public class SavepointHandlers {
         return new RestHandlerException(
                 String.format(
                         "Internal server error while %s savepoint operation with triggerId=%s for job %s.",
-                        errorMessageInfix, key.getTriggerId(), key.getJobId()),
+                        errorMessageInfix,
+                        key.getTriggerId(),
+                        key.getJobId()),
                 HttpResponseStatus.INTERNAL_SERVER_ERROR,
                 throwable);
     }

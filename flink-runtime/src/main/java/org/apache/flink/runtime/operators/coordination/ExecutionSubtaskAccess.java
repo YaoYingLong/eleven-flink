@@ -65,6 +65,7 @@ final class ExecutionSubtaskAccess implements SubtaskAccess {
     public Callable<CompletableFuture<Acknowledge>> createEventSendAction(
             SerializedValue<OperatorEvent> event) {
         return () -> {
+            // 调用具体的TaskExecutor的sendOperatorEventToTask方法，将AddSplitEvent发送给具体的StreamTask
             final CompletableFuture<Acknowledge> result =
                     taskExecution.sendOperatorEvent(operator, event);
             futuresTracker.trackFutureWhileIncomplete(result);

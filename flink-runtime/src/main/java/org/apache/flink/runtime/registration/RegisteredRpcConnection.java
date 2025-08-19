@@ -101,7 +101,15 @@ public abstract class RegisteredRpcConnection<
         checkState(
                 !isConnected() && pendingRegistration == null,
                 "The RPC connection is already started");
-
+        /**
+         *  创建注册对象，并且在创建成功之后，进行Slot汇报，返回的结果是：
+         *  1、TaskExecutor注册：TaskExecutorToResourceManagerConnection.ResourceManagerRegistration
+         *  2、JobManager（JobMaster）注册：DefaultJobLeaderService.JobManagerRetryingRegistration
+         *  TaskEXecutorRegistrition ---> RetryingRegistration(ResourceManagerRegistration)
+         *  重点：
+         *  1、创建注册对象：TaskExecutorToResourceManagerConnection.ResourceManagerRegistration
+         *  2、进行Slot汇报：onRegistrationSuccess(result.f1);
+         */
         final RetryingRegistration<F, G, S, R> newRegistration = createNewRegistration();
 
         if (REGISTRATION_UPDATER.compareAndSet(this, null, newRegistration)) {
@@ -264,6 +272,10 @@ public abstract class RegisteredRpcConnection<
                     } else {
                         if (result.isSuccess()) {
                             targetGateway = result.getGateway();
+                            /**
+                             * 1、如果是 TaskExecutor, 注册成功之后，进行 Slot 汇报
+                             * 2、如果是 JobMaster, 注册成功之后，只是完成链接即可
+                             */
                             onRegistrationSuccess(result.getSuccess());
                         } else if (result.isRejection()) {
                             onRegistrationRejection(result.getRejection());

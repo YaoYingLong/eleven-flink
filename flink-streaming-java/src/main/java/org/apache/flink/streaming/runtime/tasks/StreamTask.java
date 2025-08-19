@@ -186,7 +186,9 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
  * @param <OP>
  */
 @Internal
-public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements TaskInvokable, CheckpointableTask, CoordinatedTask, AsyncExceptionHandler, ContainingTaskDetails {
+public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
+        implements TaskInvokable, CheckpointableTask, CoordinatedTask, AsyncExceptionHandler,
+        ContainingTaskDetails {
 
     /** The thread group that holds all trigger timer threads. */
     public static final ThreadGroup TRIGGER_THREAD_GROUP = new ThreadGroup("Triggers");
@@ -582,7 +584,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
                 mailboxProcessor.suspend();
                 return;
         }
-
+        // 获取指标
         TaskIOMetricGroup ioMetrics = getEnvironment().getMetricGroup().getIOMetricGroup();
         PeriodTimer timer;
         CompletableFuture<?> resumeFuture;
@@ -590,6 +592,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
             timer = new GaugePeriodTimer(ioMetrics.getSoftBackPressuredTimePerSecond());
             resumeFuture = recordWriter.getAvailableFuture();
         } else if (!inputProcessor.isAvailable()) {
+            // 只要operator有待处理的数据或者没有等待水位对齐，就返回AVAILABLE
+            // 这里对一个的指标为idleTimeMsPerSecond
             timer = new GaugePeriodTimer(ioMetrics.getIdleTimeMsPerSecond());
             resumeFuture = inputProcessor.getAvailableFuture();
         } else if (changelogWriterAvailabilityProvider != null) {
@@ -601,7 +605,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
             // data availability has changed in the meantime; retry immediately
             return;
         }
-        // 等待future完成后，继续mailboxLoop（等待input和output可用后，才会继续）
+        /**
+         * 等待future完成后，继续mailboxLoop（等待input和output可用后，才会继续）
+         * ResumeWrapper构造方法中会先调用timer的markStart，在resumeFuture为AVAILABLE或isDone时会执行
+         * ResumeWrapper的run方法，即调用timer.markEnd()方法，然后将MailboxProcessor中的suspendedDefaultAction置为null
+         */
         assertNoException(resumeFuture.thenRun(
                 new ResumeWrapper(controller.suspendDefaultAction(timer), timer)));
     }
@@ -1022,6 +1030,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
     }
 
     public CanEmitBatchOfRecordsChecker getCanEmitBatchOfRecords() {
+        // 如果有其他的任务需要处理返回false，
         return () -> !this.mailboxProcessor.hasMail() && taskIsAvailable();
     }
 
@@ -1170,22 +1179,18 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
             throws Exception {
         FlinkSecurityManager.monitorUserSystemExitForCurrentThread();
         try {
-            latestAsyncCheckpointStartDelayNanos =
-                    1_000_000
-                            * Math.max(
-                            0,
-                            System.currentTimeMillis() - checkpointMetaData.getTimestamp());
+            latestAsyncCheckpointStartDelayNanos = 1_000_000 * Math.max(
+                    0, System.currentTimeMillis() - checkpointMetaData.getTimestamp());
 
             // No alignment if we inject a checkpoint
-            CheckpointMetricsBuilder checkpointMetrics =
-                    new CheckpointMetricsBuilder()
-                            .setAlignmentDurationNanos(0L)
-                            .setBytesProcessedDuringAlignment(0L)
-                            .setCheckpointStartDelayNanos(latestAsyncCheckpointStartDelayNanos);
+            CheckpointMetricsBuilder checkpointMetrics = new CheckpointMetricsBuilder()
+                    .setAlignmentDurationNanos(0L)
+                    .setBytesProcessedDuringAlignment(0L)
+                    .setCheckpointStartDelayNanos(latestAsyncCheckpointStartDelayNanos);
 
             subtaskCheckpointCoordinator.initInputsCheckpoint(
                     checkpointMetaData.getCheckpointId(), checkpointOptions);
-
+            // 发起checkpoint
             boolean success =
                     performCheckpoint(checkpointMetaData, checkpointOptions, checkpointMetrics);
             if (!success) {
@@ -1313,7 +1318,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
                                 && this.finalCheckpointMinId == null) {
                             this.finalCheckpointMinId = checkpointMetaData.getCheckpointId();
                         }
-
+                        // 发起checkpoint
                         subtaskCheckpointCoordinator.checkpointState(
                                 checkpointMetaData,
                                 checkpointOptions,
@@ -1488,6 +1493,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
             throws FlinkException {
         try {
             mainMailboxExecutor.execute(
+                    // 调用RegularOperatorChain的dispatchOperatorEvent方法
                     () -> operatorChain.dispatchOperatorEvent(operator, event),
                     "dispatch operator event");
         } catch (RejectedExecutionException e) {
@@ -1553,7 +1559,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
     public ProcessingTimeServiceFactory getProcessingTimeServiceFactory() {
         // timerService一般为SystemProcessingTimeService
         return mailboxExecutor -> new ProcessingTimeServiceImpl(
-                timerService, callback -> deferCallbackToMailbox(mailboxExecutor, callback));
+                timerService,
+                // callback其实是ProcessingTimeCallback，其实是通过mailboxExecutor来调用ProcessingTimeCallback的onProcessingTime方法
+                callback -> deferCallbackToMailbox(mailboxExecutor, callback));
     }
 
     /**
@@ -1762,6 +1770,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>> implements
             if (timer != null) {
                 timer.markEnd();
             }
+            // 将suspendedDefaultAction置为null
             suspendedDefaultAction.resume();
         }
     }

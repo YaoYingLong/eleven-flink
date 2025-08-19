@@ -49,7 +49,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * RecordDeserializer}.
  */
 public abstract class AbstractStreamTaskNetworkInput<
-                T, R extends RecordDeserializer<DeserializationDelegate<StreamElement>>>
+        T, R extends RecordDeserializer<DeserializationDelegate<StreamElement>>>
         implements StreamTaskInput<T> {
     protected final CheckpointedInputGate checkpointedInputGate;
     protected final DeserializationDelegate<StreamElement> deserializationDelegate;
@@ -74,9 +74,8 @@ public abstract class AbstractStreamTaskNetworkInput<
             CanEmitBatchOfRecordsChecker canEmitBatchOfRecords) {
         super();
         this.checkpointedInputGate = checkpointedInputGate;
-        deserializationDelegate =
-                new NonReusingDeserializationDelegate<>(
-                        new StreamElementSerializer<>(inputSerializer));
+        deserializationDelegate = new NonReusingDeserializationDelegate<>(
+                new StreamElementSerializer<>(inputSerializer));
         this.inputSerializer = inputSerializer;
 
         for (InputChannelInfo i : checkpointedInputGate.getChannelInfos()) {
@@ -91,12 +90,13 @@ public abstract class AbstractStreamTaskNetworkInput<
 
     @Override
     public DataInputStatus emitNext(DataOutput<T> output) throws Exception {
-
         while (true) {
             // get the stream element from the deserializer
+            // currentRecordDeserializer初始值为null
             if (currentRecordDeserializer != null) {
                 RecordDeserializer.DeserializationResult result;
                 try {
+                    // 进行Record的反序列化，调用SpillingAdaptiveSpanningRecordDeserializer的getNextRecord方法
                     result = currentRecordDeserializer.getNextRecord(deserializationDelegate);
                 } catch (IOException e) {
                     throw new IOException(
@@ -106,21 +106,26 @@ public abstract class AbstractStreamTaskNetworkInput<
                     currentRecordDeserializer = null;
                 }
 
+                // 处理记录
                 if (result.isFullRecord()) {
+                    // 如果是一个完整的结果，调用StreamTaskNetworkOutput的emitRecord方法
                     processElement(deserializationDelegate.getInstance(), output);
                     if (canEmitBatchOfRecords.check()) {
+                        // 如果MailboxProcessor中没有其他的任务需要处理，其还有数据可以读取，这里继续处理数据
                         continue;
                     }
                     return DataInputStatus.MORE_AVAILABLE;
                 }
             }
 
+            // 关键代码，非阻塞的从InputChannel中拉取数据
             Optional<BufferOrEvent> bufferOrEvent = checkpointedInputGate.pollNext();
             if (bufferOrEvent.isPresent()) {
                 // return to the mailbox after receiving a checkpoint barrier to avoid processing of
-                // data after the barrier before checkpoint is performed for unaligned checkpoint
-                // mode
+                // data after the barrier before checkpoint is performed for unaligned checkpoint mode
+                // 拿到 buffer 就是整成的数据。
                 if (bufferOrEvent.get().isBuffer()) {
+                    // 给currentRecordDeserializer赋值，处理数据（读取到的数据，变成buffer，进行序列化）
                     processBuffer(bufferOrEvent.get());
                 } else {
                     DataInputStatus status = processEvent(bufferOrEvent.get());
@@ -143,6 +148,7 @@ public abstract class AbstractStreamTaskNetworkInput<
 
     private void processElement(StreamElement recordOrMark, DataOutput<T> output) throws Exception {
         if (recordOrMark.isRecord()) {
+            // 调用StreamTaskNetworkOutput的emitRecord方法
             output.emitRecord(recordOrMark.asRecord());
         } else if (recordOrMark.isWatermark()) {
             statusWatermarkValve.inputWatermark(
@@ -194,7 +200,7 @@ public abstract class AbstractStreamTaskNetworkInput<
         checkState(
                 currentRecordDeserializer != null,
                 "currentRecordDeserializer has already been released");
-
+        // 调用SpillingAdaptiveSpanningRecordDeserializer的setNextBuffer方法
         currentRecordDeserializer.setNextBuffer(bufferOrEvent.getBuffer());
     }
 

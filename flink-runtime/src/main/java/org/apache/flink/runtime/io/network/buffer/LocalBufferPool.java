@@ -76,7 +76,11 @@ class LocalBufferPool implements BufferPool {
     /** Global network buffer pool to get buffers from. */
     private final NetworkBufferPool networkBufferPool;
 
-    /** The minimum number of required segments for this pool. */
+    /**
+     * The minimum number of required segments for this pool.
+     * <p>
+     * 最小可从BufferPool申请到的MemorySegment数量，默认是2
+     */
     private final int numberOfRequiredMemorySegments;
 
     /**
@@ -97,21 +101,31 @@ class LocalBufferPool implements BufferPool {
      */
     private final ArrayDeque<BufferListener> registeredListeners = new ArrayDeque<>();
 
-    /** Maximum number of network buffers to allocate. */
+    /**
+     * Maximum number of network buffers to allocate.
+     * <p>
+     * 最大的可从BufferPool申请的MemorySegment数量，默认为10
+     */
     private final int maxNumberOfMemorySegments;
 
-    /** The current size of this pool. */
+    /**
+     * The current size of this pool.
+     *
+     * currentPoolSize默认大小为2
+     */
     @GuardedBy("availableMemorySegments")
     private int currentPoolSize;
 
     /**
      * Number of all memory segments, which have been requested from the network buffer pool and are
-     * somehow referenced through this pool (e.g. wrapped in Buffer instances or as available
-     * segments).
+     * somehow referenced through this pool (e.g. wrapped in Buffer instances or as available segments).
+     * <p>
+     * 从NetworkBufferPool中已经申请到的MemorySegment数量，每个MemorySegment 32k
      */
     @GuardedBy("availableMemorySegments")
     private int numberOfRequestedMemorySegments;
 
+    // 默认为10
     private final int maxBuffersPerChannel;
 
     @GuardedBy("availableMemorySegments")
@@ -122,6 +136,8 @@ class LocalBufferPool implements BufferPool {
     @GuardedBy("availableMemorySegments")
     private int unavailableSubpartitionsCount = 0;
 
+    // 默认为5，numberOfRequestedMemorySegments - currentPoolSize不能超过该值
+    // 表示每个InputChannel能透支的最大的MemorySegment数量
     private int maxOverdraftBuffersPerGate;
 
     @GuardedBy("availableMemorySegments")
@@ -146,12 +162,8 @@ class LocalBufferPool implements BufferPool {
      */
     LocalBufferPool(NetworkBufferPool networkBufferPool, int numberOfRequiredMemorySegments) {
         this(
-                networkBufferPool,
-                numberOfRequiredMemorySegments,
-                Integer.MAX_VALUE,
-                0,
-                Integer.MAX_VALUE,
-                0);
+                networkBufferPool, numberOfRequiredMemorySegments, Integer.MAX_VALUE,
+                0, Integer.MAX_VALUE, 0);
     }
 
     /**
@@ -188,11 +200,11 @@ class LocalBufferPool implements BufferPool {
      */
     LocalBufferPool(
             NetworkBufferPool networkBufferPool,
-            int numberOfRequiredMemorySegments,
-            int maxNumberOfMemorySegments,
-            int numberOfSubpartitions,
-            int maxBuffersPerChannel,
-            int maxOverdraftBuffersPerGate) {
+            int numberOfRequiredMemorySegments,  // 默认是2
+            int maxNumberOfMemorySegments,  // 默认是10
+            int numberOfSubpartitions,  // 一般是1
+            int maxBuffersPerChannel,  // 默认是10
+            int maxOverdraftBuffersPerGate) {  // 默认是5
         checkArgument(
                 numberOfRequiredMemorySegments > 0,
                 "Required number of memory segments (%s) should be larger than 0.",
@@ -210,8 +222,11 @@ class LocalBufferPool implements BufferPool {
                 maxNumberOfMemorySegments);
 
         this.networkBufferPool = networkBufferPool;
+        // 默认是2
         this.numberOfRequiredMemorySegments = numberOfRequiredMemorySegments;
+        // 默认是2
         this.currentPoolSize = numberOfRequiredMemorySegments;
+        // 默认为10
         this.maxNumberOfMemorySegments = maxNumberOfMemorySegments;
 
         if (numberOfSubpartitions > 0) {
@@ -224,13 +239,16 @@ class LocalBufferPool implements BufferPool {
                     "Maximum number of overdraft buffers for each gate (%s) should not be less than 0.",
                     maxOverdraftBuffersPerGate);
         }
-
+        // 默认长度为1
         this.subpartitionBuffersCount = new int[numberOfSubpartitions];
+        // 默认长度为1，作用就是调用当前类的recycle方法
         subpartitionBufferRecyclers = new BufferRecycler[numberOfSubpartitions];
         for (int i = 0; i < subpartitionBufferRecyclers.length; i++) {
             subpartitionBufferRecyclers[i] = new SubpartitionBufferRecycler(i, this);
         }
+        // 默认为10
         this.maxBuffersPerChannel = maxBuffersPerChannel;
+        // 默认为5
         this.maxOverdraftBuffersPerGate = maxOverdraftBuffersPerGate;
 
         // Lock is only taken, because #checkAndUpdateAvailability asserts it. It's a small penalty
@@ -253,14 +271,16 @@ class LocalBufferPool implements BufferPool {
         CompletableFuture<?> toNotify = null;
         synchronized (availableMemorySegments) {
             checkDestroyed();
-
+            // 这里的作用，如果当前从NetworkBufferPool中已经申请到的MemorySegment数量小于传入的numberOfSegmentsToReserve
+            // 则从NetworkBufferPool中的可用的MemorySegment阻塞队列（初始长度2048）中poll出需要的MemorySegment数，放入numberOfRequestedMemorySegments
             if (numberOfRequestedMemorySegments < numberOfSegmentsToReserve) {
-                availableMemorySegments.addAll(
-                        networkBufferPool.requestPooledMemorySegmentsBlocking(
-                                numberOfSegmentsToReserve - numberOfRequestedMemorySegments));
+                // 从可用的MemorySegment阻塞队列（初始长度2048）中poll出需要的MemorySegment数
+                availableMemorySegments.addAll(networkBufferPool.requestPooledMemorySegmentsBlocking(
+                        numberOfSegmentsToReserve - numberOfRequestedMemorySegments));
                 toNotify = availabilityHelper.getUnavailableToResetAvailable();
             }
         }
+        // 将availableFuture设置为done
         mayNotifyAvailable(toNotify);
     }
 
@@ -285,13 +305,15 @@ class LocalBufferPool implements BufferPool {
      * Estimates the number of requested buffers.
      *
      * @return the same value as {@link #getMaxNumberOfMemorySegments()} for bounded pools. For
-     *     unbounded pools it returns an approximation based upon {@link
-     *     #getNumberOfRequiredMemorySegments()}
+     *         unbounded pools it returns an approximation based upon {@link
+     *         #getNumberOfRequiredMemorySegments()}
      */
     public int getEstimatedNumberOfRequestedMemorySegments() {
         if (maxNumberOfMemorySegments < NetworkBufferPool.UNBOUNDED_POOL_SIZE) {
+            // 默认返回10
             return maxNumberOfMemorySegments;
         } else {
+            // 这里默认返回的 2 * 2 = 4
             return getNumberOfRequiredMemorySegments() * 2;
         }
     }
@@ -299,6 +321,7 @@ class LocalBufferPool implements BufferPool {
     @VisibleForTesting
     public int getNumberOfRequestedMemorySegments() {
         synchronized (availableMemorySegments) {
+            // 从NetworkBufferPool中已经申请到的MemorySegment数量，每个MemorySegment 32k
             return numberOfRequestedMemorySegments;
         }
     }
@@ -368,6 +391,7 @@ class LocalBufferPool implements BufferPool {
         }
 
         if (targetChannel == UNKNOWN_CHANNEL) {
+            // 一般走该分支
             return new BufferBuilder(memorySegment, this);
         } else {
             return new BufferBuilder(memorySegment, subpartitionBufferRecyclers[targetChannel]);
@@ -377,6 +401,7 @@ class LocalBufferPool implements BufferPool {
     private MemorySegment requestMemorySegmentBlocking(int targetChannel)
             throws InterruptedException {
         MemorySegment segment;
+        // targetChannel默认传入的为-1
         while ((segment = requestMemorySegment(targetChannel)) == null) {
             try {
                 // wait until available
@@ -394,25 +419,26 @@ class LocalBufferPool implements BufferPool {
         MemorySegment segment = null;
         synchronized (availableMemorySegments) {
             checkDestroyed();
-
             if (!availableMemorySegments.isEmpty()) {
+                // 如果availableMemorySegments中有MemorySegment，则直接从其中取出一个
                 segment = availableMemorySegments.poll();
             } else if (isRequestedSizeReached()) {
                 // Only when the buffer request reaches the upper limit(i.e. current pool size),
                 // requests an overdraft buffer.
+
+                // 如果numberOfRequestedMemorySegments > currentPoolSize才走该分支
+                // 从NetworkBufferPool中pull一个可用的MemorySegment
                 segment = requestOverdraftMemorySegmentFromGlobal();
             }
-
             if (segment == null) {
                 return null;
             }
-
+            // targetChannel默认为UNKNOWN_CHANNEL
             if (targetChannel != UNKNOWN_CHANNEL) {
                 if (++subpartitionBuffersCount[targetChannel] == maxBuffersPerChannel) {
                     unavailableSubpartitionsCount++;
                 }
             }
-
             checkAndUpdateAvailability();
         }
         return segment;
@@ -433,11 +459,11 @@ class LocalBufferPool implements BufferPool {
     @GuardedBy("availableMemorySegments")
     private boolean requestMemorySegmentFromGlobal() {
         assert Thread.holdsLock(availableMemorySegments);
-
         if (isRequestedSizeReached()) {
+            // numberOfRequestedMemorySegments >= currentPoolSize
             return false;
         }
-
+        // 从NetworkBufferPool中申请一个MemorySegment，然后numberOfRequestedMemorySegments++
         MemorySegment segment = requestPooledMemorySegment();
         if (segment != null) {
             availableMemorySegments.add(segment);
@@ -455,7 +481,7 @@ class LocalBufferPool implements BufferPool {
         if (numberOfRequestedMemorySegments - currentPoolSize >= maxOverdraftBuffersPerGate) {
             return null;
         }
-
+        // 从NetworkBufferPool中pull一个可用的MemorySegment
         return requestPooledMemorySegment();
     }
 
@@ -603,6 +629,7 @@ class LocalBufferPool implements BufferPool {
 
                 checkConsistentAvailability();
             }
+            // fireBufferAvailableNotification关键代码，触发数据发送
         } while (!fireBufferAvailableNotification(listener, segment));
 
         mayNotifyAvailable(toNotify);
@@ -666,9 +693,8 @@ class LocalBufferPool implements BufferPool {
             checkArgument(
                     numBuffers >= numberOfRequiredMemorySegments,
                     "Buffer pool needs at least %s buffers, but tried to set to %s",
-                    numberOfRequiredMemorySegments,
-                    numBuffers);
-
+                    numberOfRequiredMemorySegments, numBuffers);
+            // maxNumberOfMemorySegments默认是10
             currentPoolSize = Math.min(numBuffers, maxNumberOfMemorySegments);
 
             returnExcessMemorySegments();
@@ -763,7 +789,7 @@ class LocalBufferPool implements BufferPool {
     }
 
     private static class SubpartitionBufferRecycler implements BufferRecycler {
-
+        // channel默认都是0
         private final int channel;
         private final LocalBufferPool bufferPool;
 
@@ -774,6 +800,7 @@ class LocalBufferPool implements BufferPool {
 
         @Override
         public void recycle(MemorySegment memorySegment) {
+            // 调用LocalBufferPool的recycle方法
             bufferPool.recycle(memorySegment, channel);
         }
     }

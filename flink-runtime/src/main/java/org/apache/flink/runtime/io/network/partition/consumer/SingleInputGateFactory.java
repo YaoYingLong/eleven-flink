@@ -153,7 +153,7 @@ public class SingleInputGateFactory {
         final MetricGroup networkInputGroup = owner.getInputGroup();
 
         IndexRange subpartitionIndexRange = igdd.getConsumedSubpartitionIndexRange();
-        // 创建 SingleInputGate
+        // 创建SingleInputGate，中
         SingleInputGate inputGate = new SingleInputGate(
                 owningTaskName,
                 gateIndex,
@@ -169,7 +169,8 @@ public class SingleInputGateFactory {
                 new ThroughputCalculator(SystemClock.getInstance()),
                 maybeCreateBufferDebloater(
                         owningTaskName, gateIndex, networkInputGroup.addGroup(gateIndex)));
-        // 创建该 InputGate 中的多个 InputChannel
+        // 创建该InputGate中的多个InputChannel
+        // 创建的是RemoteRecoveredInputChannel或LocalRecoveredInputChannel
         createInputChannels(
                 owningTaskName, igdd, inputGate, subpartitionIndexRange, gateBuffersSpec, metrics);
         return inputGate;
@@ -220,7 +221,7 @@ public class SingleInputGateFactory {
             for (int subpartitionIndex = subpartitionIndexRange.getStartIndex();
                  subpartitionIndex <= subpartitionIndexRange.getEndIndex();
                  ++subpartitionIndex) {
-                // 创建 InputChannel
+                // 创建InputChannel，创建的是RemoteRecoveredInputChannel或LocalRecoveredInputChannel
                 inputChannels[channelIdx] = createInputChannel(
                         inputGate,
                         channelIdx,
@@ -271,7 +272,7 @@ public class SingleInputGateFactory {
                             buffersPerChannel,
                             metrics);
                 },
-                // 创建 createKnownInputChannel
+                // 创建的是RemoteRecoveredInputChannel或LocalRecoveredInputChannel
                 nettyShuffleDescriptor -> createKnownInputChannel(
                         inputGate,
                         index,

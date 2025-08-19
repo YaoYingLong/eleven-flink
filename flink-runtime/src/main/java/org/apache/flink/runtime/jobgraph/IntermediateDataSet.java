@@ -37,15 +37,17 @@ public class IntermediateDataSet implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
 
     private final IntermediateDataSetID id; // the identifier
-
+    // 生产者
     private final JobVertex producer; // the operation that produced this data set
 
     // All consumers must have the same partitioner and parallelism
+    // 消费者
     private final List<JobEdge> consumers = new ArrayList<>();
 
     // The type of partition to use at runtime
+    // PIPELINED：数据以流的形式传输，下游任务可以立即消费，BLOCKING：数据以批的形式传输，下游任务需等待所有数据生成完成后再消费
     private final ResultPartitionType resultType;
-
+    // 数据分发模式，POINTWISE一对一分发，每个分区仅分发给一个消费者，ALL_TO_ALL全量分发，每个分区分发给所有消费者
     private DistributionPattern distributionPattern;
 
     private boolean isBroadcast;

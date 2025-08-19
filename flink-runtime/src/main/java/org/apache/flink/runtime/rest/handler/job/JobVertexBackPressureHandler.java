@@ -51,10 +51,10 @@ import java.util.concurrent.CompletableFuture;
 /** Request handler for the job vertex back pressure. */
 public class JobVertexBackPressureHandler
         extends AbstractRestHandler<
-                RestfulGateway,
-                EmptyRequestBody,
-                JobVertexBackPressureInfo,
-                JobVertexMessageParameters> {
+        RestfulGateway,
+        EmptyRequestBody,
+        JobVertexBackPressureInfo,
+        JobVertexMessageParameters> {
 
     private final MetricFetcher metricFetcher;
 
@@ -78,21 +78,16 @@ public class JobVertexBackPressureHandler
         final JobID jobId = request.getPathParameter(JobIDPathParameter.class);
         final JobVertexID jobVertexId = request.getPathParameter(JobVertexIdPathParameter.class);
 
-        TaskMetricStore taskMetricStore =
-                metricFetcher
-                        .getMetricStore()
-                        .getTaskMetricStore(jobId.toString(), jobVertexId.toString());
+        TaskMetricStore taskMetricStore = metricFetcher.getMetricStore()
+                .getTaskMetricStore(jobId.toString(), jobVertexId.toString());
         Map<String, Map<Integer, Integer>> jobRepresentativeExecutions =
                 metricFetcher.getMetricStore().getRepresentativeAttempts().get(jobId.toString());
-        Map<Integer, Integer> representativeAttempts =
-                jobRepresentativeExecutions != null
-                        ? jobRepresentativeExecutions.get(jobVertexId.toString())
-                        : null;
+        Map<Integer, Integer> representativeAttempts = jobRepresentativeExecutions != null
+                ? jobRepresentativeExecutions.get(jobVertexId.toString()) : null;
 
-        return CompletableFuture.completedFuture(
-                taskMetricStore != null
-                        ? createJobVertexBackPressureInfo(taskMetricStore, representativeAttempts)
-                        : JobVertexBackPressureInfo.deprecated());
+        return CompletableFuture.completedFuture(taskMetricStore != null ?
+                createJobVertexBackPressureInfo(taskMetricStore, representativeAttempts)
+                : JobVertexBackPressureInfo.deprecated());
     }
 
     private JobVertexBackPressureInfo createJobVertexBackPressureInfo(
@@ -201,6 +196,7 @@ public class JobVertexBackPressureHandler
      * Returns the back pressure level as a String.
      *
      * @param backPressureRatio Ratio of back pressures samples to total number of samples.
+     *
      * @return Back pressure level ('ok', 'low', or 'high')
      */
     private static JobVertexBackPressureInfo.VertexBackPressureLevel getBackPressureLevel(

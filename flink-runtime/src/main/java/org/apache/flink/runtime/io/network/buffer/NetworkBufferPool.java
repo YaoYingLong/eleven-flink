@@ -69,6 +69,7 @@ public class NetworkBufferPool
 
     private static final Logger LOG = LoggerFactory.getLogger(NetworkBufferPool.class);
 
+    // numberOfSegmentsToAllocate为taskmanager.memory.network.min配置的值默认64m，64m/32kb=2048
     private final int totalNumberOfMemorySegments;
 
     private final int memorySegmentSize;
@@ -101,28 +102,31 @@ public class NetworkBufferPool
     /** Allocates all {@link MemorySegment} instances managed by this pool. */
     public NetworkBufferPool(
             int numberOfSegmentsToAllocate, int segmentSize, Duration requestSegmentsTimeout) {
+        // numberOfSegmentsToAllocate为taskmanager.memory.network.min配置的值默认64m，64m/32kb=2048
         this.totalNumberOfMemorySegments = numberOfSegmentsToAllocate;
+        // 默认32kb
         this.memorySegmentSize = segmentSize;
 
         Preconditions.checkNotNull(requestSegmentsTimeout);
         checkArgument(
                 requestSegmentsTimeout.toMillis() > 0,
                 "The timeout for requesting exclusive buffers should be positive.");
+        // 默认30000L
         this.requestSegmentsTimeout = requestSegmentsTimeout;
-
+        // 默认32kb
         final long sizeInLong = (long) segmentSize;
 
         try {
+            // 默认2048
             this.availableMemorySegments = new ArrayDeque<>(numberOfSegmentsToAllocate);
         } catch (OutOfMemoryError err) {
             throw new OutOfMemoryError(
                     "Could not allocate buffer queue of length "
-                            + numberOfSegmentsToAllocate
-                            + " - "
-                            + err.getMessage());
+                            + numberOfSegmentsToAllocate + " - " + err.getMessage());
         }
 
         try {
+            // 遍历2048次
             for (int i = 0; i < numberOfSegmentsToAllocate; i++) {
                 availableMemorySegments.add(
                         MemorySegmentFactory.allocateUnpooledOffHeapMemory(segmentSize, null));
@@ -150,7 +154,7 @@ public class NetworkBufferPool
         }
 
         availabilityHelper.resetAvailable();
-
+        // sizeInLong默认32kb，availableMemorySegments的长度默认是2048，总共内存是64M
         long allocatedMb = (sizeInLong * availableMemorySegments.size()) >> 20;
 
         LOG.info(
@@ -176,6 +180,7 @@ public class NetworkBufferPool
 
     public List<MemorySegment> requestPooledMemorySegmentsBlocking(int numberOfSegmentsToRequest)
             throws IOException {
+        // 从可用的MemorySegment阻塞队列中poll出需要的MemorySegment数
         return internalRequestMemorySegments(numberOfSegmentsToRequest);
     }
 
@@ -202,7 +207,8 @@ public class NetworkBufferPool
     @Override
     public List<MemorySegment> requestUnpooledMemorySegments(int numberOfSegmentsToRequest)
             throws IOException {
-        checkArgument(numberOfSegmentsToRequest >= 0,
+        checkArgument(
+                numberOfSegmentsToRequest >= 0,
                 "Number of buffers to request must be non-negative.");
 
         synchronized (factoryLock) {
@@ -235,9 +241,9 @@ public class NetworkBufferPool
                 if (isDestroyed) {
                     throw new IllegalStateException("Buffer pool is destroyed.");
                 }
-
                 MemorySegment segment;
                 synchronized (availableMemorySegments) {
+                    // 从缓存池中poll一个MemorySegment出来，如果poll为空，需要等待
                     if ((segment = internalRequestMemorySegment()) == null) {
                         availableMemorySegments.wait(2000);
                     }
@@ -251,15 +257,11 @@ public class NetworkBufferPool
                 }
 
                 if (!deadline.hasTimeLeft()) {
-                    throw new IOException(
-                            String.format(
-                                    "Timeout triggered when requesting exclusive buffers: %s, "
-                                            + " or you may increase the timeout which is %dms by setting the key '%s'.",
-                                    getConfigDescription(),
-                                    requestSegmentsTimeout.toMillis(),
-                                    NettyShuffleEnvironmentOptions
-                                            .NETWORK_EXCLUSIVE_BUFFERS_REQUEST_TIMEOUT_MILLISECONDS
-                                            .key()));
+                    throw new IOException(String.format(
+                            "Timeout triggered when requesting exclusive buffers: %s, "
+                                    + " or you may increase the timeout which is %dms by setting the key '%s'.",
+                            getConfigDescription(), requestSegmentsTimeout.toMillis(),
+                            NettyShuffleEnvironmentOptions.NETWORK_EXCLUSIVE_BUFFERS_REQUEST_TIMEOUT_MILLISECONDS.key()));
                 }
             }
         } catch (Throwable e) {
@@ -273,9 +275,10 @@ public class NetworkBufferPool
     @Nullable
     private MemorySegment internalRequestMemorySegment() {
         assert Thread.holdsLock(availableMemorySegments);
-
+        // availableMemorySegments初始数默认为2048
         final MemorySegment segment = availableMemorySegments.poll();
         if (availableMemorySegments.isEmpty() && segment != null) {
+            // 如果可用于分配的MemorySegment已经分配完成，且当前的segment是最后一个，则将availableFuture设置为不可用
             availabilityHelper.resetUnavailable();
         }
         return segment;
@@ -381,12 +384,9 @@ public class NetworkBufferPool
 
     public int getEstimatedRequestedSegmentsUsage() {
         int totalNumberOfMemorySegments = getTotalNumberOfMemorySegments();
-        return totalNumberOfMemorySegments == 0
-                ? 0
-                : Math.toIntExact(
-                100L
-                        * getEstimatedNumberOfRequestedMemorySegments()
-                        / totalNumberOfMemorySegments);
+        return totalNumberOfMemorySegments == 0 ? 0 : Math.toIntExact(100L
+                * getEstimatedNumberOfRequestedMemorySegments()
+                / totalNumberOfMemorySegments);
     }
 
     @VisibleForTesting
@@ -450,8 +450,14 @@ public class NetworkBufferPool
     // ------------------------------------------------------------------------
 
     @Override
-    public BufferPool createBufferPool(int numRequiredBuffers, int maxUsedBuffers) throws IOException {
-        return internalCreateBufferPool(numRequiredBuffers, maxUsedBuffers, 0, Integer.MAX_VALUE, 0);
+    public BufferPool createBufferPool(int numRequiredBuffers, int maxUsedBuffers)
+            throws IOException {
+        return internalCreateBufferPool(
+                numRequiredBuffers,
+                maxUsedBuffers,
+                0,
+                Integer.MAX_VALUE,
+                0);
     }
 
     @Override
@@ -462,21 +468,21 @@ public class NetworkBufferPool
             int maxBuffersPerChannel,
             int maxOverdraftBuffersPerGate)
             throws IOException {
-        // 创建 BufferPool
+        // 创建 LocalBufferPool
         return internalCreateBufferPool(
-                numRequiredBuffers,
-                maxUsedBuffers,
-                numSubpartitions,
-                maxBuffersPerChannel,
-                maxOverdraftBuffersPerGate);
+                numRequiredBuffers,  // 默认是2
+                maxUsedBuffers,      // 默认是10
+                numSubpartitions,    // 一般是1
+                maxBuffersPerChannel, // 默认是10
+                maxOverdraftBuffersPerGate); // 默认是5
     }
 
     private BufferPool internalCreateBufferPool(
-            int numRequiredBuffers,
-            int maxUsedBuffers,
-            int numSubpartitions,
-            int maxBuffersPerChannel,
-            int maxOverdraftBuffersPerGate)
+            int numRequiredBuffers,     // 默认是2
+            int maxUsedBuffers,         // 默认是10
+            int numSubpartitions,       // 一般是1
+            int maxBuffersPerChannel,   // 默认是10
+            int maxOverdraftBuffersPerGate) // 默认是5
             throws IOException {
 
         // It is necessary to use a separate lock from the one used for buffer
@@ -496,7 +502,7 @@ public class NetworkBufferPool
                         totalNumberOfMemorySegments - numTotalRequiredBuffers,
                         getConfigDescription()));
             }
-
+            // 默认是2
             this.numTotalRequiredBuffers += numRequiredBuffers;
 
             // We are good to go, create a new buffer pool and redistribute
@@ -597,11 +603,14 @@ public class NetworkBufferPool
         }
 
         // All buffers, which are not among the required ones
+        // numberOfSegmentsToAllocate为taskmanager.memory.network.min配置的值默认64m，64m/32kb=2048
+        // numTotalRequiredBuffers默认是2，所以numAvailableMemorySegment默认为2046
         final int numAvailableMemorySegment = totalNumberOfMemorySegments - numTotalRequiredBuffers;
 
         if (numAvailableMemorySegment == 0) {
             // in this case, we need to redistribute buffers so that every pool gets its minimum
             for (LocalBufferPool bufferPool : resizableBufferPools) {
+                // LocalBufferPool中numberOfRequiredMemorySegments默认是2
                 bufferPool.setNumBuffers(bufferPool.getNumberOfRequiredMemorySegments());
             }
             return;

@@ -52,11 +52,17 @@ class TimestampOffsetsInitializer implements OffsetsInitializer {
         // this case, we just use the latest offset.
         // We need to get the latest offsets before querying offsets by time to ensure that
         // no message is going to be missed.
+
+        // 这里传入的partitionOffsetsRetriever为PartitionOffsetsRetrieverImpl
+        // 从Kafka上拉取新增的partition的结束的offset
         Map<TopicPartition, Long> endOffsets = partitionOffsetsRetriever.endOffsets(partitions);
         partitions.forEach(tp -> startingTimestamps.put(tp, startingTimestamp));
+        // 获取时间戳对应的分区的offset，可能存在获取不到的情况
         Map<TopicPartition, OffsetAndTimestamp> topicPartitionOffsetAndTimestampMap =
                 partitionOffsetsRetriever.offsetsForTimes(startingTimestamps);
 
+        // 遍历每一个新增的分区，将获取时间戳对应的分区的offset设置到initialOffsets中
+        // 如果未获取到时间戳对应的分区的offset，则将最新的endOffsets设置为起始offset
         for (TopicPartition tp : partitions) {
             // offset may not have been resolved
             if (topicPartitionOffsetAndTimestampMap.containsKey(tp)) {

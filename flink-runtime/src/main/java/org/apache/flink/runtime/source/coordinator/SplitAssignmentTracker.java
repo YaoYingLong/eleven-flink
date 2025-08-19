@@ -46,6 +46,7 @@ public class SplitAssignmentTracker<SplitT extends SourceSplit> {
     private final SortedMap<Long, Map<Integer, LinkedHashSet<SplitT>>> assignmentsByCheckpointId;
     // The split assignments since the last checkpoint attempt.
     // The mapping is [SubtaskId -> LinkedHashSet[SourceSplits]].
+    // 用于跟踪未被检查点保存的分配状态，已分配给任务的分片，但这些分片的分配状态尚未被包含在最近一次成功的检查点中
     private Map<Integer, LinkedHashSet<SplitT>> uncheckpointedAssignments;
 
     public SplitAssignmentTracker() {
@@ -93,6 +94,7 @@ public class SplitAssignmentTracker<SplitT extends SourceSplit> {
      *
      * @param subtaskId the subtask id of the reader that failed over.
      * @param restoredCheckpointId the ID of the checkpoint that the reader was restored to.
+     *
      * @return A list of splits that needs to be added back to the {@link SplitEnumerator}.
      */
     public List<SplitT> getAndRemoveUncheckpointedAssignment(
@@ -141,12 +143,8 @@ public class SplitAssignmentTracker<SplitT extends SourceSplit> {
     private void addSplitAssignment(
             SplitsAssignment<SplitT> additionalAssignment,
             Map<Integer, LinkedHashSet<SplitT>> assignments) {
-        additionalAssignment
-                .assignment()
-                .forEach(
-                        (id, splits) ->
-                                assignments
-                                        .computeIfAbsent(id, ignored -> new LinkedHashSet<>())
-                                        .addAll(splits));
+        additionalAssignment.assignment().forEach((id, splits) -> assignments
+                .computeIfAbsent(id, ignored -> new LinkedHashSet<>())
+                .addAll(splits));
     }
 }

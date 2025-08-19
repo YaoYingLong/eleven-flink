@@ -78,11 +78,10 @@ public class RateLimitedSourceReader<E, SplitT extends SourceSplit>
     @Override
     public CompletableFuture<Void> isAvailable() {
         if (availabilityFuture == null) {
-            availabilityFuture =
-                    rateLimiter
-                            .acquire()
-                            .toCompletableFuture()
-                            .thenCombine(sourceReader.isAvailable(), (l, r) -> null);
+            availabilityFuture = rateLimiter
+                    .acquire()
+                    .toCompletableFuture()
+                    .thenCombine(sourceReader.isAvailable(), (l, r) -> null);
         }
         return availabilityFuture;
     }

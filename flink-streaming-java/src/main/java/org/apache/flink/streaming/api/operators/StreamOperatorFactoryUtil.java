@@ -65,7 +65,7 @@ public class StreamOperatorFactoryUtil {
             ((YieldingOperatorFactory<?>) operatorFactory).setMailboxExecutor(mailboxExecutor);
         }
 
-        // 其实就是创建一个ProcessingTimeServiceImpl
+        // containingTask其实就是StreamTask，其实就是创建一个ProcessingTimeServiceImpl
         final Supplier<ProcessingTimeService> processingTimeServiceFactory = () -> containingTask
                 .getProcessingTimeServiceFactory()
                 .createProcessingTimeService(mailboxExecutor);

@@ -326,25 +326,24 @@ public class KafkaDynamicSource
 
     @Override
     public DynamicTableSource copy() {
-        final KafkaDynamicSource copy =
-                new KafkaDynamicSource(
-                        physicalDataType,
-                        keyDecodingFormat,
-                        valueDecodingFormat,
-                        keyProjection,
-                        valueProjection,
-                        keyPrefix,
-                        topics,
-                        topicPattern,
-                        properties,
-                        startupMode,
-                        specificStartupOffsets,
-                        startupTimestampMillis,
-                        boundedMode,
-                        specificBoundedOffsets,
-                        boundedTimestampMillis,
-                        upsertMode,
-                        tableIdentifier);
+        final KafkaDynamicSource copy = new KafkaDynamicSource(
+                physicalDataType,
+                keyDecodingFormat,
+                valueDecodingFormat,
+                keyProjection,
+                valueProjection,
+                keyPrefix,
+                topics,
+                topicPattern,
+                properties,
+                startupMode,
+                specificStartupOffsets,
+                startupTimestampMillis,
+                boundedMode,
+                specificBoundedOffsets,
+                boundedTimestampMillis,
+                upsertMode,
+                tableIdentifier);
         copy.producedDataType = producedDataType;
         copy.metadataKeys = metadataKeys;
         copy.watermarkStrategy = watermarkStrategy;

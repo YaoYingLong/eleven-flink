@@ -66,6 +66,7 @@ public final class ChannelSelectorRecordWriter<T extends IOReadableWritable>
         // ResultPartitionWriter#broadcastRecord because the broadcastRecord
         // method incurs extra overhead.
         ByteBuffer serializedRecord = serializeRecord(serializer, record);
+        // 广播，循环向所有的channels发送数据
         for (int channelIndex = 0; channelIndex < numberOfChannels; channelIndex++) {
             serializedRecord.rewind();
             emit(record, channelIndex);

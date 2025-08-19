@@ -123,51 +123,40 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
 
         clientHandler.addInputChannel(inputChannel);
 
-        final PartitionRequest request =
-                new PartitionRequest(
-                        partitionId,
-                        subpartitionIndex,
-                        inputChannel.getInputChannelId(),
-                        inputChannel.getInitialCredit());
+        final PartitionRequest request = new PartitionRequest(
+                partitionId,
+                subpartitionIndex,
+                inputChannel.getInputChannelId(),
+                inputChannel.getInitialCredit());
 
-        final ChannelFutureListener listener =
-                future -> {
-                    if (!future.isSuccess()) {
-                        clientHandler.removeInputChannel(inputChannel);
-                        inputChannel.onError(
-                                new LocalTransportException(
-                                        String.format(
-                                                "Sending the partition request to '%s [%s] (#%d)' failed.",
-                                                connectionId.getAddress(),
-                                                connectionId
-                                                        .getResourceID()
-                                                        .getStringWithMetadata(),
-                                                connectionId.getConnectionIndex()),
-                                        future.channel().localAddress(),
-                                        future.cause()));
-                        sendToChannel(
-                                new ConnectionErrorMessage(
-                                        future.cause() == null
-                                                ? new RuntimeException(
-                                                        "Cannot send partition request.")
-                                                : future.cause()));
-                    }
-                };
-
+        final ChannelFutureListener listener = future -> {
+            if (!future.isSuccess()) {
+                clientHandler.removeInputChannel(inputChannel);
+                inputChannel.onError(new LocalTransportException(
+                        String.format(
+                                "Sending the partition request to '%s [%s] (#%d)' failed.",
+                                connectionId.getAddress(),
+                                connectionId.getResourceID().getStringWithMetadata(),
+                                connectionId.getConnectionIndex()),
+                        future.channel().localAddress(), future.cause()));
+                sendToChannel(new ConnectionErrorMessage(
+                        future.cause() == null ? new RuntimeException(
+                                "Cannot send partition request.") : future.cause()));
+            }
+        };
+        // 默认delayMs传入的是0
         if (delayMs == 0) {
             ChannelFuture f = tcpChannel.writeAndFlush(request);
             f.addListener(listener);
         } else {
             final ChannelFuture[] f = new ChannelFuture[1];
-            tcpChannel
-                    .eventLoop()
-                    .schedule(
-                            () -> {
-                                f[0] = tcpChannel.writeAndFlush(request);
-                                f[0].addListener(listener);
-                            },
-                            delayMs,
-                            TimeUnit.MILLISECONDS);
+            tcpChannel.eventLoop().schedule(
+                    () -> {
+                        f[0] = tcpChannel.writeAndFlush(request);
+                        f[0].addListener(listener);
+                    },
+                    delayMs,
+                    TimeUnit.MILLISECONDS);
         }
     }
 
@@ -184,32 +173,22 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
             throws IOException {
         checkNotClosed();
 
-        tcpChannel
-                .writeAndFlush(
-                        new TaskEventRequest(event, partitionId, inputChannel.getInputChannelId()))
-                .addListener(
-                        (ChannelFutureListener)
-                                future -> {
-                                    if (!future.isSuccess()) {
-                                        inputChannel.onError(
-                                                new LocalTransportException(
-                                                        String.format(
-                                                                "Sending the task event to '%s [%s] (#%d)' failed.",
-                                                                connectionId.getAddress(),
-                                                                connectionId
-                                                                        .getResourceID()
-                                                                        .getStringWithMetadata(),
-                                                                connectionId.getConnectionIndex()),
-                                                        future.channel().localAddress(),
-                                                        future.cause()));
-                                        sendToChannel(
-                                                new ConnectionErrorMessage(
-                                                        future.cause() == null
-                                                                ? new RuntimeException(
-                                                                        "Cannot send task event.")
-                                                                : future.cause()));
-                                    }
-                                });
+        tcpChannel.writeAndFlush(new TaskEventRequest(
+                        event, partitionId, inputChannel.getInputChannelId()))
+                .addListener((ChannelFutureListener) future -> {
+                    if (!future.isSuccess()) {
+                        inputChannel.onError(new LocalTransportException(
+                                String.format(
+                                        "Sending the task event to '%s [%s] (#%d)' failed.",
+                                        connectionId.getAddress(),
+                                        connectionId.getResourceID().getStringWithMetadata(),
+                                        connectionId.getConnectionIndex()),
+                                future.channel().localAddress(), future.cause()));
+                        sendToChannel(new ConnectionErrorMessage(
+                                future.cause() == null ? new RuntimeException(
+                                        "Cannot send task event.") : future.cause()));
+                    }
+                });
     }
 
     @Override
@@ -258,8 +237,7 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
         }
         // Close the TCP connection. Send a close request msg to ensure
         // that outstanding backwards task events are not discarded.
-        tcpChannel
-                .writeAndFlush(new NettyMessage.CloseRequest())
+        tcpChannel.writeAndFlush(new NettyMessage.CloseRequest())
                 .addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
         // Make sure to remove the client from the factory
         clientFactory.destroyPartitionRequestClient(connectionId, this);

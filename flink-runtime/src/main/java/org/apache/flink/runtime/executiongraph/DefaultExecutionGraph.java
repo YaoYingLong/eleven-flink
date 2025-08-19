@@ -347,9 +347,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
         this.partitionLocationConstraint = checkNotNull(partitionLocationConstraint);
 
-        this.jobInformationOrBlobKey =
-                BlobWriter.serializeAndTryOffload(
-                        jobInformation, jobInformation.getJobId(), blobWriter);
+        this.jobInformationOrBlobKey = BlobWriter.serializeAndTryOffload(
+                jobInformation, jobInformation.getJobId(), blobWriter);
 
         this.futureExecutor = checkNotNull(futureExecutor);
         this.ioExecutor = checkNotNull(ioExecutor);
@@ -378,10 +377,10 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         this.executionHistorySizeLimit = executionHistorySizeLimit;
 
         this.schedulingFuture = null;
-        this.jobMasterMainThreadExecutor =
-                new ComponentMainThreadExecutor.DummyComponentMainThreadExecutor(
-                        "ExecutionGraph is not initialized with proper main thread executor. "
-                                + "Call to ExecutionGraph.start(...) required.");
+        this.jobMasterMainThreadExecutor = new ComponentMainThreadExecutor
+                .DummyComponentMainThreadExecutor(
+                "ExecutionGraph is not initialized with proper main thread executor. "
+                        + "Call to ExecutionGraph.start(...) required.");
 
         this.shuffleMaster = checkNotNull(shuffleMaster);
 
@@ -511,28 +510,26 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
         checkState(checkpointCoordinatorTimer == null);
 
-        checkpointCoordinatorTimer =
-                Executors.newSingleThreadScheduledExecutor(
-                        new DispatcherThreadFactory(
-                                Thread.currentThread().getThreadGroup(), "Checkpoint Timer"));
+        checkpointCoordinatorTimer = Executors.newSingleThreadScheduledExecutor(
+                new DispatcherThreadFactory(
+                        Thread.currentThread().getThreadGroup(), "Checkpoint Timer"));
 
         // create the coordinator that triggers and commits checkpoints and holds the state
-        checkpointCoordinator =
-                new CheckpointCoordinator(
-                        jobInformation.getJobId(),
-                        chkConfig,
-                        operatorCoordinators,
-                        checkpointIDCounter,
-                        checkpointStore,
-                        checkpointStorage,
-                        ioExecutor,
-                        checkpointsCleaner,
-                        new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer),
-                        failureManager,
-                        createCheckpointPlanCalculator(
-                                chkConfig.isEnableCheckpointsAfterTasksFinish()),
-                        new ExecutionAttemptMappingProvider(getAllExecutionVertices()),
-                        checkpointStatsTracker);
+        checkpointCoordinator = new CheckpointCoordinator(
+                jobInformation.getJobId(),
+                chkConfig,
+                operatorCoordinators,
+                checkpointIDCounter,
+                checkpointStore,
+                checkpointStorage,
+                ioExecutor,
+                checkpointsCleaner,
+                new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer),
+                failureManager,
+                createCheckpointPlanCalculator(
+                        chkConfig.isEnableCheckpointsAfterTasksFinish()),
+                new ExecutionAttemptMappingProvider(getAllExecutionVertices()),
+                checkpointStatsTracker);
 
         // register the master hooks on the checkpoint coordinator
         for (MasterTriggerRestoreHook<?> hook : masterHooks) {
@@ -550,9 +547,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         }
 
         this.stateBackendName = checkpointStateBackend.getName();
-        this.stateChangelogEnabled =
-                TernaryBoolean.fromBoolean(
-                        StateBackendLoader.isChangelogStateBackend(checkpointStateBackend));
+        this.stateChangelogEnabled = TernaryBoolean.fromBoolean(
+                StateBackendLoader.isChangelogStateBackend(checkpointStateBackend));
 
         this.checkpointStorageName = checkpointStorage.getClass().getSimpleName();
         this.changelogStorageName = changelogStorageName;
@@ -596,8 +592,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         }
     }
 
-    private Collection<OperatorCoordinatorCheckpointContext>
-    buildOpCoordinatorCheckpointContexts() {
+    private Collection<OperatorCoordinatorCheckpointContext> buildOpCoordinatorCheckpointContexts() {
         final ArrayList<OperatorCoordinatorCheckpointContext> contexts = new ArrayList<>();
         for (final ExecutionJobVertex vertex : verticesInCreationOrder) {
             contexts.addAll(vertex.getOperatorCoordinators());
@@ -857,7 +852,11 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         // 遍历所有的 JobVertex
         attachJobVertices(verticesToAttach);
         if (!isDynamic) {
-            // 如果不是动态的，那么就需要初始化所有的 JobVertex
+            /**
+             * 如果不是动态的，那么就需要初始化所有的JobVertex
+             * 处理JobEdge和IntermediateResult和ExecutionJobVertex中的ExecutionVertex，对每个JobEdge，
+             * 获取对应的IntermediateResult并记录到本节点的输入上，把每个ExecutorVertex和对应的IntermediateResult关联
+             */
             initializeJobVertices(verticesToAttach);
         }
 
@@ -881,7 +880,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                     parallelismStore.getParallelismInfo(jobVertex.getID());
 
             // create the execution job vertex and attach it to the graph
-            // 一个 JobVertex 对应的创建一个 ExecutionJobVertex
+            // 一个JobVertex对应的创建一个ExecutionJobVertex
             ExecutionJobVertex ejv = executionJobVertexFactory.createExecutionJobVertex(
                     this, jobVertex, parallelismInfo);
 
@@ -899,7 +898,10 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     private void initializeJobVertices(List<JobVertex> topologicallySorted) throws JobException {
         final long createTimestamp = System.currentTimeMillis();
-
+        /**
+         * 处理JobEdge和IntermediateResult和ExecutionJobVertex中的ExecutionVertex，对每个JobEdge，
+         * 获取对应的IntermediateResult并记录到本节点的输入上，把每个ExecutorVertex和对应的IntermediateResult关联
+         */
         for (JobVertex jobVertex : topologicallySorted) {
             final ExecutionJobVertex ejv = tasks.get(jobVertex.getID());
             initializeJobVertex(ejv, createTimestamp);
@@ -1538,12 +1540,9 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         assertRunningInJobMasterMainThread();
         Execution previous = currentExecutions.putIfAbsent(exec.getAttemptId(), exec);
         if (previous != null) {
-            failGlobal(
-                    new Exception(
-                            "Trying to register execution "
-                                    + exec
-                                    + " for already used ID "
-                                    + exec.getAttemptId()));
+            failGlobal(new Exception(
+                    "Trying to register execution " + exec + " for already used ID "
+                            + exec.getAttemptId()));
         }
     }
 

@@ -89,9 +89,11 @@ public class ExecutionVertex
     private long inputBytes;
 
     /** This field holds the allocation id of the last successful assignment. */
-    @Nullable private TaskManagerLocation lastAssignedLocation;
+    @Nullable
+    private TaskManagerLocation lastAssignedLocation;
 
-    @Nullable private AllocationID lastAssignedAllocationID;
+    @Nullable
+    private AllocationID lastAssignedAllocationID;
 
     // --------------------------------------------------------------------------------------------
 
@@ -100,9 +102,9 @@ public class ExecutionVertex
      *
      * @param timeout The RPC timeout to use for deploy / cancel calls
      * @param createTimestamp The timestamp for the vertex creation, used to initialize the first
-     *     Execution with.
+     *         Execution with.
      * @param executionHistorySizeLimit The maximum number of historical Executions (= execution
-     *     attempts) to keep.
+     *         attempts) to keep.
      * @param initialAttemptCount The attempt number of the first execution of this vertex.
      */
     @VisibleForTesting
@@ -118,22 +120,21 @@ public class ExecutionVertex
         this.jobVertex = jobVertex;
         this.subTaskIndex = subTaskIndex;
         this.executionVertexId = new ExecutionVertexID(jobVertex.getJobVertexId(), subTaskIndex);
-        this.taskNameWithSubtask =
-                String.format(
-                        "%s (%d/%d)",
-                        jobVertex.getJobVertex().getName(),
-                        subTaskIndex + 1,
-                        jobVertex.getParallelism());
+        this.taskNameWithSubtask = String.format(
+                "%s (%d/%d)",
+                jobVertex.getJobVertex().getName(),
+                subTaskIndex + 1,
+                jobVertex.getParallelism());
 
         this.resultPartitions = new LinkedHashMap<>(producedDataSets.length, 1);
 
         for (IntermediateResult result : producedDataSets) {
-            IntermediateResultPartition irp =
-                    new IntermediateResultPartition(
-                            result,
-                            this,
-                            subTaskIndex,
-                            getExecutionGraphAccessor().getEdgeManager());
+            IntermediateResultPartition irp = new IntermediateResultPartition(
+                    result,
+                    this,
+                    subTaskIndex,
+                    getExecutionGraphAccessor().getEdgeManager());
+            // 实际为IntermediateResult中每个IntermediateResultPartition赋值
             result.setPartition(subTaskIndex, irp);
 
             resultPartitions.put(irp.getPartitionId(), irp);

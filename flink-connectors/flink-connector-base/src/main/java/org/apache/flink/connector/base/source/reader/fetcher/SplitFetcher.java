@@ -145,7 +145,8 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
             if (closed) {
                 return false;
             }
-            // 获取下一个任务，如果没有任务则阻塞等待
+            // 获取下一个任务，如果没有任务且没有可执行的分区的时候则阻塞等待
+            // 优先处理队列中的任务，如果队列中没有任务，则执行FetchTask的run方法
             task = getNextTaskUnsafe();
             if (task == null) {
                 // (spurious) wakeup, so just repeat
@@ -211,17 +212,18 @@ public class SplitFetcher<E, SplitT extends SourceSplit> implements Runnable {
                 // if it was paused, ensure that fetcher was not shutdown
                 return null;
             }
+            // 如果队列中有任务优先处理队列中的任务
             if (!taskQueue.isEmpty()) {
                 // a specific task is avail, so take that in FIFO
                 // 第一次获取到的是调用kafka原生KafkaConsumer类的commitAsync来提交offset的SplitFetcherTask
                 return taskQueue.poll();
             } else if (!assignedSplits.isEmpty()) {
                 // use fallback task = fetch if there is at least one split
-                // 如果至少存在一个分片，则使用fetchTask
+                // 如果队列中没有需要处理的任务，且至少存在一个分片，则执行fetchTask的run方法
                 return fetchTask;
             } else {
                 // nothing to do, wait for signal
-                // 阻塞等待任务队列有任务
+                // 如果分区都执行完成，或者都处于暂停的情况下阻塞等待任务队列有任务
                 nonEmpty.await();
                 return taskQueue.poll();
             }

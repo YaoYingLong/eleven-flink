@@ -112,6 +112,7 @@ public class FutureCompletingBlockingQueue<T> {
 
     public FutureCompletingBlockingQueue(int capacity) {
         checkArgument(capacity > 0, "capacity must be > 0");
+        // 通过source.reader.element.queue.capacity设置，默认是2
         this.capacity = capacity;
         this.queue = new ArrayDeque<>(capacity);
         this.lock = new ReentrantLock();
@@ -196,6 +197,7 @@ public class FutureCompletingBlockingQueue<T> {
         }
         lock.lockInterruptibly();
         try {
+            // capacity是通过source.reader.element.queue.capacity设置，默认为2
             while (queue.size() >= capacity) {
                 // 第一次默认是返回false，表示当前线程没有被唤醒过
                 if (getAndResetWakeUpFlag(threadIndex)) {

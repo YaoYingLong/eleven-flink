@@ -91,7 +91,7 @@ class SubtaskCheckpointCoordinatorImpl implements SubtaskCheckpointCoordinator {
     private final ChannelStateWriter channelStateWriter;
     private final StreamTaskActionExecutor actionExecutor;
     private final BiFunctionWithException<
-                    ChannelStateWriter, Long, CompletableFuture<Void>, CheckpointException>
+            ChannelStateWriter, Long, CompletableFuture<Void>, CheckpointException>
             prepareInputSnapshot;
     /** The IDs of the checkpoint for which we are notified aborted. */
     private final Set<Long> abortedCheckpointIds;
@@ -136,7 +136,7 @@ class SubtaskCheckpointCoordinatorImpl implements SubtaskCheckpointCoordinator {
             boolean unalignedCheckpointEnabled,
             boolean enableCheckpointAfterTasksFinished,
             BiFunctionWithException<
-                            ChannelStateWriter, Long, CompletableFuture<Void>, CheckpointException>
+                    ChannelStateWriter, Long, CompletableFuture<Void>, CheckpointException>
                     prepareInputSnapshot,
             int maxRecordAbortedCheckpoints,
             DelayableTimer registerTimer,
@@ -152,7 +152,7 @@ class SubtaskCheckpointCoordinatorImpl implements SubtaskCheckpointCoordinator {
                 maxRecordAbortedCheckpoints,
                 unalignedCheckpointEnabled
                         ? openChannelStateWriter(
-                                taskName, checkpointStorage, env, maxSubtasksPerChannelStateFile)
+                        taskName, checkpointStorage, env, maxSubtasksPerChannelStateFile)
                         : ChannelStateWriter.NO_OP,
                 enableCheckpointAfterTasksFinished,
                 registerTimer);
@@ -167,7 +167,7 @@ class SubtaskCheckpointCoordinatorImpl implements SubtaskCheckpointCoordinator {
             Environment env,
             AsyncExceptionHandler asyncExceptionHandler,
             BiFunctionWithException<
-                            ChannelStateWriter, Long, CompletableFuture<Void>, CheckpointException>
+                    ChannelStateWriter, Long, CompletableFuture<Void>, CheckpointException>
                     prepareInputSnapshot,
             int maxRecordAbortedCheckpoints,
             ChannelStateWriter channelStateWriter,
@@ -702,14 +702,12 @@ class SubtaskCheckpointCoordinatorImpl implements SubtaskCheckpointCoordinator {
         long checkpointId = checkpointMetaData.getCheckpointId();
         long started = System.nanoTime();
 
-        ChannelStateWriteResult channelStateWriteResult =
-                checkpointOptions.needsChannelState()
-                        ? channelStateWriter.getAndRemoveWriteResult(checkpointId)
-                        : ChannelStateWriteResult.EMPTY;
+        ChannelStateWriteResult channelStateWriteResult = checkpointOptions.needsChannelState()
+                ? channelStateWriter.getAndRemoveWriteResult(checkpointId)
+                : ChannelStateWriteResult.EMPTY;
 
-        CheckpointStreamFactory storage =
-                checkpointStorage.resolveCheckpointStorageLocation(
-                        checkpointId, checkpointOptions.getTargetLocation());
+        CheckpointStreamFactory storage = checkpointStorage.resolveCheckpointStorageLocation(
+                checkpointId, checkpointOptions.getTargetLocation());
 
         try {
             operatorChain.snapshotState(

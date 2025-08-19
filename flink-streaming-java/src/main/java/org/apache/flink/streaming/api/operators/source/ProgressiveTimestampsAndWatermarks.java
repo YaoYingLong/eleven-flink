@@ -54,9 +54,9 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
     private final WatermarkGeneratorSupplier<T> watermarksFactory;
 
     private final WatermarkGeneratorSupplier.Context watermarksContext;
-
+    // 默认是ProcessingTimeServiceImpl
     private final ProcessingTimeService timeService;
-
+    // 默认200ms
     private final long periodicWatermarkInterval;
 
     @Nullable
@@ -95,6 +95,7 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
 
     // ------------------------------------------------------------------------
 
+    // 当调用SourceOperator的initializeMainOutput方法时被调用，即真正开始处理数据时
     @Override
     public ReaderOutput<T> createMainOutput(
             PushingAsyncDataInput.DataOutput<T> output,
@@ -117,6 +118,7 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
         // 其实就是从函数表达式转换为，我们自定义的水位线WatermarkGenerator
         final WatermarkGenerator<T> watermarkGenerator =
                 watermarksFactory.createWatermarkGenerator(watermarksContext);
+        // 可以理解为SourceOutputWithWatermarks容器，每个partition都会通过currentPerSplitOutputs创建一个SourceOutputWithWatermarks
         currentPerSplitOutputs = new SplitLocalOutputs<>(
                 // output是AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
                 output,
@@ -156,7 +158,9 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
         // 其实就是执行currentPerSplitOutputs和currentMainOutput的emitPeriodicWatermark()方法
         periodicEmitHandle = timeService.scheduleWithFixedDelay(
                 this::triggerPeriodicEmit,
+                // 默认200ms
                 periodicWatermarkInterval,
+                // 默认200ms
                 periodicWatermarkInterval);
     }
 
@@ -169,10 +173,15 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
     }
 
     void triggerPeriodicEmit(@SuppressWarnings("unused") long wallClockTimestamp) {
+        // 这里传入的wallClockTimestamp时间戳是下一次执行的时间
+        // currentPerSplitOutputs和createMainOutput都是在createMainOutput方法中被初始化
+        // 当调用SourceOperator的initializeMainOutput方法时被调用，即真正开始处理数据时
         if (currentPerSplitOutputs != null) {
+            // 调用SplitLocalOutputs的emitPeriodicWatermark方法
             currentPerSplitOutputs.emitPeriodicWatermark();
         }
         if (currentMainOutput != null) {
+            // 调用StreamingReaderOutput的超类SourceOutputWithWatermarks的emitPeriodicWatermark方法
             currentMainOutput.emitPeriodicWatermark();
         }
     }
@@ -241,6 +250,9 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
             this.watermarkContext = watermarkContext;
             // 这里的watermarkUpdateListener其实就是SourceOperator
             this.watermarkUpdateListener = watermarkUpdateListener;
+            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+            // 将output封装成WatermarkToDataOutput然后再在这里封装成IdlenessAwareWatermarkOutput
             // 又将watermarkOutput封装成了WatermarkOutputMultiplexer
             this.watermarkMultiplexer = new WatermarkOutputMultiplexer(watermarkOutput);
             // we use a LinkedHashMap because it iterates faster
@@ -248,18 +260,20 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
         }
 
         SourceOutput<T> createOutputForSplit(String splitId) {
+            // splitId是对应的分区的id
             final SourceOutputWithWatermarks<T> previous = localOutputs.get(splitId);
             if (previous != null) {
                 // 如果splitId已经存在于localOutputs中，说明该split已经创建过SourceOutputWithWatermarks
                 return previous;
             }
+            // 这里的watermarkUpdateListener其实就是SourceOperator
             // 这里其实就是创建一个新的PartialWatermark添加到WatermarkOutputMultiplexer中的CombinedWatermarkStatus中
             watermarkMultiplexer.registerNewOutput(
                     splitId, watermark -> watermarkUpdateListener.updateCurrentSplitWatermark(
                             splitId, watermark));
-            // 将splitId生成的对应的PartialWatermark封装成ImmediateOutput
+            // 将分区splitId生成的对应的PartialWatermark封装成ImmediateOutput
             final WatermarkOutput onEventOutput = watermarkMultiplexer.getImmediateOutput(splitId);
-            // 将splitId生成的对应的PartialWatermark封装成DeferredOutput
+            // 将分区splitId生成的对应的PartialWatermark封装成DeferredOutput
             final WatermarkOutput periodicOutput = watermarkMultiplexer.getDeferredOutput(splitId);
             // 其实就是从函数表达式转换为，我们自定义的水位线WatermarkGenerator
             final WatermarkGenerator<T> watermarks =
@@ -290,14 +304,20 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
             // The call in the loop only records the next watermark candidate for each local output.
             // The call to 'watermarkMultiplexer.onPeriodicEmit()' actually merges the watermarks.
             // That way, we save inefficient repeated merging of (partially outdated) watermarks
-            // before
-            // all local generators have emitted their candidates.
+            // before all local generators have emitted their candidates.
             for (SourceOutputWithWatermarks<?> output : localOutputs.values()) {
-                // 调用SourceOutputWithWatermarks的emitPeriodicWatermark
-                // 最终调用WatermarkGenerator的onPeriodicEmit方法
+                /**
+                 * 调用SourceOutputWithWatermarks的emitPeriodicWatermark
+                 * 最终调用WatermarkGenerator的onPeriodicEmit方法
+                 * 这里的作用其实是判断当前分片的水位线大于currentMaxDesiredWatermark，并且当前分片没有被暂停
+                 */
                 output.emitPeriodicWatermark();
             }
-            // 这里其实是调用watermarkOutput的emitWatermark方法
+            /**
+             * subtask分配的每一个分区都会调用createOutputForSplit方法，为将每一个分区都注册到watermarkMultiplexer中
+             * 这里调用WatermarkOutputMultiplexer的emitWatermark方法，遍历所有的分区的水位线，将所有分区最小的水位线作为
+             * 组合后的水位线
+             */
             watermarkMultiplexer.onPeriodicEmit();
         }
     }
@@ -345,14 +365,20 @@ public class ProgressiveTimestampsAndWatermarks<T> implements TimestampsAndWater
             private boolean isIdle = true;
 
             private IdlenessAwareWatermarkOutput(WatermarkOutput underlyingOutput) {
+                // 如果是KafkaSource这里的output是AsyncDataOutputToOutput其是对ChainingOutput或RecordWriterOutput
+                // 进行了一次封装，最后将output封装成WatermarkToDataOutput
                 this.underlyingOutput = underlyingOutput;
             }
 
             @Override
             public void emitWatermark(Watermark watermark) {
-                // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
-                // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
-                // 将output封装成WatermarkToDataOutput，这里调用WatermarkToDataOutput的emitWatermark
+                /**
+                 * 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+                 * AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+                 * 将output封装成WatermarkToDataOutput，这里调用WatermarkToDataOutput的emitWatermark
+                 * 
+                 * 这里的watermark是当前subtask的所有分配的分区的水位线最小的水位
+                 */
                 underlyingOutput.emitWatermark(watermark);
                 isIdle = false;
             }

@@ -97,10 +97,13 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
     @Override
     public void init() throws Exception {
         StreamConfig configuration = getConfiguration();
+        // numberOfInputs一般都是1
         int numberOfInputs = configuration.getNumberOfNetworkInputs();
 
         if (numberOfInputs > 0) {
+            // 创建CheckpointedInputGate
             CheckpointedInputGate inputGate = createCheckpointedInputGate();
+            // 指标numRecordsIn和numRecordsInPerSecond
             Counter numRecordsIn = setupNumRecordsInCounter(mainOperator);
             // 创建一个StreamTaskNetworkOutput
             DataOutput<IN> output = createDataOutput(numRecordsIn);
@@ -110,6 +113,7 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
             StreamConfig.InputConfig[] inputConfigs =
                     configuration.getInputs(getUserCodeClassLoader());
             StreamConfig.InputConfig inputConfig = inputConfigs[0];
+            // 这里一般默认是非排序的
             if (requiresSorting(inputConfig)) {
                 checkState(
                         !configuration.isCheckpointingEnabled(),
@@ -155,18 +159,18 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
 
     @SuppressWarnings("unchecked")
     private CheckpointedInputGate createCheckpointedInputGate() {
+        //
         IndexedInputGate[] inputGates = getEnvironment().getAllInputGates();
 
-        checkpointBarrierHandler =
-                InputProcessorUtil.createCheckpointBarrierHandler(
-                        this,
-                        configuration,
-                        getCheckpointCoordinator(),
-                        getTaskNameWithSubtaskAndId(),
-                        new List[] {Arrays.asList(inputGates)},
-                        Collections.emptyList(),
-                        mainMailboxExecutor,
-                        systemTimerService);
+        checkpointBarrierHandler = InputProcessorUtil.createCheckpointBarrierHandler(
+                this,
+                configuration,
+                getCheckpointCoordinator(),
+                getTaskNameWithSubtaskAndId(),
+                new List[] {Arrays.asList(inputGates)},
+                Collections.emptyList(),
+                mainMailboxExecutor,
+                systemTimerService);
 
         CheckpointedInputGate[] checkpointedInputGates =
                 InputProcessorUtil.createCheckpointedMultipleInputGate(
@@ -197,14 +201,12 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
                 inputGate,
                 inSerializer,
                 getEnvironment().getIOManager(),
-                statusWatermarkValve,
-                0,
+                statusWatermarkValve, 0,
                 getEnvironment().getTaskStateManager().getInputRescalingDescriptor(),
-                gateIndex ->
-                        configuration
-                                .getInPhysicalEdges(getUserCodeClassLoader())
-                                .get(gateIndex)
-                                .getPartitioner(),
+                gateIndex -> configuration
+                        .getInPhysicalEdges(getUserCodeClassLoader())
+                        .get(gateIndex)
+                        .getPartitioner(),
                 getEnvironment().getTaskInfo(),
                 getCanEmitBatchOfRecords());
     }

@@ -80,6 +80,8 @@ public class UnionInputGate extends InputGate {
     /**
      * Gates, which notified this input gate about available data. We are using it as a FIFO queue
      * of {@link InputGate}s to avoid starvation and provide some basic fairness.
+     * <p>
+     * UnionInputGate是多个SingleInputGate联合组成，它的内部有一个inputGatesWithData队列
      */
     private final PrioritizedDeque<IndexedInputGate> inputGatesWithData = new PrioritizedDeque<>();
 
@@ -92,19 +94,18 @@ public class UnionInputGate extends InputGate {
     private final int[] inputGateChannelIndexOffsets;
 
     public UnionInputGate(IndexedInputGate... inputGates) {
-        inputGatesByGateIndex =
-                Arrays.stream(inputGates)
-                        .collect(Collectors.toMap(IndexedInputGate::getGateIndex, ig -> ig));
+        inputGatesByGateIndex = Arrays.stream(inputGates)
+                .collect(Collectors.toMap(IndexedInputGate::getGateIndex, ig -> ig));
         checkArgument(
                 inputGates.length > 1, "Union input gate should union at least two input gates.");
-
+        // inputGates一般只有一个
         if (Arrays.stream(inputGates).map(IndexedInputGate::getGateIndex).distinct().count()
                 != inputGates.length) {
             throw new IllegalArgumentException(
                     "Union of two input gates with the same gate index. Given indices: "
                             + Arrays.stream(inputGates)
-                                    .map(IndexedInputGate::getGateIndex)
-                                    .collect(Collectors.toList()));
+                            .map(IndexedInputGate::getGateIndex)
+                            .collect(Collectors.toList()));
         }
 
         this.inputGatesWithRemainingData = Sets.newHashSetWithExpectedSize(inputGates.length);
@@ -112,10 +113,9 @@ public class UnionInputGate extends InputGate {
 
         final int maxGateIndex =
                 Arrays.stream(inputGates).mapToInt(IndexedInputGate::getGateIndex).max().orElse(0);
-        int totalNumberOfInputChannels =
-                Arrays.stream(inputGates)
-                        .mapToInt(IndexedInputGate::getNumberOfInputChannels)
-                        .sum();
+        int totalNumberOfInputChannels = Arrays.stream(inputGates)
+                .mapToInt(IndexedInputGate::getNumberOfInputChannels)
+                .sum();
 
         inputGateChannelIndexOffsets = new int[maxGateIndex + 1];
         inputChannelToInputGateIndex = new int[totalNumberOfInputChannels];
@@ -145,10 +145,8 @@ public class UnionInputGate extends InputGate {
                     assertNoException(available.thenRun(() -> queueInputGate(inputGate, false)));
                 }
 
-                assertNoException(
-                        inputGate
-                                .getPriorityEventAvailableFuture()
-                                .thenRun(() -> handlePriorityEventAvailable(inputGate)));
+                assertNoException(inputGate.getPriorityEventAvailableFuture()
+                        .thenRun(() -> handlePriorityEventAvailable(inputGate)));
             }
 
             if (!inputGatesWithData.isEmpty()) {
@@ -206,17 +204,18 @@ public class UnionInputGate extends InputGate {
         if (inputGatesWithRemainingData.isEmpty()) {
             return Optional.empty();
         }
-
+        // 从buffer中获取数据对象：Optional<InputWithData>
         Optional<InputWithData<IndexedInputGate, BufferOrEvent>> next =
                 waitAndGetNextData(blocking);
         if (!next.isPresent()) {
             return Optional.empty();
         }
-
+        // 真正拿到 InputWithData
         InputWithData<IndexedInputGate, BufferOrEvent> inputWithData = next.get();
 
         handleEndOfPartitionEvent(inputWithData.data, inputWithData.input);
         handleEndOfUserDataEvent(inputWithData.data, inputWithData.input);
+        // 这个InputGate中还有更多的数据，继续加入队列
         if (!inputWithData.data.moreAvailable()) {
             inputWithData.data.setMoreAvailable(inputWithData.moreAvailable);
         }
@@ -228,18 +227,17 @@ public class UnionInputGate extends InputGate {
             boolean blocking) throws IOException, InterruptedException {
         while (true) {
             synchronized (inputGatesWithData) {
+                // 获取InputGate
                 Optional<IndexedInputGate> inputGateOpt = getInputGate(blocking);
                 if (!inputGateOpt.isPresent()) {
                     return Optional.empty();
                 }
                 final IndexedInputGate inputGate = inputGateOpt.get();
-
+                // 获取数据
                 Optional<BufferOrEvent> nextOpt = inputGate.pollNext();
                 if (!nextOpt.isPresent()) {
-                    assertNoException(
-                            inputGate
-                                    .getAvailableFuture()
-                                    .thenRun(() -> queueInputGate(inputGate, false)));
+                    assertNoException(inputGate.getAvailableFuture()
+                            .thenRun(() -> queueInputGate(inputGate, false)));
                     continue;
                 }
 
@@ -251,7 +249,7 @@ public class UnionInputGate extends InputGate {
     private InputWithData<IndexedInputGate, BufferOrEvent> processBufferOrEvent(
             IndexedInputGate inputGate, BufferOrEvent bufferOrEvent) {
         assert Thread.holdsLock(inputGatesWithData);
-
+        // 等待 inputGatesWithData 队列，经典的生产者-消费者模型
         if (bufferOrEvent.moreAvailable()) {
             // enqueue the inputGate at the end to avoid starvation
             inputGatesWithData.add(inputGate, bufferOrEvent.morePriorityEvents(), false);
@@ -332,7 +330,8 @@ public class UnionInputGate extends InputGate {
     }
 
     @Override
-    public void setup() {}
+    public void setup() {
+    }
 
     @Override
     public CompletableFuture<Void> getStateConsumedFuture() {
@@ -351,7 +350,8 @@ public class UnionInputGate extends InputGate {
     }
 
     @Override
-    public void close() throws IOException {}
+    public void close() throws IOException {
+    }
 
     @Override
     public String toString() {
@@ -362,7 +362,7 @@ public class UnionInputGate extends InputGate {
         checkNotNull(inputGate);
 
         try (GateNotificationHelper notification =
-                new GateNotificationHelper(this, inputGatesWithData)) {
+                     new GateNotificationHelper(this, inputGatesWithData)) {
             synchronized (inputGatesWithData) {
                 final boolean alreadyEnqueued = inputGatesWithData.contains(inputGate);
                 if (alreadyEnqueued

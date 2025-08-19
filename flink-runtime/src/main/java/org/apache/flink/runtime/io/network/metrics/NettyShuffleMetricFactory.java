@@ -96,9 +96,10 @@ public class NettyShuffleMetricFactory {
     private static void internalRegisterDeprecatedNetworkMetrics(
             MetricGroup parentMetricGroup, NetworkBufferPool networkBufferPool) {
         MetricGroup networkGroup = parentMetricGroup.addGroup(METRIC_GROUP_NETWORK_DEPRECATED);
-
+        // 总共队列长度指标TotalMemorySegments
         networkGroup.gauge(
                 METRIC_TOTAL_MEMORY_SEGMENT, networkBufferPool::getTotalNumberOfMemorySegments);
+        // 可用队列长度指标AvailableMemorySegments
         networkGroup.gauge(
                 METRIC_AVAILABLE_MEMORY_SEGMENT,
                 networkBufferPool::getNumberOfAvailableMemorySegments);

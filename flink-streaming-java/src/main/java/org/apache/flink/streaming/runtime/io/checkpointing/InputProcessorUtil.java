@@ -56,23 +56,20 @@ public class InputProcessorUtil {
             StreamConfig config) {
 
         registerCheckpointMetrics(taskIOMetricGroup, barrierHandler);
+        // 这里其实是通过InputGateUtil的createInputGate创建了UnionInputGate
+        InputGate[] unionedInputGates = Arrays.stream(inputGates)
+                .map(InputGateUtil::createInputGate)
+                .toArray(InputGate[]::new);
 
-        InputGate[] unionedInputGates =
-                Arrays.stream(inputGates)
-                        .map(InputGateUtil::createInputGate)
-                        .toArray(InputGate[]::new);
-
-        return Arrays.stream(unionedInputGates)
-                .map(
-                        unionedInputGate ->
-                                new CheckpointedInputGate(
-                                        unionedInputGate,
-                                        barrierHandler,
-                                        mailboxExecutor,
-                                        config.isGraphContainingLoops()
-                                                ? UpstreamRecoveryTracker.NO_OP
-                                                : UpstreamRecoveryTracker.forInputGate(
-                                                        unionedInputGate)))
+        return Arrays.stream(unionedInputGates).map(unionedInputGate ->
+                        new CheckpointedInputGate(
+                                unionedInputGate,
+                                barrierHandler,
+                                mailboxExecutor,
+                                config.isGraphContainingLoops()
+                                        ? UpstreamRecoveryTracker.NO_OP
+                                        : UpstreamRecoveryTracker.forInputGate(
+                                        unionedInputGate)))
                 .toArray(CheckpointedInputGate[]::new);
     }
 
@@ -86,21 +83,18 @@ public class InputProcessorUtil {
             MailboxExecutor mailboxExecutor,
             TimerService timerService) {
 
-        CheckpointableInput[] inputs =
-                Stream.<CheckpointableInput>concat(
-                                Arrays.stream(inputGates).flatMap(Collection::stream),
-                                sourceInputs.stream())
-                        .sorted(Comparator.comparing(CheckpointableInput::getInputGateIndex))
-                        .toArray(CheckpointableInput[]::new);
+        CheckpointableInput[] inputs = Stream.<CheckpointableInput>concat(
+                        Arrays.stream(inputGates).flatMap(Collection::stream),
+                        sourceInputs.stream())
+                .sorted(Comparator.comparing(CheckpointableInput::getInputGateIndex))
+                .toArray(CheckpointableInput[]::new);
 
         Clock clock = SystemClock.getInstance();
         switch (config.getCheckpointMode()) {
             case EXACTLY_ONCE:
-                int numberOfChannels =
-                        (int)
-                                Arrays.stream(inputs)
-                                        .mapToLong(gate -> gate.getChannelInfos().size())
-                                        .sum();
+                int numberOfChannels = (int) Arrays.stream(inputs)
+                        .mapToLong(gate -> gate.getChannelInfos().size())
+                        .sum();
                 return createBarrierHandler(
                         toNotifyOnCheckpoint,
                         config,
@@ -117,18 +111,15 @@ public class InputProcessorUtil {
                             "Cannot use unaligned checkpoints with AT_LEAST_ONCE "
                                     + "checkpointing mode");
                 }
-                int numInputChannels =
-                        Arrays.stream(inputs)
-                                .mapToInt(CheckpointableInput::getNumberOfInputChannels)
-                                .sum();
+                int numInputChannels = Arrays.stream(inputs)
+                        .mapToInt(CheckpointableInput::getNumberOfInputChannels)
+                        .sum();
                 return new CheckpointBarrierTracker(
                         numInputChannels,
                         toNotifyOnCheckpoint,
                         clock,
-                        config.getConfiguration()
-                                .get(
-                                        ExecutionCheckpointingOptions
-                                                .ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH));
+                        config.getConfiguration().get(
+                                ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH));
             default:
                 throw new UnsupportedOperationException(
                         "Unrecognized Checkpointing Mode: " + config.getCheckpointMode());
@@ -145,9 +136,8 @@ public class InputProcessorUtil {
             CheckpointableInput[] inputs,
             Clock clock,
             int numberOfChannels) {
-        boolean enableCheckpointAfterTasksFinished =
-                config.getConfiguration()
-                        .get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH);
+        boolean enableCheckpointAfterTasksFinished = config.getConfiguration()
+                .get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH);
         if (config.isUnalignedCheckpointsEnabled()) {
             return SingleCheckpointBarrierHandler.alternating(
                     taskName,

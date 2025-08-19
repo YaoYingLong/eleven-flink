@@ -170,7 +170,8 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     private final Executor ioExecutor;
 
-    @Nullable private final String metricServiceQueryAddress;
+    @Nullable
+    private final String metricServiceQueryAddress;
 
     private final Map<JobID, CompletableFuture<Void>> jobManagerRunnerTerminationFutures;
     private final Set<JobID> submittedAndWaitingTerminationJobIDs;
@@ -293,12 +294,11 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
                 recoveredJobs.stream().map(JobGraph::getJobID).collect(Collectors.toSet()),
                 dispatcherServices.getIoExecutor());
 
-        this.dispatcherCachedOperationsHandler =
-                new DispatcherCachedOperationsHandler(
-                        dispatcherServices.getOperationCaches(),
-                        this::triggerCheckpointAndGetCheckpointID,
-                        this::triggerSavepointAndGetLocation,
-                        this::stopWithSavepointAndGetLocation);
+        this.dispatcherCachedOperationsHandler = new DispatcherCachedOperationsHandler(
+                dispatcherServices.getOperationCaches(),
+                this::triggerCheckpointAndGetCheckpointID,
+                this::triggerSavepointAndGetLocation,
+                this::stopWithSavepointAndGetLocation);
 
         this.localResourceCleaner =
                 resourceCleanerFactory.createLocalResourceCleaner(this.getMainThreadExecutor());
@@ -512,7 +512,7 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
                 final DuplicateJobSubmissionException exception =
                         isInGloballyTerminalState(jobGraph.getJobID())
                                 ? DuplicateJobSubmissionException.ofGloballyTerminated(
-                                        jobGraph.getJobID())
+                                jobGraph.getJobID())
                                 : DuplicateJobSubmissionException.of(jobGraph.getJobID());
                 return FutureUtils.completedExceptionally(exception);
             } else if (isPartialResourceConfigured(jobGraph)) {
@@ -549,7 +549,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
      * Checks whether the given job has already been submitted, executed, or awaiting termination.
      *
      * @param jobId identifying the submitted job
+     *
      * @return true if the job has already been submitted (is running) or has been executed
+     *
      * @throws FlinkException if the job scheduling status cannot be retrieved
      */
     private boolean isDuplicateJob(JobID jobId) throws FlinkException {
@@ -562,7 +564,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
      * Checks whether the given job has already been executed.
      *
      * @param jobId identifying the submitted job
+     *
      * @return true if the job has already finished, either successfully or as a failure
+     *
      * @throws FlinkException if the job scheduling status cannot be retrieved
      */
     private boolean isInGloballyTerminalState(JobID jobId) throws FlinkException {
@@ -683,7 +687,7 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
                                     Preconditions.checkState(
                                             jobManagerRunnerRegistry.isRegistered(jobId)
                                                     && jobManagerRunnerRegistry.get(jobId)
-                                                            == jobManagerRunner,
+                                                    == jobManagerRunner,
                                             "The job entry in runningJobs must be bound to the lifetime of the JobManagerRunner.");
 
                                     if (jobManagerRunnerResult != null) {
@@ -955,7 +959,7 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     @Override
     public CompletableFuture<Collection<Tuple2<ResourceID, String>>>
-            requestTaskManagerMetricQueryServiceAddresses(Time timeout) {
+    requestTaskManagerMetricQueryServiceAddresses(Time timeout) {
         return runResourceManagerCommand(
                 resourceManagerGateway ->
                         resourceManagerGateway.requestTaskManagerMetricQueryServiceAddresses(
@@ -1020,13 +1024,11 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
             TriggerSavepointMode savepointMode,
             Time timeout) {
         return performOperationOnJobMasterGateway(
-                jobId,
-                gateway ->
-                        gateway.triggerSavepoint(
-                                targetDirectory,
-                                savepointMode.isTerminalMode(),
-                                formatType,
-                                timeout));
+                jobId, gateway -> gateway.triggerSavepoint(
+                        targetDirectory,
+                        savepointMode.isTerminalMode(),
+                        formatType,
+                        timeout));
     }
 
     @Override

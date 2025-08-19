@@ -76,6 +76,7 @@ public class SimpleOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
     public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
         // 如果是StreamMap、StreamFilter等Operator，则下面的两个分支都会被执行
         if (operator instanceof AbstractStreamOperator) {
+            // 默认为ProcessingTimeServiceImpl
             ((AbstractStreamOperator) operator).setProcessingTimeService(processingTimeService);
         }
         if (operator instanceof SetupableStreamOperator) {

@@ -109,8 +109,9 @@ public class SingleThreadFetcherManager<E, SplitT extends SourceSplit>
             // 如果列表为空，则创建一个新的SplitFetcher实例
             fetcher = createSplitFetcher();
             // Add the splits to the fetchers.
+            // 添加一个AddSplitsTask任务
             fetcher.addSplits(splitsToAdd);
-            // 开启线程SplitFetcher
+            // 开启线程SplitFetcher执行其run方法，执行AddSplitsTask的run方法
             startFetcher(fetcher);
         } else {
             fetcher.addSplits(splitsToAdd);

@@ -269,20 +269,20 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
         callInCoordinatorThread(
                 () -> {
                     // Ensure all the subtasks in the assignment have registered.
-                    assignment
-                            .assignment()
-                            .forEach(
-                                    (id, splits) -> {
-                                        if (!registeredReaders.containsKey(id)) {
-                                            throw new IllegalArgumentException(
-                                                    String.format(
-                                                            "Cannot assign splits %s to subtask %d because the subtask is not registered.",
-                                                            splits,
-                                                            id));
-                                        }
-                                    });
+                    assignment.assignment().forEach(
+                            // 这里仅仅是做一个校验
+                            (id, splits) -> {
+                                if (!registeredReaders.containsKey(id)) {
+                                    throw new IllegalArgumentException(
+                                            String.format(
+                                                    "Cannot assign splits %s to subtask %d because the subtask is not registered.",
+                                                    splits,
+                                                    id));
+                                }
+                            });
 
                     assignmentTracker.recordSplitAssignment(assignment);
+                    // 调用具体的TaskExecutor的sendOperatorEventToTask方法，将AddSplitEvent发送给具体的StreamTask
                     assignSplitsToAttempts(assignment);
                     return null;
                 },
@@ -430,7 +430,7 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
                 subtaskId,
                 attemptNumber);
         attemptReaders.put(attemptNumber, new ReaderInfo(subtaskId, location));
-
+        // 流处理模式，这里一般没有做什么
         sendCachedSplitsToNewlyRegisteredReader(subtaskId, attemptNumber);
     }
 
@@ -570,6 +570,8 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
 
         final OperatorCoordinator.SubtaskGateway gateway =
                 subtaskGateways.getGatewayAndCheckReady(subtaskIndex, attemptNumber);
+        // 调用SubtaskGatewayImpl的sendEvent方法
+        // 调用具体的TaskExecutor的sendOperatorEventToTask方法，将AddSplitEvent发送给具体的StreamTask
         gateway.sendEvent(addSplitEvent);
     }
 
@@ -604,6 +606,7 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
                 assignmentTracker.uncheckpointedAssignments().get(subtaskIndex);
 
         if (cachedSplits != null) {
+            // 流处理模式，supportsConcurrentExecutionAttempts一般为空
             if (supportsConcurrentExecutionAttempts) {
                 assignSplitsToAttempt(subtaskIndex, attemptNumber, new ArrayList<>(cachedSplits));
                 if (hasNoMoreSplits(subtaskIndex)) {

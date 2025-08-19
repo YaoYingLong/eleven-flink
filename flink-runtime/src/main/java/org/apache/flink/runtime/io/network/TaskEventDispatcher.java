@@ -53,9 +53,17 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      */
     public void registerPartition(ResultPartitionID partitionId) {
         checkNotNull(partitionId);
-        // TaskEventDispatcher负责从消费Task发送Task消费结果给上游生产Task
-        // 任务事件分派器分派从消耗任务向产生消耗结果的任务倒流的事件。
-        // 向后事件仅适用于产生流水线结果的任务，也就是说生产Task和消费Task同时运行的时候
+        /**
+         * 负责在Task内部的不同组件之间分发事件，这些事件通常不是用户定义的业务事件，而是Flink运行时系统使用的事件，
+         * 例如用于协调数据交换、状态迁移、检查点或其他控制逻辑
+         *
+         * 在任务执行过程中，任务之间的数据通过网络传输InputChannel和ResultPartition，TaskEventDispatcher可以用于协调这些数据通道
+         * 例如当下游任务需要通知上游重新发送数据或重新配置时，可以通过TaskEventDispatcher分发这些事件。
+         *
+         * 一些运行时控制逻辑（如检查点、故障恢复、流暂停和恢复等）需要在任务的不同组件之间发送控制信号，这些信号通常是以TaskEvent的形式分发的
+         *
+         * 用户可以通过扩展TaskEvent，在运行时逻辑中添加自定义事件处理。例如在某些高级场景下，用户可能需要实现自己的事件流控制逻辑
+         */
         synchronized (registeredHandlers) {
             LOG.debug("registering {}", partitionId);
             if (registeredHandlers.put(partitionId, new TaskEventHandler()) != null) {

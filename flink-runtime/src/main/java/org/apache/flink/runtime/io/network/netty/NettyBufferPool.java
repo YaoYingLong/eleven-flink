@@ -89,6 +89,7 @@ public class NettyBufferPool extends PooledByteBufAllocator {
                 MAX_ORDER);
 
         checkArgument(numberOfArenas >= 1, "Number of arenas");
+        // 默认为每个TaskManger上的Slot数量
         this.numberOfArenas = numberOfArenas;
 
         // Arenas allocate chunks of pageSize << maxOrder bytes. With these

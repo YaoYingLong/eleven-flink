@@ -70,22 +70,21 @@ public class NettyConnectionManager implements ConnectionManager {
         this.client = new NettyClient(nettyConfig);
         this.bufferPool = checkNotNull(bufferPool);
 
-        this.partitionRequestClientFactory =
-                new PartitionRequestClientFactory(
-                        client,
-                        nettyConfig.getNetworkRetries(),
-                        maxNumberOfConnections,
-                        connectionReuseEnabled);
-
-        this.nettyProtocol =
-                new NettyProtocol(
-                        checkNotNull(partitionProvider), checkNotNull(taskEventPublisher));
+        this.partitionRequestClientFactory = new PartitionRequestClientFactory(
+                client,
+                nettyConfig.getNetworkRetries(),
+                maxNumberOfConnections,
+                connectionReuseEnabled);
+        // partitionProvider为ResultPartitionManager，taskEventPublisher为TaskEventDispatcher
+        this.nettyProtocol = new NettyProtocol(
+                checkNotNull(partitionProvider), checkNotNull(taskEventPublisher));
     }
 
     @Override
     public int start() throws IOException {
+        // 启动netty客户端
         client.init(nettyProtocol, bufferPool);
-
+        // 启动netty服务端
         return server.init(nettyProtocol, bufferPool);
     }
 

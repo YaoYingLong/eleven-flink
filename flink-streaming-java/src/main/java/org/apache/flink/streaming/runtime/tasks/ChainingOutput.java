@@ -62,6 +62,7 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
             this.numRecordsOut = new SimpleCounter();
         }
         this.numRecordsIn = curOperatorMetricGroup.getIOMetricGroup().getNumRecordsInCounter();
+        // 旁路输出
         this.outputTag = outputTag;
         this.recordProcessor = RecordProcessorUtils.getRecordProcessor(input);
     }
@@ -78,6 +79,7 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
 
     @Override
     public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
+        // 旁路输出，this.outputTag与outputTag相等
         if (OutputTag.isResponsibleFor(this.outputTag, outputTag)) {
             pushToOperator(record);
         }
@@ -92,10 +94,11 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
 
             numRecordsOut.inc();
             numRecordsIn.inc();
-            // 调用Operator的processElement来处理castRecord数据记录
-            // 假设下一个算子是 keyBy， 则跳转到 ： KeyedProcessOperator
-            // 因为之后要 shuffle 了，所以之后就没有其他的 Operator 了
-            // map() = StreamOperator = StreamMap = operator
+            /**
+             * 这里的recordProcessor是通过RecordProcessorUtils.getRecordProcessor(input)构造的
+             * 最终返回的是一个函数表达式，即input::processElement，所以这里调用的是Operator的processElement
+             * 来处理castRecord数据记录
+             */
             recordProcessor.accept(castRecord);
         } catch (Exception e) {
             throw new ExceptionInChainedOperatorException(e);
@@ -104,11 +107,20 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
 
     @Override
     public void emitWatermark(Watermark mark) {
+        // announcedStatus默认是WatermarkStatus.ACTIVE
         if (announcedStatus.isIdle()) {
             return;
         }
         try {
+            // 记录指标
             watermarkGauge.setCurrentWatermark(mark.getTimestamp());
+            /**
+             * 其实是调用AbstractStreamOperator的processWatermark方法，最终在调用output的emitWatermark方法
+             * output依然是ChainingOutput，所以又回到了这里，只是这里代表的是下一个Operator对应的ChainingOutput
+             *
+             * 到最后一个非Chain输出时，AbstractStreamOperator的processWatermark方法中调用output的emitWatermark方法
+             * 则调用的是RecordWriterOutput的emitWatermark方法，将水位线给广播给下游Operator
+             */
             input.processWatermark(mark);
         } catch (Exception e) {
             throw new ExceptionInChainedOperatorException(e);
@@ -136,9 +148,11 @@ class ChainingOutput<T> implements WatermarkGaugeExposingOutput<StreamRecord<T>>
 
     @Override
     public void emitWatermarkStatus(WatermarkStatus watermarkStatus) {
+        // announcedStatus默认是WatermarkStatus.ACTIVE
         if (!announcedStatus.equals(watermarkStatus)) {
             announcedStatus = watermarkStatus;
             try {
+                // input其实就是当前算子对应的Operator，即StreamMap、StreamFlatMap、StreamFilter等具体算子的Operator
                 input.processWatermarkStatus(watermarkStatus);
             } catch (Exception e) {
                 throw new ExceptionInChainedOperatorException(e);

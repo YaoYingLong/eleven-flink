@@ -99,7 +99,7 @@ public abstract class ResultPartition implements ResultPartitionWriter {
     // - Runtime state --------------------------------------------------------
     // 当前 ResultPartition 是否已经被释放
     private final AtomicBoolean isReleased = new AtomicBoolean();
-
+    // 这里其实是LocalBufferPool
     protected BufferPool bufferPool;
 
     private boolean isFinished;

@@ -50,7 +50,6 @@ public class ResultPartitionManager implements ResultPartitionProvider {
             if (previous != null) {
                 throw new IllegalStateException("Result partition already registered.");
             }
-
             LOG.debug("Registered {}.", partition);
         }
     }
@@ -61,21 +60,16 @@ public class ResultPartitionManager implements ResultPartitionProvider {
             int subpartitionIndex,
             BufferAvailabilityListener availabilityListener)
             throws IOException {
-
         final ResultSubpartitionView subpartitionView;
         synchronized (registeredPartitions) {
             final ResultPartition partition = registeredPartitions.get(partitionId);
-
             if (partition == null) {
                 throw new PartitionNotFoundException(partitionId);
             }
-
             LOG.debug("Requesting subpartition {} of {}.", subpartitionIndex, partition);
-
-            subpartitionView =
-                    partition.createSubpartitionView(subpartitionIndex, availabilityListener);
+            // 这里调用BufferWritingResultPartition的createSubpartitionView方法创建的是PipelinedSubpartition
+            subpartitionView = partition.createSubpartitionView(subpartitionIndex, availabilityListener);
         }
-
         return subpartitionView;
     }
 

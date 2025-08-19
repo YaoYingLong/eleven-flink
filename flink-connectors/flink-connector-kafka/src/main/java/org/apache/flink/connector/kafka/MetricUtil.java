@@ -34,6 +34,7 @@ public class MetricUtil {
      * Tries to find the Kafka {@link Metric} in the provided metrics.
      *
      * @return {@link Metric} which exposes continuous updates
+     *
      * @throws IllegalStateException if the metric is not part of the provided metrics
      */
     public static Metric getKafkaMetric(
@@ -49,6 +50,7 @@ public class MetricUtil {
      * Tries to find the Kafka {@link Metric} in the provided metrics matching a given filter.
      *
      * @return {@link Metric} which exposes continuous updates
+     *
      * @throws IllegalStateException if no metric matches the given filter
      */
     public static Metric getKafkaMetric(
@@ -58,10 +60,8 @@ public class MetricUtil {
                 .filter(filter)
                 .map(Map.Entry::getValue)
                 .findFirst()
-                .orElseThrow(
-                        () ->
-                                new IllegalStateException(
-                                        "Cannot find Kafka metric matching current filter."));
+                .orElseThrow(() -> new IllegalStateException(
+                        "Cannot find Kafka metric matching current filter."));
     }
 
     /**

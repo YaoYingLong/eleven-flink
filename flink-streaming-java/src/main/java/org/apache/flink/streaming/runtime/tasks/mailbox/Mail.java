@@ -87,6 +87,7 @@ public class Mail {
     }
 
     public void run() throws Exception {
+        // 其实就是执行runnable的run方法
         actionExecutor.runThrowing(runnable);
     }
 }

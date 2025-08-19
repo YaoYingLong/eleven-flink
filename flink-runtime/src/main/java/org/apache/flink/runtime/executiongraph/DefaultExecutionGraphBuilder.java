@@ -151,8 +151,8 @@ public class DefaultExecutionGraphBuilder {
 
         try {
             // 设置 ExecutionGraph 的一些基本属性
-            // 1、JsonPlanGenerator.generatePlan(jobGraph) 根据 JobGraph 生成一个 JsonPlan
-            // 2、executionGraph.setJsonPlan(JsonPlan) 把 JsonPlan 设置到 ExecutionGraph
+            // 1、JsonPlanGenerator.generatePlan(jobGraph) 根据JobGraph生成一个JsonPlan
+            // 2、executionGraph.setJsonPlan(JsonPlan) 把JsonPlan设置到ExecutionGraph
             executionGraph.setJsonPlan(JsonPlanGenerator.generatePlan(jobGraph));
         } catch (Throwable t) {
             log.warn("Cannot create JSON plan for job", t);

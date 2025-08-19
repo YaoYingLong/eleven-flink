@@ -80,11 +80,17 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
         // 从而导致返回true，如果为true，就不再是更新水位线
         if (idlenessTimer.checkIfIdle()) {
             if (!isIdleNow) {
-                // 将当前Output标记为idle状态，即空闲状态
+                /**
+                 * 将当前Output标记为idle状态，即空闲状态，output将splitId生成的对应的PartialWatermark封装成DeferredOutput
+                 * 最终调用PartialWatermark的setIdle(true)方法，将PartialWatermark中idle状态设置为true，
+                 * 然后在CombinedWatermarkStatus中的updateCombinedWatermark方法处理组合水位线时被用到，如果是空闲的就不会纳入计算
+                 */
                 output.markIdle();
                 isIdleNow = true;
             }
         } else {
+            // 调用BoundedOutOfOrdernessWatermarks的onPeriodicEmit方法
+            // output将splitId生成的对应的PartialWatermark封装成DeferredOutput
             watermarks.onPeriodicEmit(output);
         }
     }

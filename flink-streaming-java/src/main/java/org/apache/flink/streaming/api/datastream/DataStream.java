@@ -141,8 +141,11 @@ public class DataStream<T> {
      */
     public DataStream(StreamExecutionEnvironment environment, Transformation<T> transformation) {
         // 到最后只是创建了一个DataStream对象，然后设置了StreamExecutionEnvironment和Transformation
-        this.environment = Preconditions.checkNotNull(environment, "Execution Environment must not be null.");
-        this.transformation = Preconditions.checkNotNull(transformation, "Stream Transformation must not be null.");
+        this.environment =
+                Preconditions.checkNotNull(environment, "Execution Environment must not be null.");
+        this.transformation = Preconditions.checkNotNull(
+                transformation,
+                "Stream Transformation must not be null.");
     }
 
     /**
@@ -668,16 +671,15 @@ public class DataStream<T> {
     @PublicEvolving
     public <R> SingleOutputStreamOperator<R> process(ProcessFunction<T, R> processFunction) {
 
-        TypeInformation<R> outType =
-                TypeExtractor.getUnaryOperatorReturnType(
-                        processFunction,
-                        ProcessFunction.class,
-                        0,
-                        1,
-                        TypeExtractor.NO_INDEX,
-                        getType(),
-                        Utils.getCallLocationName(),
-                        true);
+        TypeInformation<R> outType = TypeExtractor.getUnaryOperatorReturnType(
+                processFunction,
+                ProcessFunction.class,
+                0,
+                1,
+                TypeExtractor.NO_INDEX,
+                getType(),
+                Utils.getCallLocationName(),
+                true);
 
         return process(processFunction, outType);
     }

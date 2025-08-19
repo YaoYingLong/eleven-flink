@@ -30,7 +30,7 @@ public final class WatermarkAlignmentParams implements Serializable {
             new WatermarkAlignmentParams(Long.MAX_VALUE, "", 0);
     // 最大允许的水位线的差值，即最小的水位线和最大的水位线的差
     private final long maxAllowedWatermarkDrift;
-    // 更新周期
+    // 更新周期&上报周期，不设置默认是1s
     private final long updateInterval;
     // 分组
     private final String watermarkGroup;
@@ -38,6 +38,7 @@ public final class WatermarkAlignmentParams implements Serializable {
     public WatermarkAlignmentParams(
             long maxAllowedWatermarkDrift, String watermarkGroup, long updateInterval) {
         this.maxAllowedWatermarkDrift = maxAllowedWatermarkDrift;
+        // 更新周期&上报周期，不设置默认是1s
         this.watermarkGroup = watermarkGroup;
         this.updateInterval = updateInterval;
     }

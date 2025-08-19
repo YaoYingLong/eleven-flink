@@ -229,6 +229,7 @@ public abstract class AbstractStreamOperator<OUT>
      */
     @Deprecated
     public void setProcessingTimeService(ProcessingTimeService processingTimeService) {
+        // 默认为ProcessingTimeServiceImpl
         this.processingTimeService = Preconditions.checkNotNull(processingTimeService);
     }
 
@@ -330,6 +331,7 @@ public abstract class AbstractStreamOperator<OUT>
             CheckpointOptions checkpointOptions,
             CheckpointStreamFactory factory)
             throws Exception {
+        // 在RegularOperatorChain中的checkpointStreamOperator中被调用
         return stateHandler.snapshotState(
                 this,
                 Optional.ofNullable(timeServiceManager),
@@ -600,6 +602,13 @@ public abstract class AbstractStreamOperator<OUT>
         if (timeServiceManager != null) {
             timeServiceManager.advanceWatermark(mark);
         }
+        /**
+         * 其实是调用AbstractStreamOperator的processWatermark方法，最终在调用output的emitWatermark方法
+         * output依然是ChainingOutput，所以又回到了这里，只是这里代表的是下一个Operator对应的ChainingOutput
+         *
+         * 到最后一个非Chain输出时，AbstractStreamOperator的processWatermark方法中调用output的emitWatermark方法
+         * 则调用的是RecordWriterOutput的emitWatermark方法，将水位线给广播给下游Operator
+         */
         output.emitWatermark(mark);
     }
 

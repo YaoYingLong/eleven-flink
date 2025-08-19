@@ -63,9 +63,8 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
     private NettyMessageDecoder currentDecoder;
 
     NettyMessageClientDecoderDelegate(NetworkClientHandler networkClientHandler) {
-        this.bufferResponseDecoder =
-                new BufferResponseDecoder(
-                        new NetworkBufferAllocator(checkNotNull(networkClientHandler)));
+        this.bufferResponseDecoder = new BufferResponseDecoder(
+                new NetworkBufferAllocator(checkNotNull(networkClientHandler)));
         this.nonBufferResponseDecoder = new NonBufferResponseDecoder();
     }
 
@@ -124,12 +123,11 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
     }
 
     private void decodeFrameHeader(ByteBuf data) {
-        ByteBuf fullFrameHeaderBuf =
-                ByteBufUtils.accumulate(
-                        frameHeaderBuffer,
-                        data,
-                        FRAME_HEADER_LENGTH,
-                        frameHeaderBuffer.readableBytes());
+        ByteBuf fullFrameHeaderBuf = ByteBufUtils.accumulate(
+                frameHeaderBuffer,
+                data,
+                FRAME_HEADER_LENGTH,
+                frameHeaderBuffer.readableBytes());
 
         if (fullFrameHeaderBuf != null) {
             int messageAndFrameLength = fullFrameHeaderBuf.readInt();

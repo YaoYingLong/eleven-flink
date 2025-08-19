@@ -341,7 +341,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
      * Initializes the OutputFormat implementation and configuration.
      *
      * @throws RuntimeException Throws if instance of OutputFormat implementation can not be
-     *     obtained.
+     *         obtained.
      */
     private void initOutputFormat() {
         ClassLoader userCodeClassLoader = getUserCodeClassLoader();
@@ -409,18 +409,16 @@ public class DataSinkTask<IT> extends AbstractInvokable {
                             getEnvironment().getTaskManagerInfo().getTmpDirectories());
         } else if (groupSize > 1) {
             // union case
-            inputReader =
-                    new MutableRecordReader<IOReadableWritable>(
-                            new UnionInputGate(getEnvironment().getAllInputGates()),
-                            getEnvironment().getTaskManagerInfo().getTmpDirectories());
+            inputReader = new MutableRecordReader<IOReadableWritable>(
+                    new UnionInputGate(getEnvironment().getAllInputGates()),
+                    getEnvironment().getTaskManagerInfo().getTmpDirectories());
         } else {
             throw new Exception("Illegal input group size in task configuration: " + groupSize);
         }
 
         this.inputTypeSerializerFactory =
                 this.config.getInputSerializer(0, getUserCodeClassLoader());
-        @SuppressWarnings({"rawtypes"})
-        final MutableObjectIterator<?> iter =
+        @SuppressWarnings({"rawtypes"}) final MutableObjectIterator<?> iter =
                 new ReaderIterator(inputReader, this.inputTypeSerializerFactory.getSerializer());
         this.reader = (MutableObjectIterator<IT>) iter;
 
@@ -441,6 +439,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
      * task group.
      *
      * @param message The main message for the log.
+     *
      * @return The string ready for logging.
      */
     private String getLogString(String message) {

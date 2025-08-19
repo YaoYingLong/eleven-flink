@@ -64,7 +64,10 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** An input channel, which requests a remote partition queue. */
+/**
+ * An input channel, which requests a remote partition queue.
+ * 输入通道，请求远程分区队列
+ */
 public class RemoteInputChannel extends InputChannel {
     private static final Logger LOG = LoggerFactory.getLogger(RemoteInputChannel.class);
 
@@ -143,6 +146,7 @@ public class RemoteInputChannel extends InputChannel {
         this.initialCredit = networkBuffersPerChannel;
         this.connectionId = checkNotNull(connectionId);
         this.connectionManager = checkNotNull(connectionManager);
+        // 初始化一个 BufferManager
         this.bufferManager = new BufferManager(inputGate.getMemorySegmentProvider(), this, 0);
         this.channelStatePersister = new ChannelStatePersister(stateWriter, getChannelInfo());
     }
@@ -220,10 +224,9 @@ public class RemoteInputChannel extends InputChannel {
             if (next != null) {
                 totalQueueSizeInBytes -= next.buffer.getSize();
             }
-            nextDataType =
-                    receivedBuffers.peek() != null
-                            ? receivedBuffers.peek().buffer.getDataType()
-                            : DataType.NONE;
+            nextDataType = receivedBuffers.peek() != null
+                    ? receivedBuffers.peek().buffer.getDataType()
+                    : DataType.NONE;
         }
 
         if (next == null) {
@@ -328,7 +331,7 @@ public class RemoteInputChannel extends InputChannel {
      */
     private void notifyCreditAvailable() throws IOException {
         checkPartitionRequestQueueInitialized();
-
+        // 这里才是关键代码，通知
         partitionRequestClient.notifyCreditAvailable(this);
     }
 
@@ -643,7 +646,8 @@ public class RemoteInputChannel extends InputChannel {
                 throw new CheckpointException(
                         String.format(
                                 "Sequence number for checkpoint %d is not known (it was likely been overwritten by a newer checkpoint %d)",
-                                barrier.getId(), lastBarrierId),
+                                barrier.getId(),
+                                lastBarrierId),
                         CheckpointFailureReason
                                 .CHECKPOINT_SUBSUMED); // currently, at most one active unaligned
                 // checkpoint is possible
@@ -753,10 +757,10 @@ public class RemoteInputChannel extends InputChannel {
 
     /**
      * @return if given {@param sequenceNumber} should be spilled given {@link
-     *     #lastBarrierSequenceNumber}. We might not have yet received {@link CheckpointBarrier} and
-     *     we might need to spill everything. If we have already received it, there is a bit nasty
-     *     corner case of {@link SequenceBuffer#sequenceNumber} overflowing that needs to be handled
-     *     as well.
+     *         #lastBarrierSequenceNumber}. We might not have yet received {@link CheckpointBarrier} and
+     *         we might need to spill everything. If we have already received it, there is a bit nasty
+     *         corner case of {@link SequenceBuffer#sequenceNumber} overflowing that needs to be handled
+     *         as well.
      */
     private boolean shouldBeSpilled(int sequenceNumber) {
         if (lastBarrierSequenceNumber == NONE) {

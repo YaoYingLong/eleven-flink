@@ -105,14 +105,12 @@ public class DispatcherCachedOperationsHandler {
             TriggerSavepointMode savepointMode,
             Time timeout) {
         return registerOperationIdempotently(
-                operationKey,
-                () ->
-                        triggerSavepointFunction.apply(
-                                operationKey.getJobId(),
-                                targetDirectory,
-                                formatType,
-                                savepointMode,
-                                timeout));
+                operationKey, () -> triggerSavepointFunction.apply(
+                        operationKey.getJobId(),
+                        targetDirectory,
+                        formatType,
+                        savepointMode,
+                        timeout));
     }
 
     public CompletableFuture<Acknowledge> stopWithSavepoint(

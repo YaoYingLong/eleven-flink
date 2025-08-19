@@ -76,31 +76,27 @@ public abstract class LeaderRetrievalHandler<T extends RestfulGateway>
         OptionalConsumer<? extends T> optLeaderConsumer =
                 OptionalConsumer.of(leaderRetriever.getNow());
 
-        optLeaderConsumer
-                .ifPresent(
-                        gateway -> {
-                            try {
-                                respondAsLeader(channelHandlerContext, routedRequest, gateway);
-                            } catch (Exception e) {
-                                logger.error("Error while responding to the http request.", e);
-                                HandlerUtils.sendErrorResponse(
-                                        channelHandlerContext,
-                                        request,
-                                        new ErrorResponseBody(
-                                                "Error while responding to the http request."),
-                                        HttpResponseStatus.INTERNAL_SERVER_ERROR,
-                                        responseHeaders);
-                            }
-                        })
-                .ifNotPresent(
-                        () ->
-                                HandlerUtils.sendErrorResponse(
-                                        channelHandlerContext,
-                                        request,
-                                        new ErrorResponseBody(
-                                                "Service temporarily unavailable due to an ongoing leader election. Please refresh."),
-                                        HttpResponseStatus.SERVICE_UNAVAILABLE,
-                                        responseHeaders));
+        optLeaderConsumer.ifPresent(gateway -> {
+                    try {
+                        respondAsLeader(channelHandlerContext, routedRequest, gateway);
+                    } catch (Exception e) {
+                        logger.error("Error while responding to the http request.", e);
+                        HandlerUtils.sendErrorResponse(
+                                channelHandlerContext,
+                                request,
+                                new ErrorResponseBody(
+                                        "Error while responding to the http request."),
+                                HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                                responseHeaders);
+                    }
+                })
+                .ifNotPresent(() -> HandlerUtils.sendErrorResponse(
+                        channelHandlerContext,
+                        request,
+                        new ErrorResponseBody(
+                                "Service temporarily unavailable due to an ongoing leader election. Please refresh."),
+                        HttpResponseStatus.SERVICE_UNAVAILABLE,
+                        responseHeaders));
     }
 
     protected abstract void respondAsLeader(

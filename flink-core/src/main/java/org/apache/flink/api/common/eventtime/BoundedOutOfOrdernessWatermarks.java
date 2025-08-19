@@ -69,7 +69,17 @@ public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T>
 
     @Override
     public void onPeriodicEmit(WatermarkOutput output) {
-        // 定时更新最新的水位线
+        /**
+         * 定时更新最新的水位线，output将splitId生成的对应的PartialWatermark封装成DeferredOutput
+         * 里的作用其实是判断当前分片的水位线大于currentMaxDesiredWatermark，并且当前分片没有被暂停
+         *
+         * 最终调用WatermarkUpdateListener的onWatermarkUpdate方法，这里的onWatermarkUpdate为
+         * watermark -> watermarkUpdateListener.updateCurrentSplitWatermark(splitId, watermark)
+         *
+         * 最终调用SourceOperator的updateCurrentSplitWatermark方法，将当前分片的水位线存储到splitCurrentWatermarks
+         * 这里的作用其实是判断当前分片的水位线大于currentMaxDesiredWatermark，并且当前分片没有被暂停
+         * currentMaxDesiredWatermark是通过SourceCoordinator中周期同步的最大允许的水位值
+         */
         output.emitWatermark(new Watermark(maxTimestamp - outOfOrdernessMillis - 1));
     }
 }

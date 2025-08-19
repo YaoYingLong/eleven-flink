@@ -313,7 +313,7 @@ public class TaskManagerServices {
          * 1、任务间数据传输：ShuffleEnvironment 是上游任务的输出数据和下游任务的输入数据之间的桥梁
          * 2、分区和分发：根据不同的 Shuffle 策略（如 Key 分区、广播、随机分发等），ShuffleEnvironment 负责数据的分发逻辑
          * 3、缓冲区管理：管理数据的缓冲区池（BufferPool），包括内存的分配和释放
-         * 4、ShuffleEnvironment 提供了数据传输的抽象，使得开发者无需关心底层的数据传输实现细节
+         * 4、ShuffleEnvironment提供了数据传输的抽象，使得开发者无需关心底层的数据传输实现细节
          * 5、它为上游和下游任务提供统一的输入（InputGate）和输出（ResultPartitionWriter）接口，屏蔽了数据传输的复杂性
          *
          * 这里创建的额shuffleEnvironment其实就是NettyShuffleEnvironment，上游StreamTask和下游StreamTask有shuffle动作。
@@ -324,7 +324,7 @@ public class TaskManagerServices {
                 taskEventDispatcher,
                 taskManagerMetricGroup,
                 ioExecutor);
-        // 启动过程中，启动了 Netty 服务端 和 客户端，负责 IO 的
+        // 这里会调用NettyConnectionManager的start，其实就是启动Netty的客户端和服务端，负责ResultPartition的IO数据
         final int listeningDataPort = shuffleEnvironment.start();
         // 初始化状态管理服务
         final KvStateService kvStateService =
@@ -445,6 +445,7 @@ public class TaskManagerServices {
         final ShuffleEnvironmentContext shuffleEnvironmentContext = new ShuffleEnvironmentContext(
                 taskManagerServicesConfiguration.getConfiguration(),
                 taskManagerServicesConfiguration.getResourceID(),
+                // taskmanager.memory.network.min配置的值默认64m
                 taskManagerServicesConfiguration.getNetworkMemorySize(),
                 taskManagerServicesConfiguration.isLocalCommunicationOnly(),
                 taskManagerServicesConfiguration.getBindAddress(),

@@ -99,21 +99,26 @@ public class KafkaSourceReaderMetrics {
     private final Map<TopicPartition, Offset> offsets = new HashMap<>();
 
     // Map for tracking records lag of topic partitions
-    @Nullable private ConcurrentMap<TopicPartition, Metric> recordsLagMetrics;
+    @Nullable
+    private ConcurrentMap<TopicPartition, Metric> recordsLagMetrics;
 
     // Kafka raw metric for bytes consumed total
-    @Nullable private Metric bytesConsumedTotalMetric;
+    @Nullable
+    private Metric bytesConsumedTotalMetric;
 
     /** Number of bytes consumed total at the latest {@link #updateNumBytesInCounter()}. */
     private long latestBytesConsumedTotal;
 
     public KafkaSourceReaderMetrics(SourceReaderMetricGroup sourceReaderMetricGroup) {
         this.sourceReaderMetricGroup = sourceReaderMetricGroup;
-        this.kafkaSourceReaderMetricGroup = sourceReaderMetricGroup.addGroup(KAFKA_SOURCE_READER_METRIC_GROUP);
+        this.kafkaSourceReaderMetricGroup =
+                sourceReaderMetricGroup.addGroup(KAFKA_SOURCE_READER_METRIC_GROUP);
         // 提交消费offsets成功的
-        this.commitsSucceeded = this.kafkaSourceReaderMetricGroup.counter(COMMITS_SUCCEEDED_METRIC_COUNTER);
+        this.commitsSucceeded =
+                this.kafkaSourceReaderMetricGroup.counter(COMMITS_SUCCEEDED_METRIC_COUNTER);
         // 提交消费offsets失败的
-        this.commitsFailed = this.kafkaSourceReaderMetricGroup.counter(COMMITS_FAILED_METRIC_COUNTER);
+        this.commitsFailed =
+                this.kafkaSourceReaderMetricGroup.counter(COMMITS_FAILED_METRIC_COUNTER);
     }
 
     /**
@@ -186,11 +191,10 @@ public class KafkaSourceReaderMetrics {
      */
     public void registerNumBytesIn(KafkaConsumer<?, ?> consumer) {
         try {
-            Predicate<Map.Entry<MetricName, ? extends Metric>> filter =
-                    (entry) ->
-                            entry.getKey().group().equals(CONSUMER_FETCH_MANAGER_GROUP)
-                                    && entry.getKey().name().equals(BYTES_CONSUMED_TOTAL)
-                                    && !entry.getKey().tags().containsKey("topic");
+            Predicate<Map.Entry<MetricName, ? extends Metric>> filter = (entry) ->
+                    entry.getKey().group().equals(CONSUMER_FETCH_MANAGER_GROUP)
+                            && entry.getKey().name().equals(BYTES_CONSUMED_TOTAL)
+                            && !entry.getKey().tags().containsKey("topic");
             this.bytesConsumedTotalMetric = MetricUtil.getKafkaMetric(consumer.metrics(), filter);
         } catch (IllegalStateException e) {
             LOG.warn(
@@ -264,18 +268,15 @@ public class KafkaSourceReaderMetrics {
 
     // -------- Helper functions --------
     private void registerOffsetMetricsForTopicPartition(TopicPartition tp) {
-        final MetricGroup topicPartitionGroup =
-                this.kafkaSourceReaderMetricGroup
-                        .addGroup(TOPIC_GROUP, tp.topic())
-                        .addGroup(PARTITION_GROUP, String.valueOf(tp.partition()));
+        final MetricGroup topicPartitionGroup = this.kafkaSourceReaderMetricGroup
+                .addGroup(TOPIC_GROUP, tp.topic())
+                .addGroup(PARTITION_GROUP, String.valueOf(tp.partition()));
         topicPartitionGroup.gauge(
-                CURRENT_OFFSET_METRIC_GAUGE,
-                () ->
+                CURRENT_OFFSET_METRIC_GAUGE, () ->
                         offsets.getOrDefault(tp, new Offset(INITIAL_OFFSET, INITIAL_OFFSET))
                                 .currentOffset);
         topicPartitionGroup.gauge(
-                COMMITTED_OFFSET_METRIC_GAUGE,
-                () ->
+                COMMITTED_OFFSET_METRIC_GAUGE, () ->
                         offsets.getOrDefault(tp, new Offset(INITIAL_OFFSET, INITIAL_OFFSET))
                                 .committedOffset);
     }
@@ -292,18 +293,17 @@ public class KafkaSourceReaderMetrics {
         try {
             final String resolvedTopic = tp.topic().replace('.', '_');
             final String resolvedPartition = String.valueOf(tp.partition());
-            Predicate<Map.Entry<MetricName, ? extends Metric>> filter =
-                    entry -> {
-                        final MetricName metricName = entry.getKey();
-                        final Map<String, String> tags = metricName.tags();
+            Predicate<Map.Entry<MetricName, ? extends Metric>> filter = entry -> {
+                final MetricName metricName = entry.getKey();
+                final Map<String, String> tags = metricName.tags();
 
-                        return metricName.group().equals(CONSUMER_FETCH_MANAGER_GROUP)
-                                && metricName.name().equals(RECORDS_LAG)
-                                && tags.containsKey("topic")
-                                && tags.get("topic").equals(resolvedTopic)
-                                && tags.containsKey("partition")
-                                && tags.get("partition").equals(resolvedPartition);
-                    };
+                return metricName.group().equals(CONSUMER_FETCH_MANAGER_GROUP)
+                        && metricName.name().equals(RECORDS_LAG)
+                        && tags.containsKey("topic")
+                        && tags.get("topic").equals(resolvedTopic)
+                        && tags.containsKey("partition")
+                        && tags.get("partition").equals(resolvedPartition);
+            };
             return MetricUtil.getKafkaMetric(metrics, filter);
         } catch (IllegalStateException e) {
             LOG.warn(

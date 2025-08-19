@@ -70,9 +70,18 @@ public class NettyShuffleUtils {
             final ResultPartitionType type) {
         boolean isSortShuffle = type.isBlockingOrBlockingPersistentResultPartition()
                 && numSubpartitions >= sortShuffleMinParallelism;
+        // numSubpartitions一般都是1，所以min一般是2
         int min = isSortShuffle ? sortShuffleMinBuffers : numSubpartitions + 1;
-        // 如果PartitionType是unbounded，则不限制buffer pool的最大大小
-        // 否则为sub-partition * taskmanager.network.memory.buffers-per-channel
+        /**
+         * 如果PartitionType一般默认是PIPELINED_BOUNDED，表示管道化分区使用有限（本地）缓冲池，对于流式作业，
+         * 固定限制缓冲池大小有助于避免过多数据被缓冲，从而导致检查点屏障的延迟
+         *
+         * configuredNetworkBuffersPerChannel可以通过taskmanager.network.memory.buffers-per-channel参数配置
+         * 否则为sub-partition * configuredNetworkBuffersPerChannel + numFloatingBuffersPerGate
+         *
+         * sub-partition一般是1，configuredNetworkBuffersPerChannel默认是2，numFloatingBuffersPerGate默认是8
+         * 这里计算出来的max默认一般是10
+         */
         int max = type.isBounded() ?
                 numSubpartitions * configuredNetworkBuffersPerChannel + numFloatingBuffersPerGate
                 : (isSortShuffle ? Math.max(min, 4 * numSubpartitions) :

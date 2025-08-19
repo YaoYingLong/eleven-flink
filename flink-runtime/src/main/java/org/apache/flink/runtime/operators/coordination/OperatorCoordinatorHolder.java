@@ -196,6 +196,7 @@ public class OperatorCoordinatorHolder
                     ((AcknowledgeCheckpointEvent) event).getCheckpointID());
             return;
         }
+        // 调用SourceCoordinator的handleEventFromOperator方法
         coordinator.handleEventFromOperator(subtask, attemptNumber, event);
     }
 
@@ -410,8 +411,7 @@ public class OperatorCoordinatorHolder
     }
 
     private void setupSubtaskGateway(final SubtaskAccess sta) {
-        final SubtaskGatewayImpl gateway =
-                new SubtaskGatewayImpl(sta, mainThreadExecutor, unconfirmedEvents);
+        final SubtaskGatewayImpl gateway = new SubtaskGatewayImpl(sta, mainThreadExecutor, unconfirmedEvents);
 
         // When concurrent execution attempts is supported, the checkpoint must have been disabled.
         // Thus, we don't need to maintain subtaskGatewayMap
@@ -499,17 +499,16 @@ public class OperatorCoordinatorHolder
             final boolean supportsConcurrentExecutionAttempts)
             throws Exception {
 
-        final LazyInitializedCoordinatorContext context =
-                new LazyInitializedCoordinatorContext(
-                        opId,
-                        operatorName,
-                        userCodeClassLoader,
-                        operatorParallelism,
-                        coordinatorStore,
-                        supportsConcurrentExecutionAttempts);
-
+        final LazyInitializedCoordinatorContext context = new LazyInitializedCoordinatorContext(
+                opId,
+                operatorName,
+                userCodeClassLoader,
+                operatorParallelism,
+                coordinatorStore,
+                supportsConcurrentExecutionAttempts);
+        // 调用RecreateOnResetOperatorCoordinator的create
         final OperatorCoordinator coordinator = coordinatorProvider.create(context);
-
+        // 将创建的RecreateOnResetOperatorCoordinator保存到OperatorCoordinatorHolder
         return new OperatorCoordinatorHolder(
                 opId,
                 coordinator,

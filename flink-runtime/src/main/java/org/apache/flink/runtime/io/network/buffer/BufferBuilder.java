@@ -74,6 +74,7 @@ public class BufferBuilder implements AutoCloseable {
         checkState(
                 !bufferConsumerCreated, "Two BufferConsumer shouldn't exist for one BufferBuilder");
         bufferConsumerCreated = true;
+        // 调用NetworkBuffer到retain方法
         return new BufferConsumer(buffer.retainBuffer(), positionMarker, currentReaderPosition);
     }
 
@@ -158,6 +159,10 @@ public class BufferBuilder implements AutoCloseable {
 
     @Override
     public void close() {
+        /**
+         * 调用NetworkBuffer的recycleBuffer，目的是调用release方法，从而触发调用NetworkBuffer的deallocate方法，
+         * 从而调用LocalBufferPool的recycle方法，最终调用RemoteInputChannel的notifyBufferAvailable方法，将数据发送到下游
+         */
         buffer.recycleBuffer();
     }
 

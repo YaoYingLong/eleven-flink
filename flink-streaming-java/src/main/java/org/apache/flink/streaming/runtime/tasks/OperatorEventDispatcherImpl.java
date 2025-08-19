@@ -69,6 +69,7 @@ public final class OperatorEventDispatcherImpl implements OperatorEventDispatche
 
         final OperatorEventHandler handler = handlers.get(operatorID);
         if (handler != null) {
+            // 调用SourceOperator的handleOperatorEvent
             handler.handleOperatorEvent(evt);
         } else {
             throw new FlinkException("Operator not registered for operator events");
@@ -116,7 +117,8 @@ public final class OperatorEventDispatcherImpl implements OperatorEventDispatche
                 // unchecked exception and let it bubble up
                 throw new FlinkRuntimeException("Cannot serialize operator event", e);
             }
-
+            // 调用RpcTaskOperatorEventGateway的sendOperatorEventToCoordinator方法
+            // 向JobMaster上的SourceCoordinator注册当前的reader
             toCoordinator.sendOperatorEventToCoordinator(operatorId, serializedEvent);
         }
     }

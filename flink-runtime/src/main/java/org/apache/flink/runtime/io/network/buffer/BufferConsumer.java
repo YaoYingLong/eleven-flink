@@ -80,15 +80,14 @@ public class BufferConsumer implements Closeable {
 
     /**
      * @return sliced {@link Buffer} containing the not yet consumed data. Returned {@link Buffer}
-     *     shares the reference counter with the parent {@link BufferConsumer} - in order to recycle
-     *     memory both of them must be recycled/closed.
+     *         shares the reference counter with the parent {@link BufferConsumer} - in order to recycle
+     *         memory both of them must be recycled/closed.
      */
     public Buffer build() {
         writerPosition.update();
         int cachedWriterPosition = writerPosition.getCached();
-        Buffer slice =
-                buffer.readOnlySlice(
-                        currentReaderPosition, cachedWriterPosition - currentReaderPosition);
+        Buffer slice = buffer.readOnlySlice(
+                currentReaderPosition, cachedWriterPosition - currentReaderPosition);
         currentReaderPosition = cachedWriterPosition;
         return slice.retainBuffer();
     }
@@ -123,7 +122,8 @@ public class BufferConsumer implements Closeable {
      * supplied position.
      *
      * @param readerPosition the new reader position. Can be less than the {@link
-     *     #currentReaderPosition}, but may not exceed the current writer's position.
+     *         #currentReaderPosition}, but may not exceed the current writer's position.
+     *
      * @return a retained copy of self with separate indexes
      */
     public BufferConsumer copyWithReaderPosition(int readerPosition) {

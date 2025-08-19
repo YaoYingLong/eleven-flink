@@ -300,16 +300,10 @@ class CreditBasedPartitionRequestClientHandler extends ChannelInboundHandlerAdap
             SocketAddress remoteAddr = ctx.channel().remoteAddress();
 
             if (error.isFatalError()) {
-                notifyAllChannelsOfErrorAndClose(
-                        new RemoteTransportException(
-                                "Fatal error at remote task manager '"
-                                        + remoteAddr
-                                        + " [ "
-                                        + connectionID.getResourceID().getStringWithMetadata()
-                                        + " ] "
-                                        + "'.",
-                                remoteAddr,
-                                error.cause));
+                notifyAllChannelsOfErrorAndClose(new RemoteTransportException(
+                        "Fatal error at remote task manager '" + remoteAddr + " [ "
+                                + connectionID.getResourceID().getStringWithMetadata()
+                                + " ] '.", remoteAddr, error.cause));
             } else {
                 RemoteInputChannel inputChannel = inputChannels.get(error.receiverId);
 
@@ -323,8 +317,8 @@ class CreditBasedPartitionRequestClientHandler extends ChannelInboundHandlerAdap
                                                 + remoteAddr
                                                 + " [ "
                                                 + connectionID
-                                                        .getResourceID()
-                                                        .getStringWithMetadata()
+                                                .getResourceID()
+                                                .getStringWithMetadata()
                                                 + " ] "
                                                 + "'.",
                                         remoteAddr,

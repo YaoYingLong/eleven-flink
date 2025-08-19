@@ -170,6 +170,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     private final List<SplitT> outputPendingSplits = new ArrayList<>();
 
     private int numSplits;
+    // 在周期接收到协调发送过来的对齐水位时，在checkSplitWatermarkAlignment方法中被使用判断是否需要暂停partition
     private final Map<String, Long> splitCurrentWatermarks = new HashMap<>();
     private final Set<String> currentlyPausedSplits = new HashSet<>();
 
@@ -183,7 +184,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     }
 
     private InternalSourceReaderMetricGroup sourceMetricGroup;
-
+    // 最大的对齐水位线，如果某个partition的水位超过该水位线，则会被暂停
     private long currentMaxDesiredWatermark = Watermark.MAX_WATERMARK.getTimestamp();
     /** Can be not completed only in {@link OperatingMode#WAITING_FOR_ALIGNMENT} mode. */
     private CompletableFuture<Void> waitingForAlignmentFuture =
@@ -332,9 +333,12 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
         if (emitProgressiveWatermarks) {
             // 创建ProgressiveTimestampsAndWatermarks
             eventTimeLogic = TimestampsAndWatermarks.createProgressiveEventTimeLogic(
+                    // 传入的我们自定义的水位线策略
                     watermarkStrategy,
                     sourceMetricGroup,
+                    // 默认为ProcessingTimeServiceImpl
                     getProcessingTimeService(),
+                    // 默认是200ms，可通过pipeline.auto-watermark-interval配置
                     getExecutionConfig().getAutoWatermarkInterval());
         } else {
             eventTimeLogic = TimestampsAndWatermarks.createNoOpEventTimeLogic(
@@ -351,9 +355,12 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
         }
 
         // Register the reader to the coordinator.
-        // 通过RPC向协调者注册当前的SourceReader
+        /**
+         * 关键代码：通过RPC向JobMaster协调者注册当前的SourceReader，然后在JobMaster的SplitEnumerator会进行分区的分配
+         * 并给当前的subtask发送AddSplitEvent事件，最终其实是调用该类的handleOperatorEvent方法，完成分区的分配
+         */
         registerReader();
-
+        // 指标中将其标记为空闲，记录空闲开始时间
         sourceMetricGroup.idlingStarted();
         // Start the reader after registration, sending messages in start is allowed.
         // 对于KafkaSourceReader该方法是一个空实现
@@ -430,7 +437,10 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             // 这里的sourceReader为KafkaSourceReader，但这里是调用的超类SourceReaderBase的pollNext
             status = sourceReader.pollNext(currentMainOutput);
         } while (status == InputStatus.MORE_AVAILABLE
+                // 这里的canEmitBatchOfRecords是StreamTask的getCanEmitBatchOfRecords方法的函数表达式
+                // 如果mailboxProcessor中有其他任务需要退出循环，线执行mailboxProcessor中的其他任务
                 && canEmitBatchOfRecords.check()
+                // 判断如果最大的水位，小于最后的水位，返回true，需要退出数据处理循环，等待水位线
                 && !shouldWaitForAlignment());
         return convertToInternalStatus(status);
     }
@@ -443,10 +453,15 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
                 if (watermarkAlignmentParams.isEnabled()) {
                     // Only wrap the output when watermark alignment is enabled, as otherwise this
                     // introduces a small performance regression (probably because of an extra virtual call)
-                    // 这里周期性执行emitLatestWatermark，默认是1s执行一次RPC上报最新水位线
+                    /**
+                     * RPC上报水位线，如果是空闲的则上报Long.MAX_VALUE作为水位线，否则上报latestWatermark作为最新的水位线
+                     * 这里其实就是将ReportedWatermarkEvent事件上报到，SourceCoordinator的handleEventFromOperator方法中处理
+                     */
                     processingTimeService.scheduleWithFixedDelay(
                             time -> emitLatestWatermark(),
+                            // 更新周期&上报周期，不设置默认是1s
                             watermarkAlignmentParams.getUpdateInterval(),
+                            // 更新周期&上报周期，不设置默认是1s
                             watermarkAlignmentParams.getUpdateInterval());
                 }
                 // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
@@ -458,10 +473,12 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
                 return convertToInternalStatus(sourceReader.pollNext(currentMainOutput));
             case SOURCE_STOPPED:
                 this.operatingMode = OperatingMode.DATA_FINISHED;
+                // 指标中将其标记为空闲，记录空闲开始时间
                 sourceMetricGroup.idlingStarted();
                 return DataInputStatus.STOPPED;
             case SOURCE_DRAINED:
                 this.operatingMode = OperatingMode.DATA_FINISHED;
+                // 指标中将其标记为空闲，记录空闲开始时间
                 sourceMetricGroup.idlingStarted();
                 return DataInputStatus.END_OF_DATA;
             case DATA_FINISHED:
@@ -469,11 +486,13 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
                     latestWatermark = Watermark.MAX_WATERMARK.getTimestamp();
                     emitLatestWatermark();
                 }
+                // 指标中将其标记为空闲，记录空闲开始时间
                 sourceMetricGroup.idlingStarted();
                 return DataInputStatus.END_OF_INPUT;
             case WAITING_FOR_ALIGNMENT:
                 checkState(!waitingForAlignmentFuture.isDone());
                 checkState(shouldWaitForAlignment());
+                // 出现等待水位对齐，即水位线超过最大水位
                 return convertToInternalStatus(InputStatus.NOTHING_AVAILABLE);
             case READING:
             default:
@@ -522,11 +541,12 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             case MORE_AVAILABLE:
                 return DataInputStatus.MORE_AVAILABLE;
             case NOTHING_AVAILABLE:
-                // 第一次会走到这里
+                // 指标中将其标记为空闲，记录空闲开始时间
                 sourceMetricGroup.idlingStarted();
                 return DataInputStatus.NOTHING_AVAILABLE;
             case END_OF_INPUT:
                 this.operatingMode = OperatingMode.DATA_FINISHED;
+                // 指标中将其标记为空闲，记录空闲开始时间
                 sourceMetricGroup.idlingStarted();
                 return DataInputStatus.END_OF_DATA;
             default:
@@ -540,13 +560,17 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
             // 如果水位线还未初始化直接return
             return;
         }
-        // RPC上报水位线，如果是空闲的则上报Long.MAX_VALUE作为水位线，否则上报最新的水位线
+        /**
+         * RPC上报水位线，如果是空闲的则上报Long.MAX_VALUE作为水位线，否则上报latestWatermark作为最新的水位线
+         * 这里其实就是将ReportedWatermarkEvent事件上报到，SourceCoordinator的handleEventFromOperator方法中处理
+         */
         operatorEventGateway.sendEventToCoordinator(new ReportedWatermarkEvent(
                 idle ? Watermark.MAX_WATERMARK.getTimestamp() : latestWatermark));
     }
 
     @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
+        // 在StreamOperatorStateHandler中的snapshotState方法中被调用
         long checkpointId = context.getCheckpointId();
         LOG.debug("Taking a snapshot for checkpoint {}", checkpointId);
         readerState.update(sourceReader.snapshotState(checkpointId));
@@ -556,9 +580,11 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     public CompletableFuture<?> getAvailableFuture() {
         switch (operatingMode) {
             case WAITING_FOR_ALIGNMENT:
+                // 这里其实就是返回waitingForAlignmentFuture是否处于完成状态，即等待水位线结束
                 return availabilityHelper.update(waitingForAlignmentFuture);
             case OUTPUT_NOT_INITIALIZED:
             case READING:
+                // 只要有待处理的数据，就返回AVAILABLE
                 return availabilityHelper.update(sourceReader.isAvailable());
             case SOURCE_STOPPED:
             case SOURCE_DRAINED:
@@ -592,10 +618,15 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     @SuppressWarnings("unchecked")
     public void handleOperatorEvent(OperatorEvent event) {
         if (event instanceof WatermarkAlignmentEvent) {
+            // 水位线等待对齐事件
+            // 将currentMaxDesiredWatermark更新为事件中传过来的水位线
             updateMaxDesiredWatermark((WatermarkAlignmentEvent) event);
+            // 判断最大期待水位和当前水位做比较，以及判断状态，修改为等待或者恢复消费
             checkWatermarkAlignment();
+            // 这里是遍历所有的分区的水位线，如果水位线超过最大期望的水位，需要暂停该分区的消费，如果小于且已经被暂停，需要恢复消费
             checkSplitWatermarkAlignment();
         } else if (event instanceof AddSplitEvent) {
+            // 接收从JobMaster上发送来的AddSplitEvent事件，处理具体的分区
             handleAddSplitsEvent(((AddSplitEvent<SplitT>) event));
         } else if (event instanceof SourceEventWrapper) {
             sourceReader.handleSourceEvents(((SourceEventWrapper) event).getSourceEvent());
@@ -606,19 +637,28 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
         }
     }
 
+    /**
+     * JobMaster启动时会启动，SourceCoordinator，SourceCoordinator会启动KafkaSourceEnumerator
+     * KafkaSourceEnumerator会根据并行度，给每个并行度预先分配分区数据量，当SubTask启动后调用SourceOperator的open时
+     * 会向JobMaster注册当前的reader，然后通过KafkaSourceEnumerator获取根据并行度预先分配分区列表，
+     * 然后由JobMaster向SubTask发送AddSplitEvent事件，完成分区的分配
+     */
     private void handleAddSplitsEvent(AddSplitEvent<SplitT> event) {
         try {
+            // 反序列化
             List<SplitT> newSplits = event.splits(splitSerializer);
+            // numSplits默认是0
             numSplits += newSplits.size();
+            // 如果没有被初始化
             if (operatingMode == OperatingMode.OUTPUT_NOT_INITIALIZED) {
                 // For splits arrived before the main output is initialized, store them into the
-                // pending list. Outputs of these splits will be created once the main output is
-                // ready.
+                // pending list. Outputs of these splits will be created once the main output is ready.
                 outputPendingSplits.addAll(newSplits);
             } else {
                 // Create output directly for new splits if the main output is already initialized.
                 createOutputForSplits(newSplits);
             }
+            // 调用SourceReaderBase的addSplits方法
             sourceReader.addSplits(newSplits);
         } catch (IOException e) {
             throw new FlinkRuntimeException("Failed to deserialize the splits.", e);
@@ -627,12 +667,15 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     private void createOutputForSplits(List<SplitT> newSplits) {
         for (SplitT split : newSplits) {
+            // 调用StreamingReaderOutput的createOutputForSplit方法
             currentMainOutput.createOutputForSplit(split.splitId());
         }
     }
 
     private void updateMaxDesiredWatermark(WatermarkAlignmentEvent event) {
+        // 当前最大的水位线
         currentMaxDesiredWatermark = event.getMaxWatermark();
+        // 记录指标
         sourceMetricGroup.updateMaxDesiredWatermark(currentMaxDesiredWatermark);
     }
 
@@ -644,6 +687,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     @Override
     public void updateCurrentEffectiveWatermark(long watermark) {
+        // 周期被调用，这里设置的是WatermarkOutputMultiplexer中所有分区中水位线最小的作为latestWatermark
         latestWatermark = watermark;
         // 检查水位线对齐，设置operatingMode为WAITING_FOR_ALIGNMENT或READING
         checkWatermarkAlignment();
@@ -651,12 +695,14 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
 
     @Override
     public void updateCurrentSplitWatermark(String splitId, long watermark) {
-        // 通知关于每个分片的水位线的变化
+        // 通知关于每个分片的水位线的变化，同updateCurrentEffectiveWatermark方法一样被周期调用
+        // 在周期接收到协调发送过来的对齐水位时，在checkSplitWatermarkAlignment方法中被使用判断是否需要暂停partition
         splitCurrentWatermarks.put(splitId, watermark);
         // 如果当前的分片数大于1，并且当前分片的水位线大于currentMaxDesiredWatermark，并且当前分片没有被暂停
+        // currentMaxDesiredWatermark是通过SourceCoordinator中周期同步的最大允许的水位值
         if (numSplits > 1 && watermark > currentMaxDesiredWatermark
                 && !currentlyPausedSplits.contains(splitId)) {
-            // 其实就是异步调用KafkaPartitionSplitReader的pauseOrResumeSplits方法
+            // 其实就是异步调用KafkaPartitionSplitReader的pauseOrResumeSplits方法，暂停分区消费
             pauseOrResumeSplits(Collections.singletonList(splitId), Collections.emptyList());
             // 将当前分片添加到currentlyPausedSplits中，表示当前分片已经被暂停
             currentlyPausedSplits.add(splitId);
@@ -677,6 +723,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
         }
         Collection<String> splitsToPause = new ArrayList<>();
         Collection<String> splitsToResume = new ArrayList<>();
+        // 这里是遍历所有的分区的水位线，如果水位线超过最大期望的水位，需要暂停该分区的消费，如果小于且已经被暂停，需要恢复消费
         splitCurrentWatermarks.forEach(
                 (splitId, splitWatermark) -> {
                     if (splitWatermark > currentMaxDesiredWatermark) {
@@ -685,8 +732,10 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
                         splitsToResume.add(splitId);
                     }
                 });
+        // 将需要暂停的列表中，移除需要恢复的partitonh
         splitsToPause.removeAll(currentlyPausedSplits);
         if (!splitsToPause.isEmpty() || !splitsToResume.isEmpty()) {
+            // 这里是调用KafkaConsumer的原生API取暂停或恢复分区消费
             pauseOrResumeSplits(splitsToPause, splitsToResume);
             currentlyPausedSplits.addAll(splitsToPause);
             splitsToResume.forEach(currentlyPausedSplits::remove);
@@ -719,6 +768,7 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
         } else if (operatingMode == OperatingMode.WAITING_FOR_ALIGNMENT) {
             // 如果isDone返回false，则抛出异常
             checkState(!waitingForAlignmentFuture.isDone());
+            // 如果已经处理水位对齐等待过程中了，如果比较水位发现，不需要再等待对齐了，则修改状态
             if (!shouldWaitForAlignment()) {
                 // 如果currentMaxDesiredWatermark >= latestWatermark将状态设置为READING
                 operatingMode = OperatingMode.READING;
@@ -729,10 +779,15 @@ public class SourceOperator<OUT, SplitT extends SourceSplit> extends AbstractStr
     }
 
     private boolean shouldWaitForAlignment() {
+        /**
+         * 关键代码，返回是否需要等待水位对齐，currentMaxDesiredWatermark表示最大的期望的水位线
+         * latestWatermark表示当前水位，如果当前水位都超过了最大期望的水位线，肯定是需要停止任务等待水位对齐的
+         */
         return currentMaxDesiredWatermark < latestWatermark;
     }
 
     private void registerReader() {
+        // 调用OperatorEventGatewayImpl的sendEventToCoordinator方法，向JobMaster上的SourceCoordinator注册当前的reader
         operatorEventGateway.sendEventToCoordinator(new ReaderRegistrationEvent(
                 getRuntimeContext().getIndexOfThisSubtask(), localHostname));
     }

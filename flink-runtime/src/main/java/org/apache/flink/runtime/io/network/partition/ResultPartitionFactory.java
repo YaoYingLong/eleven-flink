@@ -107,6 +107,7 @@ public class ResultPartitionFactory {
         this.channelManager = channelManager;
         this.configuredNetworkBuffersPerChannel = configuredNetworkBuffersPerChannel;
         this.floatingNetworkBuffersPerGate = floatingNetworkBuffersPerGate;
+        // bufferPoolFactory其实就是NetworkBufferPool
         this.bufferPoolFactory = bufferPoolFactory;
         this.batchShuffleReadBufferPool = batchShuffleReadBufferPool;
         this.batchShuffleReadIOExecutor = batchShuffleReadIOExecutor;
@@ -137,6 +138,7 @@ public class ResultPartitionFactory {
                 desc.getNumberOfSubpartitions(),
                 desc.getMaxParallelism(),
                 desc.isBroadcast(),
+                // 关键代码，创建一个用于创建BufferPool的函数表达式
                 createBufferPoolFactory(desc.getNumberOfSubpartitions(), desc.getPartitionType()));
     }
 
@@ -326,6 +328,7 @@ public class ResultPartitionFactory {
     @VisibleForTesting
     SupplierWithException<BufferPool, IOException> createBufferPoolFactory(
             int numberOfSubpartitions, ResultPartitionType type) {
+        // 这里的作用是创建LocalBufferPool
         return () -> {
             // 如果PartitionType是unbounded，则不限制buffer pool的最大大小
             // 否则为sub-partition * taskmanager.network.memory.buffers-per-channel
@@ -337,13 +340,14 @@ public class ResultPartitionFactory {
                             sortShuffleMinBuffers,
                             numberOfSubpartitions,
                             type);
-            // 创建一个LocalBufferPool，请求的最少的MemeorySegment数量和sub-partition一致
-            // 如果没有反压，则需要自己处理buffer的回收（主要是在batch模式）
+            // bufferPoolFactory其实就是NetworkBufferPool，创建一个LocalBufferPool，请求的最少的MemeorySegment数量
+            // 和sub-partition一致，如果没有反压，则需要自己处理buffer的回收（主要是在batch模式）
             return bufferPoolFactory.createBufferPool(
                     pair.getLeft(),  // 最小值
                     pair.getRight(), // 最大值
                     numberOfSubpartitions,
                     maxBuffersPerChannel,
+                    // 流处理一般都是true，maxOverdraftBuffersPerGate默认一般是5
                     isOverdraftBufferNeeded(type) ? maxOverdraftBuffersPerGate : 0);
         };
     }

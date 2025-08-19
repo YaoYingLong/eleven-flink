@@ -54,6 +54,7 @@ public class ProcessOperator<IN, OUT>
     @Override
     public void open() throws Exception {
         super.open();
+        // 这个是主路输出的
         collector = new TimestampedCollector<>(output);
 
         context = new ContextImpl(userFunction, getProcessingTimeService());

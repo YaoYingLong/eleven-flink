@@ -56,6 +56,8 @@ public class RpcTaskOperatorEventGateway implements TaskOperatorEventGateway {
     @Override
     public void sendOperatorEventToCoordinator(
             OperatorID operator, SerializedValue<OperatorEvent> event) {
+        // 调用JobMaster的sendOperatorEventToCoordinator方法
+        // 向JobMaster上的SourceCoordinator注册当前的reader
         final CompletableFuture<Acknowledge> result =
                 rpcGateway.sendOperatorEventToCoordinator(taskExecutionId, operator, event);
 

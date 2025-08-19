@@ -213,15 +213,12 @@ class PartitionRequestQueue extends ChannelInboundHandlerAdapter {
 
         NettyMessage.BacklogAnnouncement announcement =
                 new NettyMessage.BacklogAnnouncement(backlog, reader.getReceiverId());
-        ctx.channel()
-                .writeAndFlush(announcement)
-                .addListener(
-                        (ChannelFutureListener)
-                                future -> {
-                                    if (!future.isSuccess()) {
-                                        onChannelFutureFailure(future);
-                                    }
-                                });
+        ctx.channel().writeAndFlush(announcement).addListener(
+                (ChannelFutureListener) future -> {
+                    if (!future.isSuccess()) {
+                        onChannelFutureFailure(future);
+                    }
+                });
     }
 
     @Override

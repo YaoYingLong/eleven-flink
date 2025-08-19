@@ -45,7 +45,8 @@ public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWrit
 
     private final SpanningWrapper spanningWrapper;
 
-    @Nullable private Buffer currentBuffer;
+    @Nullable
+    private Buffer currentBuffer;
 
     public SpillingAdaptiveSpanningRecordDeserializer(String[] tmpDirectories) {
         this(tmpDirectories, DEFAULT_THRESHOLD_FOR_SPILLING, DEFAULT_FILE_BUFFER_SIZE);
@@ -54,11 +55,10 @@ public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWrit
     public SpillingAdaptiveSpanningRecordDeserializer(
             String[] tmpDirectories, int thresholdForSpilling, int fileBufferSize) {
         nonSpanningWrapper = new NonSpanningWrapper();
-        spanningWrapper =
-                new SpanningWrapper(
-                        tmpDirectories,
-                        Math.max(thresholdForSpilling, MIN_THRESHOLD_FOR_SPILLING),
-                        Math.max(fileBufferSize, MIN_FILE_BUFFER_SIZE));
+        spanningWrapper = new SpanningWrapper(
+                tmpDirectories,
+                Math.max(thresholdForSpilling, MIN_THRESHOLD_FOR_SPILLING),
+                Math.max(fileBufferSize, MIN_FILE_BUFFER_SIZE));
     }
 
     @Override

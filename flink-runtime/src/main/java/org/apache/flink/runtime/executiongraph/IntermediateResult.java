@@ -42,14 +42,20 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
+/**
+ * IntermediateResult是上游ExecutionJobVertex的输出数据集，它包含了所有的IntermediateResultPartition，
+ * IntermediateResult记录了上游任务（生产者）和下游任务（消费者）之间的依赖关系, 它存储了由生产者生成的多个数据分区
+ * （IntermediateResultPartition），并通过这些分区连接到下游任务,每个分区代表一个并行子任务的输出
+ *
+ */
 public class IntermediateResult {
 
     private final IntermediateDataSet intermediateDataSet;
-
+    // 是该 IntermediateResult 的唯一标识符
     private final IntermediateDataSetID id;
-
+    // 上游生产者任务,即上游的 ExecutionJobVertex
     private final ExecutionJobVertex producer;
-
+    // 数据分区,表示中间数据的具体分区
     private final IntermediateResultPartition[] partitions;
 
     /**
@@ -59,13 +65,13 @@ public class IntermediateResult {
      */
     private final HashMap<IntermediateResultPartitionID, Integer> partitionLookupHelper =
             new HashMap<>();
-
+    // 表示生产者的并行度
     private final int numParallelProducers;
-
+    // 已分配的分区数
     private int partitionsAssigned;
 
     private final int connectionIndex;
-
+    // 分区类型
     private final ResultPartitionType resultType;
 
     private final Map<ConsumedPartitionGroup, CachedShuffleDescriptors> shuffleDescriptorCache;

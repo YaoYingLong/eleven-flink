@@ -136,7 +136,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>Each Task is run by one dedicated thread.
  */
-public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionProducerStateProvider {
+public class Task
+        implements Runnable, TaskSlotPayload, TaskActions, PartitionProducerStateProvider {
 
     /** The class logger. */
     private static final Logger LOG = LoggerFactory.getLogger(Task.class);
@@ -410,14 +411,16 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 
         this.partitionWriters = resultPartitionWriters;
         // consumed intermediate result partitions
-        // 初始化 InputGate
+        // 初始化IndexedInputGate，其实是SingleInputGate
         final IndexedInputGate[] gates = shuffleEnvironment
                 .createInputGates(taskShuffleContext, this, inputGateDeploymentDescriptors)
                 .toArray(new IndexedInputGate[0]);
 
+        // 存储的是被InputGateWithMetrics封装的IndexedInputGate
         this.inputGates = new IndexedInputGate[gates.length];
         int counter = 0;
         for (IndexedInputGate gate : gates) {
+            // 将SingleInputGate封装成了InputGateWithMetrics
             inputGates[counter++] = new InputGateWithMetrics(
                     gate, metrics.getIOMetricGroup().getNumBytesInCounter());
         }
@@ -1460,9 +1463,8 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
             try {
                 switch (notifyCheckpointOperation) {
                     case ABORT:
-                        ((CheckpointableTask) invokable)
-                                .notifyCheckpointAbortAsync(
-                                        checkpointId, latestCompletedCheckpointId);
+                        ((CheckpointableTask) invokable).notifyCheckpointAbortAsync(
+                                checkpointId, latestCompletedCheckpointId);
                         break;
                     case COMPLETE:
                         ((CheckpointableTask) invokable)
@@ -1531,6 +1533,7 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 
         if (invokable instanceof CoordinatedTask) {
             try {
+                // 调用StreamTask的dispatchOperatorEvent方法
                 ((CoordinatedTask) invokable).dispatchOperatorEvent(operator, evt);
             } catch (Throwable t) {
                 ExceptionUtils.rethrowIfFatalErrorOrOOM(t);

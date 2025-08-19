@@ -348,14 +348,13 @@ public class MailboxProcessor implements Closeable {
      */
     private boolean processMail(TaskMailbox mailbox, boolean singleStep) throws Exception {
         // Doing this check is an optimization to only have a volatile read in the expected hot
-        // path, locks are only
-        // acquired after this point.
+        // path, locks are only acquired after this point.
         boolean isBatchAvailable = mailbox.createBatch();
 
         // Take mails in a non-blockingly and execute them.
         // 进行此检查是一种优化，以仅在预期的热路径中读取易失性数据，只有在此之后才能获取锁定
         boolean processed = isBatchAvailable && processMailsNonBlocking(singleStep);
-        // singleStep默认传入的false
+        // singleStep默认传入的false，只有测试用例的情况下传入的可能是true
         if (singleStep) {
             return processed;
         }
@@ -389,14 +388,14 @@ public class MailboxProcessor implements Closeable {
         long processedMails = 0;
         Optional<Mail> maybeMail;
 
-        // 如果有mail需要处理，且batch中还有mail，就一直处理
+        // 如果有mail需要处理，且batch中还有mail，就一直处理，非阻塞的从batch队列中pull任务
         while (isNextLoopPossible() && (maybeMail = mailbox.tryTakeFromBatch()).isPresent()) {
             if (processedMails++ == 0) {
                 maybePauseIdleTimer();
             }
             // 运行 Mail，执行Mail的run方法
             runMail(maybeMail.get());
-            // singleStep默认是false
+            // singleStep默认是false，只有测试用例的情况下传入的可能是true
             if (singleStep) {
                 break;
             }
@@ -518,6 +517,7 @@ public class MailboxProcessor implements Closeable {
         @Override
         public void resume() {
             if (mailbox.isMailboxThread()) {
+                // 将suspendedDefaultAction置为null
                 resumeInternal();
             } else {
                 try {

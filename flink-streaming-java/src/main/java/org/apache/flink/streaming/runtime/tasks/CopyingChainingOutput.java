@@ -74,6 +74,11 @@ final class CopyingChainingOutput<T> extends ChainingOutput<T> {
             numRecordsIn.inc();
             // 这里即是与ChainingOutput处理数据唯一差别多了两次copy
             StreamRecord<T> copy = castRecord.copy(serializer.copy(castRecord.getValue()));
+            /**
+             * 这里的recordProcessor是通过RecordProcessorUtils.getRecordProcessor(input)构造的
+             * 最终返回的是一个函数表达式，即input::processElement，所以这里调用的是Operator的processElement
+             * 来处理castRecord数据记录
+             */
             recordProcessor.accept(copy);
         } catch (ClassCastException e) {
             if (outputTag != null) {

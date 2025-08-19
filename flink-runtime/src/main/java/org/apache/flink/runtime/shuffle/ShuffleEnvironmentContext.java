@@ -33,6 +33,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class ShuffleEnvironmentContext {
     private final Configuration configuration;
     private final ResourceID taskExecutorResourceId;
+    // taskmanager.memory.network.min配置的值默认64m
     private final MemorySize networkMemorySize;
     private final boolean localCommunicationOnly;
     private final InetAddress hostAddress;
@@ -56,6 +57,7 @@ public class ShuffleEnvironmentContext {
             Executor ioExecutor) {
         this.configuration = checkNotNull(configuration);
         this.taskExecutorResourceId = checkNotNull(taskExecutorResourceId);
+        // taskmanager.memory.network.min配置的值默认64m
         this.networkMemorySize = networkMemorySize;
         this.localCommunicationOnly = localCommunicationOnly;
         this.hostAddress = checkNotNull(hostAddress);

@@ -118,11 +118,12 @@ public class RecordWriterOutput<OUT> implements WatermarkGaugeExposingOutput<Str
         if (announcedStatus.isIdle()) {
             return;
         }
-
+        // 记录指标
         watermarkGauge.setCurrentWatermark(mark.getTimestamp());
         serializationDelegate.setInstance(mark);
 
         try {
+            // 这里recordWriter是将ChannelSelectorRecordWriter封装到SingleRecordWriter，在StreamTask构造方法中被初始化
             recordWriter.broadcastEmit(serializationDelegate);
         } catch (IOException e) {
             throw new UncheckedIOException(e.getMessage(), e);

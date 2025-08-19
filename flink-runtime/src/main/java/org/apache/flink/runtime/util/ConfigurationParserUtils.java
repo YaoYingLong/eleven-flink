@@ -46,6 +46,7 @@ public class ConfigurationParserUtils {
      * Parses the configuration to get the number of slots and validates the value.
      *
      * @param configuration configuration object
+     *
      * @return the number of slots in task manager
      */
     public static int getSlot(Configuration configuration) {
@@ -56,11 +57,8 @@ public class ConfigurationParserUtils {
         }
 
         ConfigurationParserUtils.checkConfigParameter(
-                slots >= 1,
-                slots,
-                TaskManagerOptions.NUM_TASK_SLOTS.key(),
+                slots >= 1, slots, TaskManagerOptions.NUM_TASK_SLOTS.key(),
                 "Number of task slots must be at least one.");
-
         return slots;
     }
 
@@ -69,10 +67,11 @@ public class ConfigurationParserUtils {
      * condition does not hold.
      *
      * @param condition The condition that must hold. If the condition is false, an exception is
-     *     thrown.
+     *         thrown.
      * @param parameter The parameter value. Will be shown in the exception message.
      * @param name The name of the config parameter. Will be shown in the exception message.
      * @param errorMessage The optional custom error message to append to the exception message.
+     *
      * @throws IllegalConfigurationException if the condition does not hold
      */
     public static void checkConfigParameter(
@@ -93,12 +92,12 @@ public class ConfigurationParserUtils {
      * Parses the configuration to get the page size and validates the value.
      *
      * @param configuration configuration object
+     *
      * @return size of memory segment
      */
     public static int getPageSize(Configuration configuration) {
-        final int pageSize =
-                checkedDownCast(
-                        configuration.get(TaskManagerOptions.MEMORY_SEGMENT_SIZE).getBytes());
+        final int pageSize = checkedDownCast(
+                configuration.get(TaskManagerOptions.MEMORY_SEGMENT_SIZE).getBytes());
 
         // check page size of for minimum size
         checkConfigParameter(
@@ -121,7 +120,9 @@ public class ConfigurationParserUtils {
      *
      * @param args the commandline arguments
      * @param cmdLineSyntax the syntax for this application
+     *
      * @return generated configuration
+     *
      * @throws FlinkParseException if the configuration cannot be generated
      */
     public static Configuration loadCommonConfiguration(String[] args, String cmdLineSyntax)

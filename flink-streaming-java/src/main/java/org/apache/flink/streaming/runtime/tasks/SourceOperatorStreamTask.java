@@ -308,6 +308,7 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
 
         @Override
         public void emitRecord(StreamRecord<T> streamRecord) {
+            // 记录指标
             metricGroup.recordEmitted(streamRecord.getTimestamp());
             // output就是ChainingOutput或RecordWriterOutput
             output.collect(streamRecord);

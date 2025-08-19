@@ -47,6 +47,7 @@ class FetchTask<E, SplitT extends SourceSplit> implements SplitFetcherTask {
         this.splitReader = splitReader;
         // elementsQueue是FutureCompletingBlockingQueue<RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>>>
         this.elementsQueue = elementsQueue;
+        // 移除已完成的分区
         this.splitFinishedCallback = splitFinishedCallback;
         this.lastRecords = null;
         this.fetcherIndex = fetcherIndex;

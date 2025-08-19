@@ -64,6 +64,7 @@ public class SourceOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OU
         this(source, watermarkStrategy, true /* emit progressive watermarks */, 1);
     }
 
+    // 注意SourceOperatorFactory是实现了CoordinatedOperatorFactory接口
     public SourceOperatorFactory(
             Source<OUT, ?, ?> source,
             WatermarkStrategy<OUT> watermarkStrategy,

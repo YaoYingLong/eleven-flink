@@ -102,26 +102,25 @@ class SubtaskGatewayImpl implements OperatorCoordinator.SubtaskGateway {
             throw new FlinkRuntimeException("Cannot serialize operator event", e);
         }
 
+        // 调用ExecutionSubtaskAccess的createEventSendAction方法生成sendAction
+        // 下面线程池执行sendEventInternal最终其实是调用sendAction，在sendAction中封装了一个runnable
+        // 调用具体的TaskExecutor的sendOperatorEventToTask方法，将AddSplitEvent发送给具体的StreamTask
         final Callable<CompletableFuture<Acknowledge>> sendAction =
                 subtaskAccess.createEventSendAction(serializedEvent);
 
         final CompletableFuture<Acknowledge> sendResult = new CompletableFuture<>();
-        final CompletableFuture<Acknowledge> result =
-                sendResult.whenCompleteAsync(
-                        (success, failure) -> {
-                            if (failure != null && subtaskAccess.isStillRunning()) {
-                                String msg =
-                                        String.format(
-                                                EVENT_LOSS_ERROR_MESSAGE,
-                                                evt,
-                                                subtaskAccess.subtaskName());
-                                Runnables.assertNoException(
-                                        () ->
-                                                subtaskAccess.triggerTaskFailover(
-                                                        new FlinkException(msg, failure)));
-                            }
-                        },
-                        mainThreadExecutor);
+        final CompletableFuture<Acknowledge> result = sendResult.whenCompleteAsync(
+                (success, failure) -> {
+                    if (failure != null && subtaskAccess.isStillRunning()) {
+                        String msg = String.format(
+                                EVENT_LOSS_ERROR_MESSAGE,
+                                evt,
+                                subtaskAccess.subtaskName());
+                        Runnables.assertNoException(() -> subtaskAccess.triggerTaskFailover(
+                                new FlinkException(msg, failure)));
+                    }
+                },
+                mainThreadExecutor);
 
         mainThreadExecutor.execute(
                 () -> {
@@ -190,7 +189,8 @@ class SubtaskGatewayImpl implements OperatorCoordinator.SubtaskGateway {
             throw new IllegalStateException(
                     String.format(
                             "Regressing checkpoint IDs. Previous checkpointId = %d, new checkpointId = %d",
-                            latestAttemptedCheckpointId, checkpointId));
+                            latestAttemptedCheckpointId,
+                            checkpointId));
         }
     }
 

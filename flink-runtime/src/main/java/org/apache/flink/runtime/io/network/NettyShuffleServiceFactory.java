@@ -72,12 +72,14 @@ public class NettyShuffleServiceFactory
         NettyShuffleEnvironmentConfiguration networkConfig =
                 NettyShuffleEnvironmentConfiguration.fromConfiguration(
                         shuffleEnvironmentContext.getConfiguration(),
+                        // taskmanager.memory.network.min配置的值默认64m
                         shuffleEnvironmentContext.getNetworkMemorySize(),
                         shuffleEnvironmentContext.isLocalCommunicationOnly(),
                         shuffleEnvironmentContext.getHostAddress());
         return createNettyShuffleEnvironment(
                 networkConfig,
                 shuffleEnvironmentContext.getTaskExecutorResourceId(),
+                // TaskEventPublisher
                 shuffleEnvironmentContext.getEventPublisher(),
                 shuffleEnvironmentContext.getParentMetricGroup(),
                 shuffleEnvironmentContext.getIoExecutor(),
@@ -153,6 +155,7 @@ public class NettyShuffleServiceFactory
         checkNotNull(taskEventPublisher);
         checkNotNull(resultPartitionManager);
         checkNotNull(metricGroup);
+        // connectionManager一般来说是NettyConnectionManager
         checkNotNull(connectionManager);
 
         FileChannelManager fileChannelManager =
@@ -186,7 +189,7 @@ public class NettyShuffleServiceFactory
                                 batchShuffleReadBufferPool.getMaxConcurrentRequests(),
                                 Math.max(numberOfSlots, tmpDirPaths.length))),
                 new ExecutorThreadFactory("blocking-shuffle-io"));
-
+        // 注册指标
         registerShuffleMetrics(metricGroup, networkBufferPool);
 
         ResultPartitionFactory resultPartitionFactory = new ResultPartitionFactory(

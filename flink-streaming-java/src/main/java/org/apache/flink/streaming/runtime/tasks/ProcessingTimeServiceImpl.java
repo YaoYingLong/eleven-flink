@@ -43,7 +43,9 @@ class ProcessingTimeServiceImpl implements ProcessingTimeService {
     ProcessingTimeServiceImpl(
             TimerService timerService,
             Function<ProcessingTimeCallback, ProcessingTimeCallback> processingTimeCallbackWrapper) {
+        // timerService为SystemProcessingTimeService
         this.timerService = timerService;
+        // 通过mailboxExecutor来调用ProcessingTimeCallback的onProcessingTime方法的函数表达式
         this.processingTimeCallbackWrapper = processingTimeCallbackWrapper;
 
         this.numRunningTimers = new AtomicInteger(0);
@@ -88,7 +90,7 @@ class ProcessingTimeServiceImpl implements ProcessingTimeService {
         if (isQuiesced()) {
             return new NeverCompleteFuture(initialDelay);
         }
-
+        // timerService为SystemProcessingTimeService
         return timerService.scheduleWithFixedDelay(
                 addQuiesceProcessingToCallback(processingTimeCallbackWrapper.apply(callback)),
                 initialDelay,

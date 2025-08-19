@@ -155,8 +155,8 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
     @Override
     public void serialize(StreamElement value, DataOutputView target) throws IOException {
         if (value.isRecord()) {
+            // 处理实际的数据
             StreamRecord<T> record = value.asRecord();
-
             if (record.hasTimestamp()) {
                 target.write(TAG_REC_WITH_TIMESTAMP);
                 target.writeLong(record.getTimestamp());
@@ -165,12 +165,15 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
             }
             typeSerializer.serialize(record.getValue(), target);
         } else if (value.isWatermark()) {
+            // 处理水位线
             target.write(TAG_WATERMARK);
             target.writeLong(value.asWatermark().getTimestamp());
         } else if (value.isWatermarkStatus()) {
+            // 水位线状态
             target.write(TAG_STREAM_STATUS);
             target.writeInt(value.asWatermarkStatus().getStatus());
         } else if (value.isLatencyMarker()) {
+            // 迟到数据
             target.write(TAG_LATENCY_MARKER);
             target.writeLong(value.asLatencyMarker().getMarkedTime());
             target.writeLong(value.asLatencyMarker().getOperatorId().getLowerPart());

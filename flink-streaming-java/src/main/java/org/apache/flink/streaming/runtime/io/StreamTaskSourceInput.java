@@ -67,7 +67,7 @@ public class StreamTaskSourceInput<T> implements StreamTaskInput<T>, Checkpointa
          * polls the data from this source while it's blocked, it should return {@link
          * DataInputStatus.NOTHING_AVAILABLE}.
          */
-        // 默认是true
+        // 默认是true，其实就是判断isBlockedAvailability中的availableFuture是否为AVAILABLE
         if (isBlockedAvailability.isApproximatelyAvailable()) {
             // 这里的operator实际上是SourceOperatorStreamTask调用超类的SourceOperator的emitNext方法
             // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
@@ -79,6 +79,7 @@ public class StreamTaskSourceInput<T> implements StreamTaskInput<T>, Checkpointa
 
     @Override
     public CompletableFuture<?> getAvailableFuture() {
+        // 只要operator有待处理的数据或者没有等待水位对齐，就返回AVAILABLE
         return isBlockedAvailability.and(operator);
     }
 

@@ -43,8 +43,8 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
 
     private static final Logger LOG = LoggerFactory.getLogger(PartitionRequestServerHandler.class);
 
+    // partitionProvider为ResultPartitionManager，taskEventPublisher为TaskEventDispatcher
     private final ResultPartitionProvider partitionProvider;
-
     private final TaskEventPublisher taskEventPublisher;
 
     private final PartitionRequestQueue outboundQueue;
@@ -53,7 +53,7 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
             ResultPartitionProvider partitionProvider,
             TaskEventPublisher taskEventPublisher,
             PartitionRequestQueue outboundQueue) {
-
+        // partitionProvider为ResultPartitionManager，taskEventPublisher为TaskEventDispatcher
         this.partitionProvider = partitionProvider;
         this.taskEventPublisher = taskEventPublisher;
         this.outboundQueue = outboundQueue;
@@ -73,24 +73,18 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
     protected void channelRead0(ChannelHandlerContext ctx, NettyMessage msg) throws Exception {
         try {
             Class<?> msgClazz = msg.getClass();
-
             // ----------------------------------------------------------------
             // Intermediate result partition requests
             // ----------------------------------------------------------------
             if (msgClazz == PartitionRequest.class) {
                 PartitionRequest request = (PartitionRequest) msg;
-
                 LOG.debug("Read channel on {}: {}.", ctx.channel().localAddress(), request);
-
                 try {
                     NetworkSequenceViewReader reader;
-                    reader =
-                            new CreditBasedSequenceNumberingViewReader(
+                    reader = new CreditBasedSequenceNumberingViewReader(
                                     request.receiverId, request.credit, outboundQueue);
-
                     reader.requestSubpartitionView(
                             partitionProvider, request.partitionId, request.queueIndex);
-
                     outboundQueue.notifyReaderCreated(reader);
                 } catch (PartitionNotFoundException notFound) {
                     respondWithError(ctx, notFound, request.receiverId);
@@ -101,7 +95,7 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
             // ----------------------------------------------------------------
             else if (msgClazz == TaskEventRequest.class) {
                 TaskEventRequest request = (TaskEventRequest) msg;
-
+                // taskEventPublisher为TaskEventDispatcher
                 if (!taskEventPublisher.publish(request.partitionId, request.event)) {
                     respondWithError(
                             ctx,
@@ -116,7 +110,6 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
                 outboundQueue.close();
             } else if (msgClazz == AddCredit.class) {
                 AddCredit request = (AddCredit) msg;
-
                 outboundQueue.addCreditOrResumeConsumption(
                         request.receiverId, reader -> reader.addCredit(request.credit));
             } else if (msgClazz == ResumeConsumption.class) {

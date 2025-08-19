@@ -57,9 +57,9 @@ import static java.util.stream.Collectors.toMap;
 @Internal
 public final class StreamTaskNetworkInput<T>
         extends AbstractStreamTaskNetworkInput<
-                T,
-                SpillingAdaptiveSpanningRecordDeserializer<
-                        DeserializationDelegate<StreamElement>>> {
+        T,
+        SpillingAdaptiveSpanningRecordDeserializer<
+                DeserializationDelegate<StreamElement>>> {
 
     public StreamTaskNetworkInput(
             CheckpointedInputGate checkpointedInputGate,
@@ -78,29 +78,17 @@ public final class StreamTaskNetworkInput<T>
     }
 
     // Initialize one deserializer per input channel
-    private static Map<
-                    InputChannelInfo,
-                    SpillingAdaptiveSpanningRecordDeserializer<
-                            DeserializationDelegate<StreamElement>>>
-            getRecordDeserializers(
-                    CheckpointedInputGate checkpointedInputGate, IOManager ioManager) {
-        return checkpointedInputGate.getChannelInfos().stream()
-                .collect(
-                        toMap(
-                                identity(),
-                                unused ->
-                                        new SpillingAdaptiveSpanningRecordDeserializer<>(
-                                                ioManager.getSpillingDirectoriesPaths())));
+    private static Map<InputChannelInfo, SpillingAdaptiveSpanningRecordDeserializer<DeserializationDelegate<StreamElement>>>
+    getRecordDeserializers(CheckpointedInputGate checkpointedInputGate, IOManager ioManager) {
+        return checkpointedInputGate.getChannelInfos().stream().collect(toMap(
+                identity(), unused -> new SpillingAdaptiveSpanningRecordDeserializer<>(
+                        ioManager.getSpillingDirectoriesPaths())));
     }
 
     @Override
     public CompletableFuture<Void> prepareSnapshot(
             ChannelStateWriter channelStateWriter, long checkpointId) throws CheckpointException {
-        for (Map.Entry<
-                        InputChannelInfo,
-                        SpillingAdaptiveSpanningRecordDeserializer<
-                                DeserializationDelegate<StreamElement>>>
-                e : recordDeserializers.entrySet()) {
+        for (Map.Entry<InputChannelInfo, SpillingAdaptiveSpanningRecordDeserializer<DeserializationDelegate<StreamElement>>> e : recordDeserializers.entrySet()) {
 
             try {
                 channelStateWriter.addInputData(

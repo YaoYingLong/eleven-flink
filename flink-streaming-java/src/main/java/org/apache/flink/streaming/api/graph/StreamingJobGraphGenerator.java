@@ -348,9 +348,7 @@ public class StreamingJobGraphGenerator {
 
     private void waitForSerializationFuturesAndUpdateJobVertices()
             throws ExecutionException, InterruptedException {
-        for (Map.Entry<
-                JobVertexID,
-                List<CompletableFuture<SerializedValue<OperatorCoordinator.Provider>>>>
+        for (Map.Entry<JobVertexID, List<CompletableFuture<SerializedValue<OperatorCoordinator.Provider>>>>
                 futuresPerJobVertex : coordinatorSerializationFuturesPerJobVertex.entrySet()) {
             final JobVertexID jobVertexId = futuresPerJobVertex.getKey();
             final JobVertex jobVertex = jobGraph.findVertexByID(jobVertexId);
@@ -623,12 +621,12 @@ public class StreamingJobGraphGenerator {
 
                     final SourceOperatorFactory<?> sourceOpFact =
                             (SourceOperatorFactory<?>) sourceNode.getOperatorFactory();
+                    // 这里一般来说是不会被调用的
                     final OperatorCoordinator.Provider coord =
                             sourceOpFact.getCoordinatorProvider(sourceNode.getOperatorName(), opId);
 
                     final OperatorChainInfo chainInfo = chainEntryPoints.computeIfAbsent(
-                            sourceOutEdge.getTargetId(),
-                            (k) -> new OperatorChainInfo(
+                            sourceOutEdge.getTargetId(), (k) -> new OperatorChainInfo(
                                     sourceOutEdge.getTargetId(),
                                     hashes,
                                     legacyHashes,

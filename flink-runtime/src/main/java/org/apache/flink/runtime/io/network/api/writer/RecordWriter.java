@@ -103,10 +103,13 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
 
     protected void emit(T record, int targetSubpartition) throws IOException {
         checkErroneous();
-        // 首先通过serializeRecord对record进行序列化，将数据写入到serializer中病返回ByteBuffer
-        // 这里的targetPartition是ResultPartitionWriter，其实就是刷数据到网络
+        /**
+         * 首先通过serializeRecord对record进行序列化，将数据写入到serializer中病返回ByteBuffer
+         * 这里的targetPartition其实是PipelinedResultPartition，其实就是刷数据到网络
+         * 这里最终调用的是PipelinedResultPartition的超类BufferWritingResultPartition的emitRecord方法
+         */
         targetPartition.emitRecord(serializeRecord(serializer, record), targetSubpartition);
-
+        // flushAlways默认是false
         if (flushAlways) {
             targetPartition.flush(targetSubpartition);
         }
@@ -136,15 +139,12 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
     public static ByteBuffer serializeRecord(
             DataOutputSerializer serializer, IOReadableWritable record) throws IOException {
         // the initial capacity should be no less than 4 bytes
+        // 初始化容量为4
         serializer.setPositionUnsafe(4);
-
-        // write data
-        // 将数据写入到serializer中
+        // write data将数据写入到serializer中，实际是调用的SerializationDelegate的write方法
         record.write(serializer);
-
         // write length
         serializer.writeIntUnsafe(serializer.length() - 4, 0);
-
         return serializer.wrapAsByteBuffer();
     }
 

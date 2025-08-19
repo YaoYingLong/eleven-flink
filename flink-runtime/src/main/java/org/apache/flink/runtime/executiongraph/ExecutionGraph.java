@@ -217,13 +217,16 @@ public interface ExecutionGraph extends AccessExecutionGraph {
 
     default void initializeJobVertex(ExecutionJobVertex ejv, long createTimestamp)
             throws JobException {
-        // 调用DefaultExecutionGraph的initializeJobVertex方法
+        /**
+         * 调用DefaultExecutionGraph的initializeJobVertex方法
+         *
+         * 处理JobEdge和IntermediateResult和ExecutionJobVertex中的ExecutionVertex，对每个JobEdge，
+         * 获取对应的IntermediateResult并记录到本节点的输入上，把每个ExecutorVertex和对应的IntermediateResult关联
+         */
         initializeJobVertex(
-                ejv,
-                createTimestamp,
+                ejv, createTimestamp,
                 VertexInputInfoComputationUtils.computeVertexInputInfos(
-                        ejv,
-                        getAllIntermediateResults()::get));
+                        ejv, getAllIntermediateResults()::get));
     }
 
     /**

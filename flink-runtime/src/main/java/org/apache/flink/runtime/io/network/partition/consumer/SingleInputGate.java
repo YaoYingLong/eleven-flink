@@ -153,7 +153,11 @@ public class SingleInputGate extends IndexedInputGate {
     @GuardedBy("requestLock")
     private final InputChannel[] channels;
 
-    /** Channels, which notified this input gate about available data. */
+    /**
+     * Channels, which notified this input gate about available data.
+     * <p>
+     * InputChannel 构成的队列，这些 InputChannel 中都有有可供消费的数据
+     */
     private final PrioritizedDeque<InputChannel> inputChannelsWithData = new PrioritizedDeque<>();
 
     /**
@@ -178,6 +182,8 @@ public class SingleInputGate extends IndexedInputGate {
     /**
      * Buffer pool for incoming buffers. Incoming data from remote channels is copied to buffers
      * from this pool.
+     * <p>
+     * 用于接收输入的缓冲池
      */
     private BufferPool bufferPool;
 
@@ -228,6 +234,10 @@ public class SingleInputGate extends IndexedInputGate {
             int segmentSize,
             ThroughputCalculator throughputCalculator,
             @Nullable BufferDebloater bufferDebloater) {
+        /**
+         * 通过内部维护的一个队列形成一个生产者-消费者的模型，当 InputChannel 中有数据时就加入到队列中，
+         * 在需要获取数据时从队列中取出一个 channel，获取 channel 中的数据。
+         */
 
         this.owningTaskName = checkNotNull(owningTaskName);
         Preconditions.checkArgument(0 <= gateIndex, "The gate index must be positive.");
@@ -241,8 +251,12 @@ public class SingleInputGate extends IndexedInputGate {
 
         checkArgument(numberOfInputChannels > 0);
         this.numberOfInputChannels = numberOfInputChannels;
-
+        /**
+         * 该InputGate包含的所有InputChannel，一个InputChannel对应到一个IntermediateResultPartition，
+         * 对应到一个ResultSubpartition
+         */
         this.inputChannels = new HashMap<>(numberOfInputChannels);
+        // 输入 Channel 集合
         this.channels = new InputChannel[numberOfInputChannels];
         this.channelsWithEndOfPartitionEvents = new BitSet(numberOfInputChannels);
         this.channelsWithEndOfUserRecords = new BitSet(numberOfInputChannels);
@@ -266,19 +280,27 @@ public class SingleInputGate extends IndexedInputGate {
         return inputChannelsWithData;
     }
 
-    //  Bbuffer  MemorySegment
+    //  Buffer  MemorySegment
     //	流式计算引擎：上游Task执行完毕一条数据的计算之后，就会发送这条数据的计算结果给下游Task
     //	到底怎么给规则是由StreamPartitioiner来指定的，一条数据在一个Task执行完毕之后，就要发送给下游个另外一个Task
     //	这个网络数据传输过程，是由Netty支持的，具体是由IntputChannel实现Buffer Channel
+
+    /**
+     * Buffer就是MemorySegment，流式计算引擎：上游Task执行完毕一条数据的计算之后，就会发送这条数据的计算结果给下游Task
+     * 到底怎么给规则是由StreamPartitioiner来指定的，一条数据在一个Task执行完毕之后，就要发送给下游个另外一个Task
+     * 这个网络数据传输过程，是由Netty支持的，具体是由InputChannel实现Buffer Channel
+     */
     @Override
     public void setup() throws IOException {
         checkState(
                 this.bufferPool == null,
                 "Bug in input gate setup logic: Already registered buffer pool.");
-        // 设置 BufferPool 内存管理有关！
-        //  1、在海量数据处理中，JVM的堆内存的管理方式有很大的缺陷，每次从堆内存中申请的不是一个32kb的MemorySegement
-        //  2、BufferPool就是管理MemorySegement的
-        // 调用SingleInputGateFactory的createBufferPoolFactory创建的函数表达式
+        /**
+         * 设置 BufferPool 内存管理有关！
+         *  1、在海量数据处理中，JVM的堆内存的管理方式有很大的缺陷，每次从堆内存中申请的不是一个32kb的MemorySegement
+         *  2、BufferPool就是管理MemorySegement的
+         * 调用SingleInputGateFactory的createBufferPoolFactory创建的函数表达式
+         */
         BufferPool bufferPool = bufferPoolFactory.get();
         setBufferPool(bufferPool);
 
@@ -301,11 +323,11 @@ public class SingleInputGate extends IndexedInputGate {
     @Override
     public void requestPartitions() {
         synchronized (requestLock) {
+            // 请求分区，只请求一次
             if (!requestedPartitionsFlag) {
                 if (closeFuture.isDone()) {
                     throw new IllegalStateException("Already released.");
                 }
-
                 // Sanity checks
                 if (numberOfInputChannels != inputChannels.size()) {
                     throw new IllegalStateException(
@@ -317,6 +339,7 @@ public class SingleInputGate extends IndexedInputGate {
                 }
 
                 convertRecoveredInputChannels();
+                // 每一个channel都请求对应的子分区
                 internalRequestPartitions();
             }
 
@@ -347,6 +370,7 @@ public class SingleInputGate extends IndexedInputGate {
     private void internalRequestPartitions() {
         for (InputChannel inputChannel : inputChannels.values()) {
             try {
+                // 这里是调用LocalInputChannel或RemoteInputChannel的requestSubpartition方法
                 inputChannel.requestSubpartition();
             } catch (Throwable t) {
                 inputChannel.setError(t);
@@ -754,7 +778,7 @@ public class SingleInputGate extends IndexedInputGate {
         if (closeFuture.isDone()) {
             throw new CancelTaskException("Input gate is already closed.");
         }
-
+        // 如果是通过pollNext调用到该方法，blocking传入的为false
         Optional<InputWithData<InputChannel, BufferAndAvailability>> next =
                 waitAndGetNextData(blocking);
         if (!next.isPresent()) {
@@ -765,12 +789,11 @@ public class SingleInputGate extends IndexedInputGate {
         throughputCalculator.resumeMeasurement();
 
         InputWithData<InputChannel, BufferAndAvailability> inputWithData = next.get();
-        final BufferOrEvent bufferOrEvent =
-                transformToBufferOrEvent(
-                        inputWithData.data.buffer(),
-                        inputWithData.moreAvailable,
-                        inputWithData.input,
-                        inputWithData.morePriorityEvents);
+        final BufferOrEvent bufferOrEvent = transformToBufferOrEvent(
+                inputWithData.data.buffer(),
+                inputWithData.moreAvailable,
+                inputWithData.input,
+                inputWithData.morePriorityEvents);
         throughputCalculator.incomingDataSize(bufferOrEvent.getSize());
         return Optional.of(bufferOrEvent);
     }
@@ -811,12 +834,9 @@ public class SingleInputGate extends IndexedInputGate {
 
                 checkUnavailability();
 
-                return Optional.of(
-                        new InputWithData<>(
-                                inputChannel,
-                                bufferAndAvailability,
-                                !inputChannelsWithData.isEmpty(),
-                                morePriorityEvents));
+                return Optional.of(new InputWithData<>(
+                        inputChannel, bufferAndAvailability,
+                        !inputChannelsWithData.isEmpty(), morePriorityEvents));
             }
         }
     }
@@ -986,8 +1006,7 @@ public class SingleInputGate extends IndexedInputGate {
 
     void triggerPartitionStateCheck(ResultPartitionID partitionId, int subpartitionIndex) {
         partitionProducerStateProvider.requestPartitionProducerState(
-                consumedResultId,
-                partitionId,
+                consumedResultId, partitionId,
                 ((PartitionProducerStateProvider.ResponseHandle responseHandle) -> {
                     boolean isProducingState =
                             new RemoteChannelStateChecker(partitionId, owningTaskName)

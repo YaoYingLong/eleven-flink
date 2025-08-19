@@ -584,6 +584,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
         try {
             final OperatorEvent evt = serializedEvent.deserializeValue(userCodeLoader);
+            // 调用SchedulerBase的deliverOperatorEventToCoordinator方法
             schedulerNG.deliverOperatorEventToCoordinator(task, operatorID, evt);
             return CompletableFuture.completedFuture(Acknowledge.get());
         } catch (Exception e) {
@@ -657,7 +658,8 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
     @Override
     public CompletableFuture<Collection<SlotOffer>> offerSlots(
             final ResourceID taskManagerId, final Collection<SlotOffer> slots, final Time timeout) {
-
+        // JobMaster 收到 TaskManager 的 SlotOffer 回复
+        // 去拿到 registeredTaskManagers 中该 TaskManagerID 对应的 TaskManagerID
         TaskManagerRegistration taskManagerRegistration = registeredTaskManagers.get(taskManagerId);
 
         if (taskManagerRegistration == null) {
@@ -665,10 +667,14 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                     new Exception("Unknown TaskManager " + taskManagerId));
         }
 
-        final RpcTaskManagerGateway rpcTaskManagerGateway =
-                new RpcTaskManagerGateway(
-                        taskManagerRegistration.getTaskExecutorGateway(), getFencingToken());
-
+        final RpcTaskManagerGateway rpcTaskManagerGateway = new RpcTaskManagerGateway(
+                taskManagerRegistration.getTaskExecutorGateway(), getFencingToken());
+        /**
+         * 将申请到的 slot 放入 SlotPool 中
+         * 1、第二个参数：RpcTaskManagerGateway 将申请到的 SlotOffer 的集合返回！
+         * JobMaster经过一系列的申请动作，最终，ResourceManager把某一个TaskExecutor上的某一个Slot
+         * 分配给了当前这个JobMaster，当前这个JobMaster通过slotPool来管理起来这个申请到的slot
+         */
         return CompletableFuture.completedFuture(
                 slotPoolService.offerSlots(
                         taskManagerRegistration.getTaskManagerLocation(),
@@ -1138,6 +1144,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
     private void tryConnectToResourceManager() {
         if (resourceManagerAddress != null) {
+            // 连接到 ResourceManager
             connectToResourceManager();
         }
     }
@@ -1148,18 +1155,17 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         assert (establishedResourceManagerConnection == null);
 
         log.info("Connecting to ResourceManager {}", resourceManagerAddress);
-
-        resourceManagerConnection =
-                new ResourceManagerConnection(
-                        log,
-                        jobGraph.getJobID(),
-                        resourceId,
-                        getAddress(),
-                        getFencingToken(),
-                        resourceManagerAddress.getAddress(),
-                        resourceManagerAddress.getResourceManagerId(),
-                        futureExecutor);
-
+        // 创建 ResourceManagerConnection
+        resourceManagerConnection = new ResourceManagerConnection(
+                log,
+                jobGraph.getJobID(),
+                resourceId,
+                getAddress(),
+                getFencingToken(),
+                resourceManagerAddress.getAddress(),
+                resourceManagerAddress.getResourceManagerId(),
+                futureExecutor);
+        // 启动 ResourceManagerConnection
         resourceManagerConnection.start();
     }
 

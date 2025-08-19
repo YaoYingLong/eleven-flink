@@ -77,9 +77,8 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
             final BlocklistOperations blocklistOperations)
             throws Exception {
 
-        final SlotPool slotPool = slotPoolService.castInto(SlotPool.class)
-                .orElseThrow(
-                        () -> new IllegalStateException("The DefaultScheduler requires a SlotPool."));
+        final SlotPool slotPool = slotPoolService.castInto(SlotPool.class).orElseThrow(
+                () -> new IllegalStateException("The DefaultScheduler requires a SlotPool."));
 
         final DefaultSchedulerComponents schedulerComponents = createSchedulerComponents(
                 jobGraph.getJobType(),

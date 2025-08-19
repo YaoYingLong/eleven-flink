@@ -153,6 +153,7 @@ public class NetworkBuffer extends AbstractReferenceCountedByteBuf implements Bu
 
     @Override
     public void recycleBuffer() {
+        // 调用LocalBufferPool的recycle方法，最终调用RemoteInputChannel的notifyBufferAvailable方法
         release();
     }
 
@@ -181,6 +182,7 @@ public class NetworkBuffer extends AbstractReferenceCountedByteBuf implements Bu
 
     @Override
     protected void deallocate() {
+        // 调用LocalBufferPool的recycle方法，最终调用RemoteInputChannel的notifyBufferAvailable方法
         recycler.recycle(memorySegment);
     }
 

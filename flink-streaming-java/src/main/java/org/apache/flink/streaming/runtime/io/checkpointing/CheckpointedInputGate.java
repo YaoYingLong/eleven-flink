@@ -89,11 +89,12 @@ public class CheckpointedInputGate implements PullingAsyncDataInput<BufferOrEven
             CheckpointBarrierHandler barrierHandler,
             MailboxExecutor mailboxExecutor,
             UpstreamRecoveryTracker upstreamRecoveryTracker) {
+        // 这里的inputGate是UnionInputGate
         this.inputGate = inputGate;
         this.barrierHandler = barrierHandler;
         this.mailboxExecutor = mailboxExecutor;
         this.upstreamRecoveryTracker = upstreamRecoveryTracker;
-
+        //
         waitForPriorityEvents(inputGate, mailboxExecutor);
     }
 
@@ -126,18 +127,17 @@ public class CheckpointedInputGate implements PullingAsyncDataInput<BufferOrEven
         final CompletableFuture<?> priorityEventAvailableFuture =
                 inputGate.getPriorityEventAvailableFuture();
         assertNoException(
-                priorityEventAvailableFuture.thenRun(
-                        () -> {
-                            try {
-                                mailboxExecutor.execute(
-                                        this::processPriorityEvents,
-                                        "process priority event @ gate %s",
-                                        inputGate);
-                            } catch (RejectedExecutionException ex) {
-                                LOG.debug(
-                                        "Ignored RejectedExecutionException in CheckpointedInputGate.waitForPriorityEvents");
-                            }
-                        }));
+                priorityEventAvailableFuture.thenRun(() -> {
+                    try {
+                        mailboxExecutor.execute(
+                                this::processPriorityEvents,
+                                "process priority event @ gate %s",
+                                inputGate);
+                    } catch (RejectedExecutionException ex) {
+                        LOG.debug(
+                                "Ignored RejectedExecutionException in CheckpointedInputGate.waitForPriorityEvents");
+                    }
+                }));
     }
 
     @Override
@@ -147,8 +147,9 @@ public class CheckpointedInputGate implements PullingAsyncDataInput<BufferOrEven
 
     @Override
     public Optional<BufferOrEvent> pollNext() throws IOException, InterruptedException {
+        // 这里的inputGate是UnionInputGate，从缓冲区或者InputGate中拉取数据
         Optional<BufferOrEvent> next = inputGate.pollNext();
-
+        // 如果当前缓冲区为空，则从 InputGate 获取数据
         if (!next.isPresent()) {
             return handleEmptyBuffer();
         }
@@ -169,6 +170,7 @@ public class CheckpointedInputGate implements PullingAsyncDataInput<BufferOrEven
              * However the current is on average accurate and it might be just good enough (at least
              * for the time being).
              */
+            // 如果一个channel阻塞了，说明还有其他channel barrier没有到来，把阻塞的channel元素保存在bufferStorage
             barrierHandler.addProcessedBytes(bufferOrEvent.getBuffer().getSize());
         }
         return next;
@@ -263,8 +265,8 @@ public class CheckpointedInputGate implements PullingAsyncDataInput<BufferOrEven
 
     /**
      * @return the time that elapsed, in nanoseconds, between the creation of the latest checkpoint
-     *     and the time when it's first {@link CheckpointBarrier} was received by this {@link
-     *     InputGate}.
+     *         and the time when it's first {@link CheckpointBarrier} was received by this {@link
+     *         InputGate}.
      */
     @VisibleForTesting
     long getCheckpointStartDelayNanos() {

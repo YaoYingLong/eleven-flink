@@ -34,7 +34,7 @@ public interface RecordDeserializer<T extends IOReadableWritable> {
         LAST_RECORD_FROM_BUFFER(true, true);
 
         private final boolean isFullRecord;
-
+        // 用于标识当前的反序列化操作是否以及完全消费了输入缓冲区中的数据
         private final boolean isBufferConsumed;
 
         private DeserializationResult(boolean isFullRecord, boolean isBufferConsumed) {

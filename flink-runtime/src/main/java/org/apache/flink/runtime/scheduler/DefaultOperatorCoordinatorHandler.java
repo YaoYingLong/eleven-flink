@@ -118,6 +118,7 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
         }
 
         try {
+            // 调用OperatorCoordinatorHolder的handleEventFromOperator方法
             coordinator.handleEventFromOperator(
                     exec.getParallelSubtaskIndex(), exec.getAttemptNumber(), evt);
         } catch (Throwable t) {

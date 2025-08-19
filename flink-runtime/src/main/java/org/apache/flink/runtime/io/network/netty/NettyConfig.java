@@ -71,9 +71,11 @@ public class NettyConfig {
         this.serverPort = serverPort;
 
         checkArgument(memorySegmentSize > 0, "Invalid memory segment size.");
+        // 默认32kb
         this.memorySegmentSize = memorySegmentSize;
 
         checkArgument(numberOfSlots > 0, "Number of slots");
+        // 每个TaskManager上多少Slot
         this.numberOfSlots = numberOfSlots;
 
         this.config = checkNotNull(config);

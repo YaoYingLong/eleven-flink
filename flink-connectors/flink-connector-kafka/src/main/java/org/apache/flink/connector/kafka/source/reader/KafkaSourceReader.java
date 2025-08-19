@@ -92,6 +92,7 @@ public class KafkaSourceReader<T> extends
 
     @Override
     public List<KafkaPartitionSplit> snapshotState(long checkpointId) {
+        // 被SourceOperator中的snapshotState方法调用
         List<KafkaPartitionSplit> splits = super.snapshotState(checkpointId);
         // commitOffsetsOnCheckpoint默认为true
         if (!commitOffsetsOnCheckpoint) {

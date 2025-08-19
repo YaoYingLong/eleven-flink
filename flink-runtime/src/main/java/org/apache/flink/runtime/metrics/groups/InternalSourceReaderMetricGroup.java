@@ -111,6 +111,7 @@ public class InternalSourceReaderMetricGroup extends ProxyMetricGroup<MetricGrou
     }
 
     public void idlingStarted() {
+        // 如果idleStartTime不等与ACTIVE，则将idleStartTime设置为当前系统时间
         if (!isIdling()) {
             // 获取当前系统时间戳作为开始空闲的时间
             idleStartTime = clock.absoluteTimeMillis();

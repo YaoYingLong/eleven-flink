@@ -74,7 +74,8 @@ public class TaskManagerServicesConfiguration {
 
     private final int numberOfSlots;
 
-    @Nullable private final QueryableStateConfiguration queryableStateConfig;
+    @Nullable
+    private final QueryableStateConfiguration queryableStateConfig;
 
     private final int pageSize;
 
@@ -251,11 +252,12 @@ public class TaskManagerServicesConfiguration {
      * @param configuration The configuration.
      * @param resourceID resource ID of the task manager
      * @param externalAddress identifying the IP address under which the TaskManager will be
-     *     accessible
+     *         accessible
      * @param localCommunicationOnly True if only local communication is possible. Use only in cases
-     *     where only one task manager runs.
+     *         where only one task manager runs.
      * @param taskExecutorResourceSpec resource specification of the TaskManager to start
      * @param workingDirectory working directory of the TaskManager
+     *
      * @return configuration of task manager services used to create them
      */
     public static TaskManagerServicesConfiguration fromConfiguration(
@@ -297,8 +299,7 @@ public class TaskManagerServicesConfiguration {
         final int externalDataPort =
                 configuration.getInteger(NettyShuffleEnvironmentOptions.DATA_PORT);
 
-        String bindAddr =
-                configuration.getString(
+        String bindAddr = configuration.getString(
                         TaskManagerOptions.BIND_HOST, NetUtils.getWildcardIPAddress());
         InetAddress bindAddress = InetAddress.getByName(bindAddr);
 
@@ -314,10 +315,9 @@ public class TaskManagerServicesConfiguration {
 
         // If TaskManagerOptionsInternal.TASK_MANAGER_NODE_ID is not set, use the external address
         // as the node id.
-        final String nodeId =
-                configuration
-                        .getOptional(TaskManagerOptionsInternal.TASK_MANAGER_NODE_ID)
-                        .orElse(externalAddress);
+        final String nodeId = configuration
+                .getOptional(TaskManagerOptionsInternal.TASK_MANAGER_NODE_ID)
+                .orElse(externalAddress);
 
         return new TaskManagerServicesConfiguration(
                 configuration,

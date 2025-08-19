@@ -75,10 +75,11 @@ public class TimerGauge implements Gauge<Long>, View {
 
     public TimerGauge(Clock clock, int timeSpanInSeconds) {
         this.clock = clock;
-        this.timeSpanInSeconds =
-                Math.max(
-                        timeSpanInSeconds - (timeSpanInSeconds % UPDATE_INTERVAL_SECONDS),
-                        UPDATE_INTERVAL_SECONDS);
+        // 入参中的timeSpanInSeconds默认为60，这里默认也是60
+        this.timeSpanInSeconds = Math.max(
+                timeSpanInSeconds - (timeSpanInSeconds % UPDATE_INTERVAL_SECONDS),
+                UPDATE_INTERVAL_SECONDS);
+        // 默认为12
         this.values = new long[this.timeSpanInSeconds / UPDATE_INTERVAL_SECONDS];
     }
 
@@ -91,6 +92,7 @@ public class TimerGauge implements Gauge<Long>, View {
 
     public synchronized void markEnd() {
         if (currentMeasurementStartTS != 0) {
+            // 计算从执行markStart到执行markEnd时的时间差
             long currentMeasurement = clock.absoluteTimeMillis() - currentMeasurementStartTS;
             currentCount += currentMeasurement;
             accumulatedCount += currentMeasurement;
@@ -109,8 +111,7 @@ public class TimerGauge implements Gauge<Long>, View {
             currentCount += now - currentUpdateTS;
             accumulatedCount += now - currentUpdateTS;
             currentUpdateTS = now;
-            // on the other hand, max measurement has to be always checked against last markStart
-            // call
+            // on the other hand, max measurement has to be always checked against last markStart call
             currentMaxSingleMeasurement =
                     Math.max(currentMaxSingleMeasurement, now - currentMeasurementStartTS);
         }
@@ -132,9 +133,8 @@ public class TimerGauge implements Gauge<Long>, View {
         for (int i = 0; i < maxIndex; i++) {
             totalTime += values[i];
         }
-
-        currentValue =
-                Math.max(Math.min(totalTime / (UPDATE_INTERVAL_SECONDS * maxIndex), 1000), 0);
+        // 这里其实就是计算每秒的平均值
+        currentValue = Math.max(Math.min(totalTime / (UPDATE_INTERVAL_SECONDS * maxIndex), 1000), 0);
     }
 
     @Override
@@ -144,7 +144,7 @@ public class TimerGauge implements Gauge<Long>, View {
 
     /**
      * @return the longest marked period as measured by the given * TimerGauge. For example the
-     *     longest consecutive back pressured period.
+     *         longest consecutive back pressured period.
      */
     public synchronized long getMaxSingleMeasurement() {
         return previousMaxSingleMeasurement;

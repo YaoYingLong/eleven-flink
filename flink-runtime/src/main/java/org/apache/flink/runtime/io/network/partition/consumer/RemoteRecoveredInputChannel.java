@@ -63,20 +63,19 @@ public class RemoteRecoveredInputChannel extends RecoveredInputChannel {
 
     @Override
     protected InputChannel toInputChannelInternal() throws IOException {
-        RemoteInputChannel remoteInputChannel =
-                new RemoteInputChannel(
-                        inputGate,
-                        getChannelIndex(),
-                        partitionId,
-                        consumedSubpartitionIndex,
-                        connectionId,
-                        connectionManager,
-                        initialBackoff,
-                        maxBackoff,
-                        networkBuffersPerChannel,
-                        numBytesIn,
-                        numBuffersIn,
-                        channelStateWriter);
+        RemoteInputChannel remoteInputChannel = new RemoteInputChannel(
+                inputGate,
+                getChannelIndex(),
+                partitionId,
+                consumedSubpartitionIndex,
+                connectionId,
+                connectionManager,
+                initialBackoff,
+                maxBackoff,
+                networkBuffersPerChannel,
+                numBytesIn,
+                numBuffersIn,
+                channelStateWriter);
         remoteInputChannel.setup();
         return remoteInputChannel;
     }

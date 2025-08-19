@@ -50,8 +50,10 @@ public class NettyShuffleEnvironmentConfiguration {
     private static final Logger LOG =
             LoggerFactory.getLogger(NettyShuffleEnvironmentConfiguration.class);
 
+    // networkMemorySize为taskmanager.memory.network.min配置的值默认64m，64m/32kb=2048
     private final int numNetworkBuffers;
 
+    // 默认32kb
     private final int networkBufferSize;
 
     private final int partitionRequestInitialBackoff;
@@ -79,6 +81,7 @@ public class NettyShuffleEnvironmentConfiguration {
     /** Size of direct memory to be allocated for blocking shuffle data read. */
     private final long batchShuffleReadMemoryBytes;
 
+    // 默认30000L
     private final Duration requestSegmentsTimeout;
 
     private final boolean isNetworkDetailedMetrics;
@@ -133,14 +136,20 @@ public class NettyShuffleEnvironmentConfiguration {
             int maxOverdraftBuffersPerGate,
             int hybridShuffleSpilledIndexSegmentSize,
             long hybridShuffleNumRetainedInMemoryRegionsMax) {
-
+        // networkMemorySize为taskmanager.memory.network.min配置的值默认64m，64m/32kb=2048
         this.numNetworkBuffers = numNetworkBuffers;
+        // 默认32kb
         this.networkBufferSize = networkBufferSize;
+        // 默认100
         this.partitionRequestInitialBackoff = partitionRequestInitialBackoff;
+        // 默认10000
         this.partitionRequestMaxBackoff = partitionRequestMaxBackoff;
+        // 默认为2
         this.networkBuffersPerChannel = networkBuffersPerChannel;
+        // 默认为8
         this.floatingNetworkBuffersPerGate = floatingNetworkBuffersPerGate;
         this.maxRequiredBuffersPerGate = maxRequiredBuffersPerGate;
+        // 默认30000L
         this.requestSegmentsTimeout = Preconditions.checkNotNull(requestSegmentsTimeout);
         this.isNetworkDetailedMetrics = isNetworkDetailedMetrics;
         this.nettyConfig = nettyConfig;
@@ -148,13 +157,19 @@ public class NettyShuffleEnvironmentConfiguration {
         this.blockingSubpartitionType = Preconditions.checkNotNull(blockingSubpartitionType);
         this.batchShuffleCompressionEnabled = batchShuffleCompressionEnabled;
         this.compressionCodec = Preconditions.checkNotNull(compressionCodec);
+        // 默认为10
         this.maxBuffersPerChannel = maxBuffersPerChannel;
+        // 默认64m
         this.batchShuffleReadMemoryBytes = batchShuffleReadMemoryBytes;
+        // 默认512
         this.sortShuffleMinBuffers = sortShuffleMinBuffers;
+        // 默认1
         this.sortShuffleMinParallelism = sortShuffleMinParallelism;
         this.debloatConfiguration = debloatConfiguration;
+        // 默认1
         this.maxNumberOfConnections = maxNumberOfConnections;
         this.connectionReuseEnabled = connectionReuseEnabled;
+        // 默认5
         this.maxOverdraftBuffersPerGate = maxOverdraftBuffersPerGate;
         this.hybridShuffleSpilledIndexSegmentSize = hybridShuffleSpilledIndexSegmentSize;
         this.hybridShuffleNumRetainedInMemoryRegionsMax =
@@ -164,10 +179,12 @@ public class NettyShuffleEnvironmentConfiguration {
     // ------------------------------------------------------------------------
 
     public int numNetworkBuffers() {
+        // networkMemorySize为taskmanager.memory.network.min配置的值默认64m，64m/32kb=2048
         return numNetworkBuffers;
     }
 
     public int networkBufferSize() {
+        // 默认32kb
         return networkBufferSize;
     }
 
@@ -204,6 +221,7 @@ public class NettyShuffleEnvironmentConfiguration {
     }
 
     public Duration getRequestSegmentsTimeout() {
+        // 默认30000L
         return requestSegmentsTimeout;
     }
 
@@ -273,7 +291,8 @@ public class NettyShuffleEnvironmentConfiguration {
      * @param networkMemorySize the size of memory reserved for shuffle environment
      * @param localTaskManagerCommunication true, to skip initializing the network stack
      * @param taskManagerAddress identifying the IP address under which the TaskManager will be
-     *     accessible
+     *         accessible
+     *
      * @return NettyShuffleEnvironmentConfiguration
      */
     public static NettyShuffleEnvironmentConfiguration fromConfiguration(
@@ -283,55 +302,49 @@ public class NettyShuffleEnvironmentConfiguration {
             InetAddress taskManagerAddress) {
 
         final int dataBindPort = getDataBindPort(configuration);
-
+        // 默认为32kb
         final int pageSize = ConfigurationParserUtils.getPageSize(configuration);
 
-        final NettyConfig nettyConfig =
-                createNettyConfig(
-                        configuration,
-                        localTaskManagerCommunication,
-                        taskManagerAddress,
-                        dataBindPort);
+        final NettyConfig nettyConfig = createNettyConfig(
+                configuration,
+                localTaskManagerCommunication,
+                taskManagerAddress,
+                dataBindPort);
 
+        // networkMemorySize为taskmanager.memory.network.min配置的值默认64m，64m/32kb=2048
         final int numberOfNetworkBuffers =
                 calculateNumberOfNetworkBuffers(configuration, networkMemorySize, pageSize);
-
-        int initialRequestBackoff =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_REQUEST_BACKOFF_INITIAL);
-        int maxRequestBackoff =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_REQUEST_BACKOFF_MAX);
-
-        int buffersPerChannel =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_BUFFERS_PER_CHANNEL);
-        int extraBuffersPerGate =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_EXTRA_BUFFERS_PER_GATE);
-
-        Optional<Integer> maxRequiredBuffersPerGate =
-                configuration.getOptional(
-                        NettyShuffleEnvironmentOptions.NETWORK_READ_MAX_REQUIRED_BUFFERS_PER_GATE);
-
-        int maxBuffersPerChannel =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_MAX_BUFFERS_PER_CHANNEL);
-
-        int maxOverdraftBuffersPerGate =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_MAX_OVERDRAFT_BUFFERS_PER_GATE);
-
+        // 默认100
+        int initialRequestBackoff = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_REQUEST_BACKOFF_INITIAL);
+        // 默认10000
+        int maxRequestBackoff = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_REQUEST_BACKOFF_MAX);
+        // 默认为2
+        int buffersPerChannel = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_BUFFERS_PER_CHANNEL);
+        // 默认为8
+        int extraBuffersPerGate = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_EXTRA_BUFFERS_PER_GATE);
+        // 默认为null
+        Optional<Integer> maxRequiredBuffersPerGate = configuration.getOptional(
+                NettyShuffleEnvironmentOptions.NETWORK_READ_MAX_REQUIRED_BUFFERS_PER_GATE);
+        // 默认为10
+        int maxBuffersPerChannel = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_MAX_BUFFERS_PER_CHANNEL);
+        // 默认为5
+        int maxOverdraftBuffersPerGate = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_MAX_OVERDRAFT_BUFFERS_PER_GATE);
+        // 默认64m
         long batchShuffleReadMemoryBytes =
                 configuration.get(TaskManagerOptions.NETWORK_BATCH_SHUFFLE_READ_MEMORY).getBytes();
-
-        int sortShuffleMinBuffers =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_SORT_SHUFFLE_MIN_BUFFERS);
-        int sortShuffleMinParallelism =
-                configuration.getInteger(
-                        NettyShuffleEnvironmentOptions.NETWORK_SORT_SHUFFLE_MIN_PARALLELISM);
-
+        // 默认512
+        int sortShuffleMinBuffers = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_SORT_SHUFFLE_MIN_BUFFERS);
+        // 默认1
+        int sortShuffleMinParallelism = configuration.getInteger(
+                NettyShuffleEnvironmentOptions.NETWORK_SORT_SHUFFLE_MIN_PARALLELISM);
+        // 默认false
         boolean isNetworkDetailedMetrics =
                 configuration.getBoolean(NettyShuffleEnvironmentOptions.NETWORK_DETAILED_METRICS);
 
@@ -340,39 +353,31 @@ public class NettyShuffleEnvironmentConfiguration {
         // TaskManagers, which is good for load balance especially when there are multiple disks.
         List<String> shuffleDirs = Arrays.asList(tempDirs);
         Collections.shuffle(shuffleDirs);
-
-        Duration requestSegmentsTimeout =
-                Duration.ofMillis(
-                        configuration.getLong(
-                                NettyShuffleEnvironmentOptions
-                                        .NETWORK_EXCLUSIVE_BUFFERS_REQUEST_TIMEOUT_MILLISECONDS));
-
+        // 默认30000L
+        Duration requestSegmentsTimeout = Duration.ofMillis(configuration.getLong(
+                NettyShuffleEnvironmentOptions.NETWORK_EXCLUSIVE_BUFFERS_REQUEST_TIMEOUT_MILLISECONDS));
+        // 默认为BoundedBlockingSubpartitionType.FILE
         BoundedBlockingSubpartitionType blockingSubpartitionType =
                 getBlockingSubpartitionType(configuration);
-
+        // 默认为true
         boolean batchShuffleCompressionEnabled =
                 configuration.get(NettyShuffleEnvironmentOptions.BATCH_SHUFFLE_COMPRESSION_ENABLED);
+        // 默认为LZ4
         String compressionCodec =
                 configuration.getString(NettyShuffleEnvironmentOptions.SHUFFLE_COMPRESSION_CODEC);
+        // 默认为1
+        int maxNumConnections = Math.max(
+                1,
+                configuration.getInteger(NettyShuffleEnvironmentOptions.MAX_NUM_TCP_CONNECTIONS));
+        // 默认true
+        boolean connectionReuseEnabled = configuration.get(
+                NettyShuffleEnvironmentOptions.TCP_CONNECTION_REUSE_ACROSS_JOBS_ENABLED);
+        // 默认为1024
+        int hybridShuffleSpilledIndexSegmentSize = configuration.get(
+                NettyShuffleEnvironmentOptions.HYBRID_SHUFFLE_SPILLED_INDEX_SEGMENT_SIZE);
 
-        int maxNumConnections =
-                Math.max(
-                        1,
-                        configuration.getInteger(
-                                NettyShuffleEnvironmentOptions.MAX_NUM_TCP_CONNECTIONS));
-
-        boolean connectionReuseEnabled =
-                configuration.get(
-                        NettyShuffleEnvironmentOptions.TCP_CONNECTION_REUSE_ACROSS_JOBS_ENABLED);
-
-        int hybridShuffleSpilledIndexSegmentSize =
-                configuration.get(
-                        NettyShuffleEnvironmentOptions.HYBRID_SHUFFLE_SPILLED_INDEX_SEGMENT_SIZE);
-
-        long hybridShuffleNumRetainedInMemoryRegionsMax =
-                configuration.get(
-                        NettyShuffleEnvironmentOptions
-                                .HYBRID_SHUFFLE_NUM_RETAINED_IN_MEMORY_REGIONS_MAX);
+        long hybridShuffleNumRetainedInMemoryRegionsMax = configuration.get(
+                NettyShuffleEnvironmentOptions.HYBRID_SHUFFLE_NUM_RETAINED_IN_MEMORY_REGIONS_MAX);
 
         checkArgument(buffersPerChannel >= 0, "Must be non-negative.");
         checkArgument(
@@ -418,6 +423,7 @@ public class NettyShuffleEnvironmentConfiguration {
      * Parses the hosts / ports for communication and data exchange from configuration.
      *
      * @param configuration configuration object
+     *
      * @return the data port
      */
     private static int getDataBindPort(Configuration configuration) {
@@ -448,6 +454,7 @@ public class NettyShuffleEnvironmentConfiguration {
      * @param configuration configuration object
      * @param networkMemorySize the size of memory reserved for shuffle environment
      * @param pageSize size of memory segment
+     *
      * @return the number of network buffers
      */
     private static int calculateNumberOfNetworkBuffers(
@@ -457,6 +464,7 @@ public class NettyShuffleEnvironmentConfiguration {
 
         // tolerate offcuts between intended and allocated memory due to segmentation (will be
         // available to the user-space memory)
+        // networkMemorySize默认是64M，pageSize默认为32kb，所以numberOfNetworkBuffersLong默认为2048
         long numberOfNetworkBuffersLong = networkMemorySize.getBytes() / pageSize;
         if (numberOfNetworkBuffersLong > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(
@@ -483,8 +491,9 @@ public class NettyShuffleEnvironmentConfiguration {
      * @param configuration configuration object
      * @param localTaskManagerCommunication true, to skip initializing the network stack
      * @param taskManagerAddress identifying the IP address under which the TaskManager will be
-     *     accessible
+     *         accessible
      * @param dataport data port for communication and data exchange
+     *
      * @return the netty configuration or {@code null} if communication is in the same task manager
      */
     @Nullable
@@ -495,17 +504,18 @@ public class NettyShuffleEnvironmentConfiguration {
             int dataport) {
 
         final NettyConfig nettyConfig;
+        // 默认是true
         if (!localTaskManagerCommunication) {
             final InetSocketAddress taskManagerInetSocketAddress =
                     new InetSocketAddress(taskManagerAddress, dataport);
-
-            nettyConfig =
-                    new NettyConfig(
-                            taskManagerInetSocketAddress.getAddress(),
-                            taskManagerInetSocketAddress.getPort(),
-                            ConfigurationParserUtils.getPageSize(configuration),
-                            ConfigurationParserUtils.getSlot(configuration),
-                            configuration);
+            nettyConfig = new NettyConfig(
+                    taskManagerInetSocketAddress.getAddress(),
+                    taskManagerInetSocketAddress.getPort(),
+                    // 默认32kb
+                    ConfigurationParserUtils.getPageSize(configuration),
+                    // 每个TaskManager上多少哥slot
+                    ConfigurationParserUtils.getSlot(configuration),
+                    configuration);
         } else {
             nettyConfig = null;
         }
@@ -575,8 +585,8 @@ public class NettyShuffleEnvironmentConfiguration {
                     && this.sortShuffleMinParallelism == that.sortShuffleMinParallelism
                     && this.requestSegmentsTimeout.equals(that.requestSegmentsTimeout)
                     && (nettyConfig != null
-                            ? nettyConfig.equals(that.nettyConfig)
-                            : that.nettyConfig == null)
+                    ? nettyConfig.equals(that.nettyConfig)
+                    : that.nettyConfig == null)
                     && Arrays.equals(this.tempDirs, that.tempDirs)
                     && this.batchShuffleCompressionEnabled == that.batchShuffleCompressionEnabled
                     && this.maxBuffersPerChannel == that.maxBuffersPerChannel

@@ -77,10 +77,11 @@ public final class WatermarkToDataOutput implements WatermarkOutput {
         }
         // 将当前水位线赋值给maxWatermarkSoFar
         maxWatermarkSoFar = newWatermark;
-        // 调用SourceOperator的updateCurrentEffectiveWatermark方法
+        // 调用SourceOperator的updateCurrentEffectiveWatermark方法，更新latestWatermark
         watermarkEmitted.updateCurrentEffectiveWatermark(maxWatermarkSoFar);
 
         try {
+            // 更新算子和Subtask的空闲状态
             markActiveInternally();
             // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
             // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装

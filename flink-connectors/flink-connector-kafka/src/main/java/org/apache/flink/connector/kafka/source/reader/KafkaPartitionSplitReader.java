@@ -102,13 +102,22 @@ public class KafkaPartitionSplitReader
     public RecordsWithSplitIds<ConsumerRecord<byte[], byte[]>> fetch() throws IOException {
         ConsumerRecords<byte[], byte[]> consumerRecords;
         try {
-            // 批量拉取消息
+            /**
+             *  批量拉取消息，需要注意的是，KafkaPartitionSplitReader构造方法中只是初始化了consumer，并没有对分配分区
+             *  所以可能存在拉取不到的情况，只有等到当Reader向JobMaster注册完成后，完成分区的分配回掉handleSplitsChanges方法
+             *  后调用consumer.assign完成手动分区分配，后才能拉到数据
+             */
             consumerRecords = consumer.poll(Duration.ofMillis(POLL_TIMEOUT));
         } catch (WakeupException | IllegalStateException e) {
             // IllegalStateException will be thrown if the consumer is not assigned any partitions.
             // This happens if all assigned partitions are invalid or empty (starting offset >=
             // stopping offset). We just mark empty partitions as finished and return an empty
             // record container, and this consumer will be closed by SplitFetcherManager.
+            /**
+             * 如果消费者未分配任务分区，这里将抛出IllegalStateException异常
+             * 这种情况发生在所有分配的分区都无效或为空（起始偏移量 >= 结束偏移量）
+             * 我们只需将空分区标记为已完成，并返回一个空的记录容器，此消费者将由SplitFetcherManager关闭
+             */
             KafkaPartitionSplitRecords recordsBySplits = new KafkaPartitionSplitRecords(
                     ConsumerRecords.empty(),
                     kafkaSourceReaderMetrics);
@@ -209,7 +218,9 @@ public class KafkaPartitionSplitReader
         });
 
         // Assign new partitions.
+        // 获取当前消费者实例所分配的分区
         newPartitionAssignments.addAll(consumer.assignment());
+        // 手动分配分区
         consumer.assign(newPartitionAssignments);
 
         // Seek on the newly assigned partitions to their stating offsets.
@@ -434,11 +445,10 @@ public class KafkaPartitionSplitReader
             Properties props,
             KafkaSourceReaderMetrics kafkaSourceReaderMetrics,
             KafkaConsumer<?, ?> consumer) {
-        final Boolean needToRegister =
-                KafkaSourceOptions.getOption(
-                        props,
-                        KafkaSourceOptions.REGISTER_KAFKA_CONSUMER_METRICS,
-                        Boolean::parseBoolean);
+        final Boolean needToRegister = KafkaSourceOptions.getOption(
+                props,
+                KafkaSourceOptions.REGISTER_KAFKA_CONSUMER_METRICS,
+                Boolean::parseBoolean);
         if (needToRegister) {
             kafkaSourceReaderMetrics.registerKafkaConsumerMetrics(consumer);
         }

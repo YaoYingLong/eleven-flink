@@ -60,14 +60,20 @@ public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 
     @Override
     public CompletableFuture<?> getAvailableFuture() {
+        // 只要operator有待处理的数据或者没有等待水位对齐，就返回AVAILABLE
         return input.getAvailableFuture();
     }
 
     @Override
     public DataInputStatus processInput() throws Exception {
-        // 如果是KafkaSource这里的input是StreamTaskSourceInput
-        // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
-        // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+
+        /**
+         * 如果是KafkaSource这里的input是StreamTaskSourceInput，output是AsyncDataOutputToOutput
+         * AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+         *
+         * 如果是非KafkaSource这里的input一般是StreamTaskNetworkInput，output是StreamTaskNetworkOutput
+         * 但是StreamTaskNetworkInput并没有实现emitNext方法，这里调用的是超类AbstractStreamTaskNetworkInput的emitNext方法
+         */
         DataInputStatus status = input.emitNext(output);
 
         if (status == DataInputStatus.END_OF_DATA) {

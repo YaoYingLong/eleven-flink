@@ -50,10 +50,10 @@ import java.util.concurrent.CompletableFuture;
  */
 @ChannelHandler.Sharable
 public abstract class AbstractRestHandler<
-                T extends RestfulGateway,
-                R extends RequestBody,
-                P extends ResponseBody,
-                M extends MessageParameters>
+        T extends RestfulGateway,
+        R extends RequestBody,
+        P extends ResponseBody,
+        M extends MessageParameters>
         extends AbstractHandler<T, R, M> {
 
     private final MessageHeaders<R, P, M> messageHeaders;
@@ -85,14 +85,8 @@ public abstract class AbstractRestHandler<
             response = FutureUtils.completedExceptionally(e);
         }
 
-        return response.thenAccept(
-                resp ->
-                        HandlerUtils.sendResponse(
-                                ctx,
-                                httpRequest,
-                                resp,
-                                messageHeaders.getResponseStatusCode(),
-                                responseHeaders));
+        return response.thenAccept(resp -> HandlerUtils.sendResponse(
+                ctx, httpRequest, resp, messageHeaders.getResponseStatusCode(), responseHeaders));
     }
 
     /**
@@ -109,7 +103,9 @@ public abstract class AbstractRestHandler<
      *
      * @param request request that should be handled
      * @param gateway leader gateway
+     *
      * @return future containing a handler response
+     *
      * @throws RestHandlerException if the handling failed
      */
     protected abstract CompletableFuture<P> handleRequest(

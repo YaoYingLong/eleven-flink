@@ -213,11 +213,9 @@ public class RegularOperatorChain<OUT, OP extends StreamOperator<OUT>>
             ChannelStateWriter.ChannelStateWriteResult channelStateWriteResult,
             CheckpointStreamFactory storage)
             throws Exception {
-        OperatorSnapshotFutures snapshotInProgress =
-                checkpointStreamOperator(
-                        op, checkpointMetaData, checkpointOptions, storage, isRunning);
+        OperatorSnapshotFutures snapshotInProgress = checkpointStreamOperator(
+                op, checkpointMetaData, checkpointOptions, storage, isRunning);
         snapshotChannelStates(op, channelStateWriteResult, snapshotInProgress);
-
         return snapshotInProgress;
     }
 

@@ -83,16 +83,17 @@ class CreditBasedSequenceNumberingViewReader
             ResultPartitionID resultPartitionId,
             int subPartitionIndex)
             throws IOException {
-
+        // partitionProvider为ResultPartitionManager
         synchronized (requestLock) {
             if (subpartitionView == null) {
                 // This call can trigger a notification we have to
                 // schedule a separate task at the event loop that will
                 // start consuming this. Otherwise the reference to the
                 // view cannot be available in getNextBuffer().
-                this.subpartitionView =
-                        partitionProvider.createSubpartitionView(
-                                resultPartitionId, subPartitionIndex, this);
+
+                // partitionProvider为ResultPartitionManager
+                this.subpartitionView = partitionProvider.createSubpartitionView(
+                        resultPartitionId, subPartitionIndex, this);
             } else {
                 throw new IllegalStateException("Subpartition already requested");
             }
@@ -136,8 +137,8 @@ class CreditBasedSequenceNumberingViewReader
      * buffers.
      *
      * @implSpec BEWARE: this must be in sync with {@link #getNextDataType(BufferAndBacklog)}, such
-     *     that {@code getNextDataType(bufferAndBacklog) != NONE <=>
-     *     AvailabilityWithBacklog#isAvailable()}!
+     *         that {@code getNextDataType(bufferAndBacklog) != NONE <=>
+     *         AvailabilityWithBacklog#isAvailable()}!
      */
     @Override
     public ResultSubpartitionView.AvailabilityWithBacklog getAvailabilityAndBacklog() {
@@ -151,13 +152,15 @@ class CreditBasedSequenceNumberingViewReader
      * <p>Returns the next data type only if the next buffer is an event or the reader has both
      * available credits and buffers.
      *
-     * @implSpec BEWARE: this must be in sync with {@link #getAvailabilityAndBacklog()}, such that
-     *     {@code getNextDataType(bufferAndBacklog) != NONE <=>
-     *     AvailabilityWithBacklog#isAvailable()}!
      * @param bufferAndBacklog current buffer and backlog including information about the next
-     *     buffer
+     *         buffer
+     *
      * @return the next data type if the next buffer can be pulled immediately or {@link
-     *     Buffer.DataType#NONE}
+     *         Buffer.DataType#NONE}
+     *
+     * @implSpec BEWARE: this must be in sync with {@link #getAvailabilityAndBacklog()}, such that
+     *         {@code getNextDataType(bufferAndBacklog) != NONE <=>
+     *         AvailabilityWithBacklog#isAvailable()}!
      */
     private Buffer.DataType getNextDataType(BufferAndBacklog bufferAndBacklog) {
         final Buffer.DataType nextDataType = bufferAndBacklog.getNextDataType();

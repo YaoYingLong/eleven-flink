@@ -183,8 +183,9 @@ public class MetricStore {
      * Returns the {@link TaskManagerMetricStore} for the given taskmanager ID.
      *
      * @param tmID taskmanager ID
+     *
      * @return TaskManagerMetricStore for the given ID, or null if no store for the given argument
-     *     exists
+     *         exists
      */
     public synchronized TaskManagerMetricStore getTaskManagerMetricStore(String tmID) {
         return tmID == null ? null : TaskManagerMetricStore.unmodifiable(taskManagers.get(tmID));
@@ -194,8 +195,9 @@ public class MetricStore {
      * Returns the {@link ComponentMetricStore} for the given job ID.
      *
      * @param jobID job ID
+     *
      * @return ComponentMetricStore for the given ID, or null if no store for the given argument
-     *     exists
+     *         exists
      */
     public synchronized ComponentMetricStore getJobMetricStore(String jobID) {
         return jobID == null ? null : ComponentMetricStore.unmodifiable(jobs.get(jobID));
@@ -206,8 +208,9 @@ public class MetricStore {
      *
      * @param jobID job ID
      * @param taskID task ID
+     *
      * @return ComponentMetricStore for given IDs, or null if no store for the given arguments
-     *     exists
+     *         exists
      */
     public synchronized TaskMetricStore getTaskMetricStore(String jobID, String taskID) {
         JobMetricStore job = jobID == null ? null : jobs.get(jobID);
@@ -223,8 +226,9 @@ public class MetricStore {
      * @param jobID job ID
      * @param taskID task ID
      * @param subtaskIndex subtask index
+     *
      * @return SubtaskMetricStore for the given IDs and index, or null if no store for the given
-     *     arguments exists
+     *         arguments exists
      */
     public synchronized ComponentMetricStore getSubtaskMetricStore(
             String jobID, String taskID, int subtaskIndex) {
@@ -401,10 +405,10 @@ public class MetricStore {
     private boolean isRepresentativeAttempt(
             String jobID, String vertexID, int subtaskIndex, int attemptNumber) {
         return Optional.of(representativeAttempts)
-                        .map(m -> m.get(jobID))
-                        .map(m -> m.get(vertexID))
-                        .map(m -> m.get(subtaskIndex))
-                        .orElse(attemptNumber)
+                .map(m -> m.get(jobID))
+                .map(m -> m.get(vertexID))
+                .map(m -> m.get(subtaskIndex))
+                .orElse(attemptNumber)
                 == attemptNumber;
     }
 
@@ -560,11 +564,8 @@ public class MetricStore {
             if (subtasks.containsKey(subtaskIndex)) {
                 // Remove in both places as task metrics are duplicated in task metric store and
                 // subtask metric store.
-                metrics.keySet()
-                        .removeIf(
-                                key ->
-                                        key.startsWith(subtaskIndex + ".")
-                                                && isTransientMetric(key));
+                metrics.keySet().removeIf(key ->
+                        key.startsWith(subtaskIndex + ".") && isTransientMetric(key));
                 subtasks.get(subtaskIndex).removeTransientMetrics();
             }
         }

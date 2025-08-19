@@ -35,6 +35,7 @@ public class NettyProtocol {
 
     NettyProtocol(
             ResultPartitionProvider partitionProvider, TaskEventPublisher taskEventPublisher) {
+        // partitionProvider为ResultPartitionManager，taskEventPublisher为TaskEventDispatcher
         this.partitionProvider = partitionProvider;
         this.taskEventPublisher = taskEventPublisher;
     }
@@ -74,15 +75,15 @@ public class NettyProtocol {
      */
     public ChannelHandler[] getServerChannelHandlers() {
         PartitionRequestQueue queueOfPartitionQueues = new PartitionRequestQueue();
-        PartitionRequestServerHandler serverHandler =
-                new PartitionRequestServerHandler(
-                        partitionProvider, taskEventPublisher, queueOfPartitionQueues);
+        // partitionProvider为ResultPartitionManager，taskEventPublisher为TaskEventDispatcher
+        PartitionRequestServerHandler serverHandler = new PartitionRequestServerHandler(
+                partitionProvider, taskEventPublisher, queueOfPartitionQueues);
 
         return new ChannelHandler[] {
-            messageEncoder,
-            new NettyMessage.NettyMessageDecoder(),
-            serverHandler,
-            queueOfPartitionQueues
+                messageEncoder,
+                new NettyMessage.NettyMessageDecoder(),
+                serverHandler,
+                queueOfPartitionQueues
         };
     }
 
@@ -122,9 +123,9 @@ public class NettyProtocol {
         NetworkClientHandler networkClientHandler = new CreditBasedPartitionRequestClientHandler();
 
         return new ChannelHandler[] {
-            messageEncoder,
-            new NettyMessageClientDecoderDelegate(networkClientHandler),
-            networkClientHandler
+                messageEncoder,
+                new NettyMessageClientDecoderDelegate(networkClientHandler),
+                networkClientHandler
         };
     }
 }

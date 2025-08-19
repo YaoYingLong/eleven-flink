@@ -36,7 +36,7 @@ public abstract class AbstractStreamOperatorFactory<OUT> implements StreamOperat
 
     // 默认的链式策略为ALWAYS，会尽可能地将多个算子合并到一个任务中
     protected ChainingStrategy chainingStrategy = ChainingStrategy.DEFAULT_CHAINING_STRATEGY;
-
+    // 默认为ProcessingTimeServiceImpl
     protected transient ProcessingTimeService processingTimeService;
 
     @Nullable private transient MailboxExecutor mailboxExecutor;
@@ -53,7 +53,7 @@ public abstract class AbstractStreamOperatorFactory<OUT> implements StreamOperat
 
     @Override
     public void setProcessingTimeService(ProcessingTimeService processingTimeService) {
-        // 默认为ProcessingTimeServiceImpl
+        // 在StreamOperatorFactoryUtil的createOperator中被调用，默认设置的是ProcessingTimeServiceImpl
         this.processingTimeService = processingTimeService;
     }
 

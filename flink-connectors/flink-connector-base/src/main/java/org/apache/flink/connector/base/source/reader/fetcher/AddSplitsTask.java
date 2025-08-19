@@ -48,6 +48,7 @@ class AddSplitsTask<SplitT extends SourceSplit> implements SplitFetcherTask {
         for (SplitT s : splitsToAdd) {
             assignedSplits.put(s.splitId(), s);
         }
+        // 调用KafkaPartitionSplitReader的handleSplitsChanges方法
         splitReader.handleSplitsChanges(new SplitsAddition<>(splitsToAdd));
         return true;
     }

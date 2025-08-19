@@ -286,8 +286,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         final int subtaskIndex = execution.getParallelSubtaskIndex();
         final int attemptNumber = execution.getAttemptNumber();
 
-        jobVertex
-                .getOperatorCoordinators()
+        jobVertex.getOperatorCoordinators()
                 .forEach(c -> c.executionAttemptFailed(subtaskIndex, attemptNumber, error));
     }
 

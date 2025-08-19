@@ -100,7 +100,7 @@ public interface TimestampsAndWatermarks<T> {
             MetricGroup metrics,
             ProcessingTimeService timeService,
             long periodicWatermarkIntervalMillis) {
-
+        // 指标
         final TimestampsAndWatermarksContext context = new TimestampsAndWatermarksContext(metrics);
         // 调用自定义的水位线策略，获取TimestampAssigner，其实就是我们传入的
         final TimestampAssigner<E> timestampAssigner =

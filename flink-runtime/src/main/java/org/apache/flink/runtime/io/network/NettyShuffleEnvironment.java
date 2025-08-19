@@ -347,11 +347,10 @@ public class NettyShuffleEnvironment
         synchronized (lock) {
             Preconditions.checkState(
                     !isClosed, "The NettyShuffleEnvironment has already been shut down.");
-
             LOG.info("Starting the network environment and its components.");
-
             try {
                 LOG.debug("Starting network connection manager");
+                // 这里会调用NettyConnectionManager的start，其实就是启动Netty的客户端和服务端
                 return connectionManager.start();
             } catch (IOException t) {
                 throw new IOException("Failed to instantiate network connection manager.", t);

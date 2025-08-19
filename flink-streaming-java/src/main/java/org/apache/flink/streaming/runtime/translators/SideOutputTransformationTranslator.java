@@ -36,7 +36,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * A {@link TransformationTranslator} for the {@link SideOutputTransformation}.
  *
  * @param <OUT> The type of the elements that result from the {@code SideOutputTransformation} being
- *     translated.
+ *         translated.
  */
 @Internal
 public class SideOutputTransformationTranslator<OUT>
@@ -45,6 +45,7 @@ public class SideOutputTransformationTranslator<OUT>
     @Override
     protected Collection<Integer> translateForBatchInternal(
             final SideOutputTransformation<OUT> transformation, final Context context) {
+        // 旁路输出会走该逻辑
         return translateInternal(transformation, context);
     }
 

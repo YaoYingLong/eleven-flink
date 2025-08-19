@@ -870,8 +870,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
             stopCheckpointScheduler();
         }
 
-        return checkpointCoordinator
-                .triggerSavepoint(targetDirectory, formatType)
+        return checkpointCoordinator.triggerSavepoint(targetDirectory, formatType)
                 .thenApply(CompletedCheckpoint::getExternalPointer)
                 .handleAsync(
                         (path, throwable) -> {
@@ -1041,7 +1040,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
             final OperatorID operatorId,
             final OperatorEvent evt)
             throws FlinkException {
-
+        // 调用DefaultOperatorCoordinatorHandler的deliverOperatorEventToCoordinator
         operatorCoordinatorHandler.deliverOperatorEventToCoordinator(
                 taskExecutionId, operatorId, evt);
     }

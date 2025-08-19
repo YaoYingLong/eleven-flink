@@ -35,6 +35,7 @@ public class OutputBuffersGauge implements Gauge<Integer> {
         int totalBuffers = 0;
 
         for (ResultPartition producedPartition : resultPartitions) {
+            // 调用BufferWritingResultPartition的getNumberOfQueuedBuffers方法
             totalBuffers += producedPartition.getNumberOfQueuedBuffers();
         }
 

@@ -412,6 +412,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
     }
 
     public Input getFinishedOnRestoreInputOrDefault(Input defaultInput) {
+        // finishedOnRestoreInput默认为null
         return finishedOnRestoreInput == null ? defaultInput : finishedOnRestoreInput;
     }
 

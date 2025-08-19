@@ -84,8 +84,12 @@ public class PipelinedSubpartition extends ResultSubpartition
      */
     private final int receiverExclusiveBuffersPerChannel;
 
-    /** All buffers of this subpartition. Access to the buffers is synchronized on this object. */
-    final PrioritizedDeque<BufferConsumerWithPartialRecordLength> buffers = new PrioritizedDeque<>();
+    /**
+     * All buffers of this subpartition. Access to the buffers is synchronized on this object.
+     *
+     */
+    final PrioritizedDeque<BufferConsumerWithPartialRecordLength> buffers =
+            new PrioritizedDeque<>();
 
     /** The number of non-event buffers currently in this subpartition. */
     @GuardedBy("buffers")
@@ -136,9 +140,13 @@ public class PipelinedSubpartition extends ResultSubpartition
 
     // ------------------------------------------------------------------------
 
-    PipelinedSubpartition(int index, int receiverExclusiveBuffersPerChannel, ResultPartition parent) {
+    PipelinedSubpartition(
+            int index,
+            int receiverExclusiveBuffersPerChannel,
+            ResultPartition parent) {
         super(index, parent);
-        checkArgument(receiverExclusiveBuffersPerChannel >= 0,
+        checkArgument(
+                receiverExclusiveBuffersPerChannel >= 0,
                 "Buffers per channel must be non-negative.");
         this.receiverExclusiveBuffersPerChannel = receiverExclusiveBuffersPerChannel;
     }
@@ -187,6 +195,7 @@ public class PipelinedSubpartition extends ResultSubpartition
         int newBufferSize;
         synchronized (buffers) {
             if (isFinished || isReleased) {
+                // 会触发通过netty往下游写数据
                 bufferConsumer.close();
                 return -1;
             }
@@ -276,15 +285,13 @@ public class PipelinedSubpartition extends ResultSubpartition
         assert Thread.holdsLock(buffers);
         if (channelStateFuture != null) {
             completeChannelStateFuture(
-                    null,
-                    new IllegalStateException(
-                            String.format(
-                                    "%s has uncompleted channelStateFuture of checkpointId=%s, but it received "
-                                            + "a new timeoutable checkpoint barrier of checkpointId=%s, it maybe "
-                                            + "a bug due to currently not supported concurrent unaligned checkpoint.",
-                                    this,
-                                    channelStateCheckpointId,
-                                    checkpointId)));
+                    null, new IllegalStateException(String.format(
+                            "%s has uncompleted channelStateFuture of checkpointId=%s, but it received "
+                                    + "a new timeoutable checkpoint barrier of checkpointId=%s, it maybe "
+                                    + "a bug due to currently not supported concurrent unaligned checkpoint.",
+                            this,
+                            channelStateCheckpointId,
+                            checkpointId)));
         }
         channelStateFuture = new CompletableFuture<>();
         channelStateCheckpointId = checkpointId;
@@ -310,8 +317,7 @@ public class PipelinedSubpartition extends ResultSubpartition
             BufferConsumer bufferConsumer) {
         CheckpointBarrier barrier = parseCheckpointBarrier(bufferConsumer);
         checkArgument(barrier != null, "Parse the timeoutable Checkpoint Barrier failed.");
-        checkState(
-                barrier.getCheckpointOptions().isTimeoutable()
+        checkState(barrier.getCheckpointOptions().isTimeoutable()
                         && Buffer.DataType.TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER
                         == bufferConsumer.getDataType());
         return barrier;
@@ -415,6 +421,7 @@ public class PipelinedSubpartition extends ResultSubpartition
                 throw new IllegalStateException(
                         "Should always be able to deserialize in-memory event", e);
             } finally {
+                // 调用LocalBufferPool的recycle方法，最终调用RemoteInputChannel的notifyBufferAvailable方法
                 buffer.recycleBuffer();
             }
         }
@@ -790,6 +797,7 @@ public class PipelinedSubpartition extends ResultSubpartition
 
     @Override
     public BufferBuilder requestBufferBuilderBlocking() throws InterruptedException {
+        // 调用LocalBufferPool的requestBufferBuilderBlocking的方法
         return parent.getBufferPool().requestBufferBuilderBlocking();
     }
 

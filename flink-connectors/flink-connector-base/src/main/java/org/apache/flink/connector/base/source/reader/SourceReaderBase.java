@@ -78,7 +78,10 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
     /** A queue to buffer the elements fetched by the fetcher thread. */
     private final FutureCompletingBlockingQueue<RecordsWithSplitIds<E>> elementsQueue;
 
-    /** The state of the splits. */
+    /**
+     * The state of the splits.
+     * 保存的是，分配给当前SubTask的的所有分区的offset消费进度信息，即startOffset和stopOffset
+     */
     private final Map<String, SplitContext<T, SplitStateT>> splitStates;
 
     /** The record emitter to handle the records read by the SplitReaders. */
@@ -138,11 +141,17 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
         // 初始时，currentFetch为null，表示没有获取到数据
         RecordsWithSplitIds<E> recordsWithSplitId = this.currentFetch;
         if (recordsWithSplitId == null) {
-            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
-            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
-            // 这里得currentMainOutput是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
+            //
+            /**
+             * getNextFetch中会先从elementsQueue队列中pull一个批次的数据出来RecordsWithSplitIds，
+             * 然后调用了moveToNextSplit，选择了一个partition，这里虽然传入了output，但是只有第一次的时候会被使用到
+             *
+             * 如果是KafkaSource这里的output是AsyncDataOutputToOutput
+             * AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
+             * 这里得currentMainOutput是StreamingReaderOutput其实本质上是SourceOutputWithWatermarks
+             */
             recordsWithSplitId = getNextFetch(output);
-            // 如果没有获取到数据，则返回InputStatus.NOTHING_AVAILABLE
+            // 如果没有获取到数据，即从队列中未拉取到数据，则返回InputStatus.NOTHING_AVAILABLE，指标中会被标记为空闲，记录空闲时间
             if (recordsWithSplitId == null) {
                 // 直接返回END_OF_INPUT、MORE_AVAILABLE、NOTHING_AVAILABLE
                 return trace(finishedOrAvailableLater());
@@ -152,7 +161,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
         // we need to loop here, because we may have to go across splits
         while (true) {
             // Process one record.
-            // 遍历当前分区的所有记录
+            // 遍历当前分区的所有记录，会将当前分区拉取到的数据处理完成了，才会处理下一个分区的数据
             final E record = recordsWithSplitId.nextRecordFromSplit();
             if (record != null) {
                 // emit the record.
@@ -172,6 +181,10 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
                 // The fetch is done and we just discovered that and have not emitted anything, yet.
                 // We need to move to the next fetch. As a shortcut, we call pollNext() here again,
                 // rather than emitting nothing and waiting for the caller to call us again.
+                /**
+                 * 在elseif中调用moveToNextSplit方法中就是切换到下一分区，如果当前批次的数据都被处理完成了
+                 * 会继续执行pollNext方法，在上面的getNextFetch方法中会从elementsQueue队列中pull一个批次的数据
+                 */
                 return pollNext(output);
             }
         }
@@ -246,6 +259,8 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
 
     @Override
     public CompletableFuture<Void> isAvailable() {
+        // 只要有待处理的数据，就返回AVAILABLE，只要currentFetch不为null，者返回AVAILABLE
+        // 如果currentFetch为null，如果elementsQueue队列中有数据则返回AVAILABLE，否则返回非AVAILABLE
         return currentFetch != null
                 ? FutureCompletingBlockingQueue.AVAILABLE
                 : elementsQueue.getAvailabilityFuture();
@@ -266,6 +281,7 @@ public abstract class SourceReaderBase<E, T, SplitT extends SourceSplit, SplitSt
         // 从保存点中恢复分片状态
         splits.forEach(s -> splitStates.put(s.splitId(), new SplitContext<>(s.splitId(), initializedState(s))));
         // Hand over the splits to the split fetcher to start fetch.
+        // 调用SingleThreadFetcherManager的addSplits的方法
         splitFetcherManager.addSplits(splits);
     }
 

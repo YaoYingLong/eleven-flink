@@ -82,6 +82,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  * org.apache.flink.api.connector.source.SplitEnumeratorContext SplitEnumeratorContxt} and shares it
  * with the enumerator. When the coordinator receives an action request from the Flink runtime, it
  * sets up the context, and calls corresponding method of the SplitEnumerator to take actions.
+ * <p>
+ * SourceCoordinator主要用于管理Source的生命周期，负责和SourceReader进行协调
+ * 1、分区分配：将 Source 的数据分区（Splits）分配给各个 SourceReader。
+ * 2、状态管理：在故障恢复或 Checkpoint 恢复时，管理 Source 的状态。
+ * 3、任务协调：协调多个 SourceReader 的任务，确保数据的高效读取和均衡分配。
  */
 @Internal
 public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
@@ -165,16 +170,20 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
         checkState(
                 watermarkAlignmentParams != WatermarkAlignmentParams.WATERMARK_ALIGNMENT_DISABLED);
 
+        // 这里其实就是从coordinatorStore中get出getWatermarkGroup对应的在start方法中设置的WatermarkAggregator
+        // globalCombinedWatermark表示的是subtask中水位线最小的值
         Watermark globalCombinedWatermark = coordinatorStore.apply(
                 watermarkAlignmentParams.getWatermarkGroup(),
+                // 这个value其实就是在start方法中设置的WatermarkAggregator
                 (value) -> {
                     WatermarkAggregator aggregator = (WatermarkAggregator) value;
-                    return new Watermark(
-                            aggregator.getAggregatedWatermark().getTimestamp());
+                    // 默认是Long.MIN_VALUE
+                    return new Watermark(aggregator.getAggregatedWatermark().getTimestamp());
                 });
 
         long maxAllowedWatermark;
         try {
+            // 返回maxAllowedWatermarkDrift+globalCombinedWatermark的值
             maxAllowedWatermark = Math.addExact(
                     globalCombinedWatermark.getTimestamp(),
                     watermarkAlignmentParams.getMaxAllowedWatermarkDrift());
@@ -194,11 +203,17 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
 
         for (Integer subtaskId : subTaskIds) {
             // when subtask have been finished, do not send event.
+            // 如果subtask以及处于finished状态，则不需要发送事件
             if (!context.hasNoMoreSplits(subtaskId)) {
                 // Subtask maybe during deploying or restarting, so we only send
                 // WatermarkAlignmentEvent to ready task to avoid period task fail
                 // (Java-ThreadPoolExecutor will not schedule the period task if it throws an
                 // exception).
+
+                /**
+                 * maxAllowedWatermark是全局水位globalCombinedWatermark + 我们自定义的maxAllowedWatermarkDrift
+                 * 这里向每个SubTask发送WatermarkAlignmentEvent事件，目的是暂停或恢复partition消费
+                 */
                 context.sendEventToSourceOperatorIfTaskReady(
                         subtaskId, new WatermarkAlignmentEvent(maxAllowedWatermark));
             }
@@ -207,6 +222,7 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
 
     @Override
     public void start() throws Exception {
+        // 在jobMaster启动后被调用
         LOG.info("Starting split enumerator for source {}.", operatorName);
 
         // we mark this as started first, so that we can later distinguish the cases where
@@ -271,13 +287,17 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
                     });
         }
 
+        // 如果配置了水位对齐等待，其实就是通过WatermarkStrategy的withWatermarkAlignment设置了maxAllowedWatermarkDrift
         if (watermarkAlignmentParams.isEnabled()) {
             LOG.info("Starting schedule the period announceCombinedWatermark task");
+            // 这里的getWatermarkGroup获取的是通过withWatermarkAlignment设置的watermarkGroup
             coordinatorStore.putIfAbsent(
                     watermarkAlignmentParams.getWatermarkGroup(), new WatermarkAggregator<>());
             context.schedulePeriodTask(
                     this::announceCombinedWatermark,
+                    // 如果不设置默认为1s执行一次
                     watermarkAlignmentParams.getUpdateInterval(),
+                    // 如果不设置默认为1s执行一次
                     watermarkAlignmentParams.getUpdateInterval(),
                     TimeUnit.MILLISECONDS);
         }
@@ -305,9 +325,14 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
                                 attemptNumber,
                                 ((SourceEventWrapper) event).getSourceEvent());
                     } else if (event instanceof ReaderRegistrationEvent) {
+                        // 向SourceCoordinatorContext中注册SourceReader
                         handleReaderRegistrationEvent(
                                 subtask, attemptNumber, (ReaderRegistrationEvent) event);
                     } else if (event instanceof ReportedWatermarkEvent) {
+                        /**
+                         * 在SourceOperator中初始化时调用emitNextNotReading时，会调用ProcessingTimeService的scheduleWithFixedDelay
+                         * 周期执行SourceOperator的emitLatestWatermark方法，将其latestWatermark作为水位线上报到SourceCoordinator
+                         */
                         handleReportedWatermark(
                                 subtask,
                                 new Watermark(((ReportedWatermarkEvent) event).getWatermark()));
@@ -610,10 +635,13 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
                 attemptNumber,
                 event.location());
 
+        // 当前的SourceCoordinatorContext中的registeredReaders中是否已经包含该subtask
         final boolean subtaskReaderExisted =
                 context.registeredReadersOfAttempts().containsKey(subtask);
+        // 向SourceCoordinatorContext中的registeredReaders中注册subtask
         context.registerSourceReader(subtask, attemptNumber, event.location());
         if (!subtaskReaderExisted) {
+            // 如果不包含，向KafkaSourceEnumerator中添加Reader
             enumerator.addReader(event.subtaskId());
         }
     }
@@ -633,19 +661,17 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
 
         checkState(watermarkAlignmentParams.isEnabled());
 
-        combinedWatermark
-                .aggregate(subtask, watermark)
-                .ifPresent(
-                        newCombinedWatermark ->
-                                coordinatorStore.computeIfPresent(
-                                        watermarkAlignmentParams.getWatermarkGroup(),
-                                        (key, oldValue) -> {
-                                            WatermarkAggregator<String> watermarkAggregator =
-                                                    (WatermarkAggregator<String>) oldValue;
-                                            watermarkAggregator.aggregate(
-                                                    operatorName, newCombinedWatermark);
-                                            return watermarkAggregator;
-                                        }));
+        combinedWatermark.aggregate(subtask, watermark).ifPresent(
+                // 如果存在水位更新
+                newCombinedWatermark -> coordinatorStore.computeIfPresent(
+                        watermarkAlignmentParams.getWatermarkGroup(),
+                        (key, oldValue) -> {
+                            WatermarkAggregator<String> watermarkAggregator =
+                                    (WatermarkAggregator<String>) oldValue;
+                            watermarkAggregator.aggregate(
+                                    operatorName, newCombinedWatermark);
+                            return watermarkAggregator;
+                        }));
     }
 
     private void ensureStarted() {
@@ -655,7 +681,9 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
     }
 
     private static class WatermarkAggregator<T> {
+        // 存储了每个subTask的水位线
         private final Map<T, Watermark> watermarks = new HashMap<>();
+        // 所有的subtask的水位线中最小的水位线
         private Watermark aggregatedWatermark = new Watermark(Long.MIN_VALUE);
 
         /**
@@ -665,14 +693,18 @@ public class SourceCoordinator<SplitT extends SourceSplit, EnumChkT>
          *         Optional.empty()} otherwise.
          */
         public Optional<Watermark> aggregate(T key, Watermark watermark) {
+            // 在SourceCoordinator中处理subTask上报的水位线的handleReportedWatermark方法中被调用
+            // key为subTaskId，存储每个subTask的水位线
             watermarks.put(key, watermark);
-            Watermark newMinimum =
-                    watermarks.values().stream()
-                            .min(Comparator.comparingLong(Watermark::getTimestamp))
-                            .orElseThrow(IllegalStateException::new);
+            // 遍历所有的subtask的水位线，取出最小的水位线
+            Watermark newMinimum = watermarks.values().stream()
+                    .min(Comparator.comparingLong(Watermark::getTimestamp))
+                    .orElseThrow(IllegalStateException::new);
             if (newMinimum.equals(aggregatedWatermark)) {
+                // 如果最小最为线等于aggregatedWatermark，返回空
                 return Optional.empty();
             } else {
+                // 将aggregatedWatermark设置为所有subtask中最小的水位
                 aggregatedWatermark = newMinimum;
                 return Optional.of(aggregatedWatermark);
             }

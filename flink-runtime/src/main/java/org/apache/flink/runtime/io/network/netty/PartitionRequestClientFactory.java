@@ -78,11 +78,10 @@ class PartitionRequestClientFactory {
     NettyPartitionRequestClient createPartitionRequestClient(ConnectionID connectionId)
             throws IOException, InterruptedException {
         // We map the input ConnectionID to a new value to restrict the number of tcp connections
-        connectionId =
-                new ConnectionID(
-                        connectionId.getResourceID(),
-                        connectionId.getAddress(),
-                        connectionId.getConnectionIndex() % maxNumberOfConnections);
+        connectionId = new ConnectionID(
+                connectionId.getResourceID(),
+                connectionId.getAddress(),
+                connectionId.getConnectionIndex() % maxNumberOfConnections);
         while (true) {
             final CompletableFuture<NettyPartitionRequestClient> newClientFuture =
                     new CompletableFuture<>();

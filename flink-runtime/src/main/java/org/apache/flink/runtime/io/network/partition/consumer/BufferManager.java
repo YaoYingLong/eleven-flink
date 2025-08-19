@@ -98,10 +98,8 @@ public class BufferManager implements BufferListener, BufferRecycler {
             Buffer buffer;
             while ((buffer = bufferQueue.takeBuffer()) == null) {
                 if (inputChannel.isReleased()) {
-                    throw new CancelTaskException(
-                            "Input channel ["
-                                    + inputChannel.channelInfo
-                                    + "] has already been released.");
+                    throw new CancelTaskException("Input channel ["
+                            + inputChannel.channelInfo + "] has already been released.");
                 }
                 if (!isWaitingForFloatingBuffers) {
                     BufferPool bufferPool = inputChannel.inputGate.getBufferPool();
@@ -139,13 +137,15 @@ public class BufferManager implements BufferListener, BufferRecycler {
             return;
         }
 
-        Collection<MemorySegment> segments = globalPool.requestUnpooledMemorySegments(numExclusiveBuffers);
+        Collection<MemorySegment> segments =
+                globalPool.requestUnpooledMemorySegments(numExclusiveBuffers);
         synchronized (bufferQueue) {
             // AvailableBufferQueue::addExclusiveBuffer may release the previously allocated
             // floating buffer, which requires the caller to recycle these released floating
             // buffers. There should be no floating buffers that have been allocated before the
             // exclusive buffers are initialized, so here only a simple assertion is required
-            checkState(unsynchronizedGetFloatingBuffersAvailable() == 0,
+            checkState(
+                    unsynchronizedGetFloatingBuffersAvailable() == 0,
                     "Bug in buffer allocation logic: floating buffer is allocated before exclusive buffers are initialized.");
             for (MemorySegment segment : segments) {
                 // 分配 Buffer
@@ -400,10 +400,16 @@ public class BufferManager implements BufferListener, BufferRecycler {
      */
     static final class AvailableBufferQueue {
 
-        /** The current available floating buffers from the fixed buffer pool. */
+        /**
+         * The current available floating buffers from the fixed buffer pool.
+         * 固定缓冲池中当前可用的浮动缓冲区
+         */
         final ArrayDeque<Buffer> floatingBuffers;
 
-        /** The current available exclusive buffers from the global buffer pool. */
+        /**
+         * The current available exclusive buffers from the global buffer pool.
+         * 全局缓冲池中当前可用的排他缓冲区
+         */
         final ArrayDeque<Buffer> exclusiveBuffers;
 
         AvailableBufferQueue() {
@@ -425,7 +431,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
          */
         @Nullable
         Buffer addExclusiveBuffer(Buffer buffer, int numRequiredBuffers) {
-            // 加入 独占buffer池
+            // 加入独占buffer池
             exclusiveBuffers.add(buffer);
             if (getAvailableBufferSize() > numRequiredBuffers) {
                 return floatingBuffers.poll();

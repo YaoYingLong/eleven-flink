@@ -40,6 +40,7 @@ public class TaskExecutorResourceSpec {
 
     private final MemorySize taskOffHeapSize;
 
+    // taskmanager.memory.network.min配置的值默认64m
     private final MemorySize networkMemSize;
 
     private final MemorySize managedMemorySize;
@@ -53,15 +54,17 @@ public class TaskExecutorResourceSpec {
             MemorySize networkMemSize,
             MemorySize managedMemorySize,
             Collection<ExternalResource> extendedResources) {
+        // taskmanager.cpu.cores配置的值
         this.cpuCores = cpuCores;
+        // taskmanager.memory.task.heap.size配置的值
         this.taskHeapSize = taskHeapSize;
         this.taskOffHeapSize = taskOffHeapSize;
+        // taskmanager.memory.network.min配置的值默认64m
         this.networkMemSize = networkMemSize;
         this.managedMemorySize = managedMemorySize;
-        this.extendedResources =
-                Preconditions.checkNotNull(extendedResources).stream()
-                        .filter(resource -> !resource.isZero())
-                        .collect(Collectors.toMap(ExternalResource::getName, Function.identity()));
+        this.extendedResources = Preconditions.checkNotNull(extendedResources).stream()
+                .filter(resource -> !resource.isZero())
+                .collect(Collectors.toMap(ExternalResource::getName, Function.identity()));
         Preconditions.checkArgument(
                 this.extendedResources.size() == extendedResources.size(),
                 "Duplicate resource name encountered in external resources.");
@@ -80,6 +83,7 @@ public class TaskExecutorResourceSpec {
     }
 
     public MemorySize getNetworkMemSize() {
+        // taskmanager.memory.network.min配置的值默认64m
         return networkMemSize;
     }
 

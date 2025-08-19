@@ -88,6 +88,7 @@ public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
         this.periodicWatermarkOutput = checkNotNull(periodicWatermarkOutput);
         // timestampAssigner如果有定义，则一般为我们自定义的，用于从数据中提取时间戳的逻辑
         this.timestampAssigner = checkNotNull(timestampAssigner);
+        // 我们自定义的水位线WatermarkGenerator
         this.watermarkGenerator = checkNotNull(watermarkGenerator);
         // 封装数据的容器
         this.reusingRecord = new StreamRecord<>(null);
@@ -112,10 +113,14 @@ public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
             final long assignedTimestamp = timestampAssigner.extractTimestamp(record, timestamp);
 
             // IMPORTANT: The event must be emitted before the watermark generator is called.
+            // recordOutput是AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
             recordsOutput.emitRecord(reusingRecord.replace(record, assignedTimestamp));
-            // 更新我们自定义的WatermarkGenerator中的maxTimestamp，如BoundedOutOfOrdernessWatermarks
-            // 在调用WatermarkGenerator中的onPeriodicEmit方法时会用到
-            // onEventWatermarkOutput是将splitId生成的对应的PartialWatermark封装成ImmediateOutput
+            /**
+             * 更新我们自定义的WatermarkGenerator中的maxTimestamp，如BoundedOutOfOrdernessWatermarks
+             * 在调用WatermarkGenerator中的onPeriodicEmit方法时会用到
+             * onEventWatermarkOutput是将splitId生成的对应的PartialWatermark封装成ImmediateOutput
+             * 一般来说onEventWatermarkOutput其实并没有被实际使用到
+             */
             watermarkGenerator.onEvent(record, assignedTimestamp, onEventWatermarkOutput);
         } catch (ExceptionInChainedOperatorException e) {
             throw e;
@@ -149,6 +154,14 @@ public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
     }
 
     public final void emitPeriodicWatermark() {
+        /**
+         * 我们自定义的水位线WatermarkGenerator的onPeriodicEmit
+         *
+         * periodicWatermarkOutput将splitId生成的对应的PartialWatermark封装成DeferredOutput
+         * 这里如果设置了withIdleness则先调用WatermarksWithIdleness的onPeriodicEmit方法
+         * 如果设置了forBoundedOutOfOrderness则最终会调用的是BoundedOutOfOrdernessWatermarks的onPeriodicEmit
+         * 这里的作用其实是判断当前分片的水位线大于currentMaxDesiredWatermark，并且当前分片没有被暂停
+         */
         watermarkGenerator.onPeriodicEmit(periodicWatermarkOutput);
     }
 
@@ -167,6 +180,7 @@ public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
             TimestampAssigner<E> timestampAssigner,
             WatermarkGenerator<E> watermarkGenerator) {
 
+        // recordOutput是AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
         return new SourceOutputWithWatermarks<>(
                 recordsOutput,
                 onEventWatermarkOutput,

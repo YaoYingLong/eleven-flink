@@ -53,19 +53,25 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
 
     /**
      * The subpartitions of this partition. At least one.
+     *
      * subpartitions是ResultPartition的一个子分区。每个ResultPartition包含多个ResultSubpartition
-     * 其数目要由下游消费 Task 数和 DistributionPattern 来决定
-     * 例如，如果是FORWARD，则下游只有一个消费者；如果是SHUFFLE，则下游消费者的数量和下游算子的并行度一样
+     * 其数目要由下游消费Task数和DistributionPattern来决定，例如如果是FORWARD，则下游只有一个消费者；
+     * 如果是SHUFFLE，则下游消费者的数量和下游算子的并行度一样
      */
     protected final ResultSubpartition[] subpartitions;
 
     /**
-     * For non-broadcast mode, each subpartition maintains a separate BufferBuilder which might be
-     * null.
+     * For non-broadcast mode, each subpartition maintains a separate BufferBuilder which might be null.
+     *
+     * 对于非广播模式，每个子分区维护一个单独的BufferBuilder，该BufferBuilder可能为null。
      */
     private final BufferBuilder[] unicastBufferBuilders;
 
-    /** For broadcast mode, a single BufferBuilder is shared by all subpartitions. */
+    /**
+     * For broadcast mode, a single BufferBuilder is shared by all subpartitions.
+     *
+     * 对于广播模式，所有子分区共享一个 BufferBuilder
+     */
     private BufferBuilder broadcastBufferBuilder;
 
     private TimerGauge hardBackPressuredTimeMsPerSecond = new TimerGauge();
@@ -160,10 +166,14 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
         totalWrittenBytes += record.remaining();
 
         BufferBuilder buffer = appendUnicastDataForNewRecord(record, targetSubpartition);
-
+        // 如果一个MemorySegment（32kb）写不完数据，会循环一直写数据
         while (record.hasRemaining()) {
-            // full buffer, partial record
-            // buffer写满或者是不完整的record，调用bufferBuilder.finish方法
+            /**
+             * 调用NetworkBuffer的recycleBuffer，目的是调用release方法，从而触发调用NetworkBuffer的deallocate方法，
+             * 从而调用LocalBufferPool的recycle方法，最终调用RemoteInputChannel的notifyBufferAvailable方法，将数据发送到下游
+             *
+             * buffer写满或者是不完整的record，调用bufferBuilder.finish方法
+             */
             finishUnicastBufferBuilder(targetSubpartition);
             // 当前这条记录没有写完，申请新的 buffer 写入
             buffer = appendUnicastDataForRecordContinuation(record, targetSubpartition);
@@ -171,7 +181,12 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
 
         if (buffer.isFull()) {
             // full buffer, full record
-            // buffer写满或者是完整的record，调用bufferBuilder.finish方法
+            /**
+             * 调用NetworkBuffer的recycleBuffer，目的是调用release方法，从而触发调用NetworkBuffer的deallocate方法，
+             * 从而调用LocalBufferPool的recycle方法，最终调用RemoteInputChannel的notifyBufferAvailable方法，将数据发送到下游
+             *
+             * buffer写满或者是不完整的record，调用bufferBuilder.finish方法
+             */
             finishUnicastBufferBuilder(targetSubpartition);
         }
 
@@ -295,17 +310,18 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
 
     private BufferBuilder appendUnicastDataForNewRecord(
             final ByteBuffer record, final int targetSubpartition) throws IOException {
+        // 校验targetSubpartition
         if (targetSubpartition < 0 || targetSubpartition > unicastBufferBuilders.length) {
             throw new ArrayIndexOutOfBoundsException(targetSubpartition);
         }
         BufferBuilder buffer = unicastBufferBuilders[targetSubpartition];
 
         if (buffer == null) {
-            // 请求新的 BufferBuilder，用于写入数据 如果当前没有可用的 buffer，会阻塞
+            // 请求新的BufferBuilder，用于写入数据，如果当前没有可用的buffer，会阻塞
             buffer = requestNewUnicastBufferBuilder(targetSubpartition);
             addToSubpartition(buffer, targetSubpartition, 0, record.remaining());
         }
-
+        // 这里其实是将数据写入到BufferBuilder以及NetworkBuffer中的MemorySegment中
         buffer.appendAndCommit(record);
 
         return buffer;
@@ -318,6 +334,7 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
             int minDesirableBufferSize)
             throws IOException {
         // add方法中添加一个BufferConsumer，用于读取写入到 MemorySegment 的数据
+        // createBufferConsumerFromBeginning方法是关键代码，触发调用NetworkBuffer到retain方法
         int desirableBufferSize = subpartitions[targetSubpartition]
                 .add(buffer.createBufferConsumerFromBeginning(), partialRecordLength);
         resizeBuffer(buffer, desirableBufferSize, minDesirableBufferSize);
@@ -397,6 +414,7 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
 
     private BufferBuilder requestNewUnicastBufferBuilder(int targetSubpartition)
             throws IOException {
+        // 校验isFinished状态
         checkInProduceState();
         ensureUnicastMode();
         final BufferBuilder bufferBuilder = requestNewBufferBuilderFromPool(targetSubpartition);
@@ -416,7 +434,7 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
 
     private BufferBuilder requestNewBufferBuilderFromPool(int targetSubpartition)
             throws IOException {
-        // 从 LocalBufferPool 中请求 BufferBuilder
+        // 从LocalBufferPool中请求BufferBuilder
         BufferBuilder bufferBuilder = bufferPool.requestBufferBuilder(targetSubpartition);
         if (bufferBuilder != null) {
             return bufferBuilder;
@@ -424,6 +442,7 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
 
         hardBackPressuredTimeMsPerSecond.markStart();
         try {
+            // 从NetworkBufferPool中pull一个可用的MemorySegment
             bufferBuilder = bufferPool.requestBufferBuilderBlocking(targetSubpartition);
             hardBackPressuredTimeMsPerSecond.markEnd();
             return bufferBuilder;
@@ -442,6 +461,10 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
             numBytesOut.inc(bytes);
             numBuffersOut.inc();
             unicastBufferBuilders[targetSubpartition] = null;
+            /**
+             * 调用NetworkBuffer的recycleBuffer，目的是调用release方法，从而触发调用NetworkBuffer的deallocate方法，
+             * 从而调用LocalBufferPool的recycle方法，最终调用RemoteInputChannel的notifyBufferAvailable方法，将数据发送到下游
+             */
             bufferBuilder.close();
         }
     }

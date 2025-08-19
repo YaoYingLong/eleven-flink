@@ -171,15 +171,16 @@ public class ExecutionJobVertex
 
         checkState(parallelismInfo.getParallelism() > 0);
         checkState(!isInitialized());
-
+        // 根据并发度初始化 ExecutionVertex 数组
         this.taskVertices = new ExecutionVertex[parallelismInfo.getParallelism()];
-
+        // 当前 ExecutionJobVertex 的输入集合
         this.inputs = new ArrayList<>(jobVertex.getInputs().size());
 
         // create the intermediate results
+        // 输出结果集，也就是IntermediateDataSet集合
         this.producedDataSets =
                 new IntermediateResult[jobVertex.getNumberOfProducedIntermediateDataSets()];
-
+        // 初始化producedDataSets数组中的每个IntermediateResult
         for (int i = 0; i < jobVertex.getProducedDataSets().size(); i++) {
             final IntermediateDataSet result = jobVertex.getProducedDataSets().get(i);
 
@@ -191,6 +192,7 @@ public class ExecutionJobVertex
         }
 
         // create all task vertices
+        // 根据并行度创建ExecutionVertex对象，每一个并发度对应一个subTask
         for (int i = 0; i < this.parallelismInfo.getParallelism(); i++) {
             ExecutionVertex vertex = createExecutionVertex(
                     this,
@@ -213,6 +215,7 @@ public class ExecutionJobVertex
             }
         }
 
+        // 获取所有的 OperatorCoordinator
         final List<SerializedValue<OperatorCoordinator.Provider>> coordinatorProviders =
                 getJobVertex().getOperatorCoordinators();
         if (coordinatorProviders.isEmpty()) {
@@ -221,9 +224,9 @@ public class ExecutionJobVertex
             final ArrayList<OperatorCoordinatorHolder> coordinators =
                     new ArrayList<>(coordinatorProviders.size());
             try {
-                for (final SerializedValue<OperatorCoordinator.Provider> provider :
-                        coordinatorProviders) {
+                for (final SerializedValue<OperatorCoordinator.Provider> provider : coordinatorProviders) {
                     // 调用ExecutionJobVertex的createOperatorCoordinatorHolder方法创建OperatorCoordinatorHolder
+                    // 创建的RecreateOnResetOperatorCoordinator保存到OperatorCoordinatorHolder
                     coordinators.add(createOperatorCoordinatorHolder(
                             provider, graph.getUserClassLoader(), coordinatorStore));
                 }
@@ -287,6 +290,7 @@ public class ExecutionJobVertex
             ClassLoader classLoader,
             CoordinatorStore coordinatorStore)
             throws Exception {
+        // 创建的RecreateOnResetOperatorCoordinator保存到OperatorCoordinatorHolder
         return OperatorCoordinatorHolder.create(
                 provider, this, classLoader, coordinatorStore, false);
     }

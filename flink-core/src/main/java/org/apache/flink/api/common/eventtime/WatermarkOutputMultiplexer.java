@@ -149,12 +149,14 @@ public class WatermarkOutputMultiplexer {
      * deferred per-output updates.
      */
     private void updateCombinedWatermark() {
+        // updateCombinedWatermark中遍历了所有分区的水位，将其中最小的分区水位与组合水位对别，如果大于则更新，并返回ture
         if (combinedWatermarkStatus.updateCombinedWatermark()) {
-            // 如果有水位线更新，则调用underlyingOutput.emitWatermark
-            // 如果是KafkaSource这里的output是AsyncDataOutputToOutput
-            // AsyncDataOutputToOutput是对ChainingOutput或RecordWriterOutput进行了一次封装
-            // 将output封装成WatermarkToDataOutput然后再被封装成IdlenessAwareWatermarkOutput
-            // 这里调用IdlenessAwareWatermarkOutput的emitWatermark
+            /**
+             * 如果有水位线更新，则调用underlyingOutput.emitWatermark，如果是KafkaSource这里的underlyingOutput
+             * 是AsyncDataOutputToOutput，其是对ChainingOutput或RecordWriterOutput进行了一次封装
+             * 将output封装成WatermarkToDataOutput然后再被封装成IdlenessAwareWatermarkOutput
+             * 这里调用IdlenessAwareWatermarkOutput的emitWatermark
+             */
             underlyingOutput.emitWatermark(new Watermark(
                     combinedWatermarkStatus.getCombinedWatermark()));
         } else if (combinedWatermarkStatus.isIdle()) {
@@ -179,9 +181,16 @@ public class WatermarkOutputMultiplexer {
             long timestamp = watermark.getTimestamp();
             boolean wasUpdated = state.setWatermark(timestamp);
 
-            // if it's higher than the max watermark so far we might have to update the
-            // combined watermark
+            // if it's higher than the max watermark so far we might have to update the combined watermark
+            // 如果当前的水位线，大于组合水位线中最大的水位线
             if (wasUpdated && timestamp > combinedWatermarkStatus.getCombinedWatermark()) {
+                /**
+                 * 遍历了所有分区的水位，将其中最小的分区水位与组合水位对别，如果大于则更新，并返回ture
+                 * 如果有水位线更新，则调用underlyingOutput.emitWatermark，如果是KafkaSource这里的underlyingOutput
+                 * 是AsyncDataOutputToOutput，其是对ChainingOutput或RecordWriterOutput进行了一次封装
+                 * 将output封装成WatermarkToDataOutput然后再被封装成IdlenessAwareWatermarkOutput
+                 * 这里调用IdlenessAwareWatermarkOutput的emitWatermark
+                 */
                 updateCombinedWatermark();
             }
         }
@@ -219,6 +228,7 @@ public class WatermarkOutputMultiplexer {
 
         @Override
         public void emitWatermark(Watermark watermark) {
+            // 这里的作用其实是判断当前分片的水位线大于currentMaxDesiredWatermark，并且当前分片没有被暂停
             state.setWatermark(watermark.getTimestamp());
         }
 

@@ -1368,6 +1368,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
         }
 
         try {
+            // 调用Task的deliverOperatorEvent方法，最终调用StreamTask的dispatchOperatorEvent方法
             task.deliverOperatorEvent(operatorId, evt);
             return CompletableFuture.completedFuture(Acknowledge.get());
         } catch (Throwable t) {
@@ -1610,7 +1611,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
         if (taskSlotTable.hasAllocatedSlots(jobId)) {
             log.info("Offer reserved slots to the leader of job {}.", jobId);
-
+            // 获取 JobMaster 地址
             final JobMasterGateway jobMasterGateway = jobManagerConnection.getJobManagerGateway();
 
             final Iterator<TaskSlot<Task>> reservedSlotsIterator =
@@ -1618,7 +1619,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             final JobMasterId jobMasterId = jobManagerConnection.getJobMasterId();
 
             final Collection<SlotOffer> reservedSlots = new HashSet<>(2);
-
+            // 生成 SlotOffer
             while (reservedSlotsIterator.hasNext()) {
                 SlotOffer offer = reservedSlotsIterator.next().generateSlotOffer();
                 reservedSlots.add(offer);
@@ -1626,7 +1627,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
             final UUID slotOfferId = UUID.randomUUID();
             currentSlotOfferPerJob.put(jobId, slotOfferId);
-
+            // 将自己的 Slot 分配给 JobManager（JobMaster）
             CompletableFuture<Collection<SlotOffer>> acceptedSlotsFuture =
                     jobMasterGateway.offerSlots(
                             getResourceID(),
@@ -1740,7 +1741,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
         final JobID jobId = job.getJobId();
         final Optional<JobTable.Connection> connection = job.asConnection();
-
+        // 如果之前的链接存在，则 disconnect 掉
         if (connection.isPresent()) {
             JobTable.Connection oldJobManagerConnection = connection.get();
 
@@ -1752,6 +1753,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                         jobMasterGateway.getFencingToken());
                 return;
             } else {
+                // 断开链接
                 disconnectJobManagerConnection(
                         oldJobManagerConnection,
                         new Exception("Found new job leader for job id " + jobId + '.'));
@@ -1761,14 +1763,15 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
         log.info("Establish JobManager connection for job {}.", jobId);
 
         ResourceID jobManagerResourceID = registrationSuccess.getResourceID();
-
+        // 连接JobManager
         final JobTable.Connection establishedConnection =
                 associateWithJobManager(job, jobManagerResourceID, jobMasterGateway);
 
         // monitor the job manager as heartbeat target
+        // 然后维持心跳
         jobManagerHeartbeatManager.monitorTarget(
                 jobManagerResourceID, new JobManagerHeartbeatReceiver(jobMasterGateway));
-
+        // 将自己的 Slot 汇报给 JobManager
         internalOfferSlotsToJobManager(establishedConnection);
     }
 
@@ -2017,8 +2020,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             AccumulatorSnapshot accumulatorSnapshot = task.getAccumulatorRegistry().getSnapshot();
 
             updateTaskExecutionState(
-                    jobMasterGateway,
-                    new TaskExecutionState(
+                    jobMasterGateway, new TaskExecutionState(
                             task.getExecutionId(),
                             task.getExecutionState(),
                             task.getFailureCause(),
@@ -2382,33 +2384,21 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                 final JobID jobId,
                 final JobMasterGateway jobManagerGateway,
                 final JMTMRegistrationSuccess registrationMessage) {
-            runAsync(
-                    () ->
-                            jobTable.getJob(jobId)
-                                    .ifPresent(
-                                            job ->
-                                                    establishJobManagerConnection(
-                                                            job,
-                                                            jobManagerGateway,
-                                                            registrationMessage)));
+            // 建立新的 JobManager 链接
+            runAsync(() -> jobTable.getJob(jobId).ifPresent(job -> establishJobManagerConnection(
+                    job, jobManagerGateway, registrationMessage)));
         }
 
         @Override
         public void jobManagerLostLeadership(final JobID jobId, final JobMasterId jobMasterId) {
             log.info(
                     "JobManager for job {} with leader id {} lost leadership.", jobId, jobMasterId);
-
-            runAsync(
-                    () ->
-                            jobTable.getConnection(jobId)
-                                    .ifPresent(
-                                            jobManagerConnection ->
-                                                    disconnectJobManagerConnection(
-                                                            jobManagerConnection,
-                                                            new Exception(
-                                                                    "Job leader for job id "
-                                                                            + jobId
-                                                                            + " lost leadership."))));
+            // 建立新的 JobManager 链接
+            runAsync(() -> jobTable.getConnection(jobId).ifPresent(
+                    jobManagerConnection -> disconnectJobManagerConnection(
+                            jobManagerConnection,
+                            new Exception(
+                                    "Job leader for job id " + jobId + " lost leadership."))));
         }
 
         @Override

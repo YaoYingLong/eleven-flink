@@ -67,7 +67,8 @@ public class TaskExecutorResourceUtils {
     static final MemorySize DEFAULT_SHUFFLE_MEMORY_SIZE = MemorySize.parse("64m");
     static final MemorySize DEFAULT_MANAGED_MEMORY_SIZE = MemorySize.parse("128m");
 
-    private TaskExecutorResourceUtils() {}
+    private TaskExecutorResourceUtils() {
+    }
 
     static TaskExecutorResourceSpec resourceSpecFromConfig(Configuration config) {
         try {
@@ -184,8 +185,8 @@ public class TaskExecutorResourceUtils {
                         .equals(config.get(TaskManagerOptions.JVM_OVERHEAD_MIN)));
         return calculateTotalFlinkMemoryFromComponents(config)
                 + config.get(TaskManagerOptions.JVM_METASPACE)
-                        .add(config.get(TaskManagerOptions.JVM_OVERHEAD_MAX))
-                        .getBytes();
+                .add(config.get(TaskManagerOptions.JVM_OVERHEAD_MAX))
+                .getBytes();
     }
 
     public static Configuration adjustForLocalExecution(Configuration config) {

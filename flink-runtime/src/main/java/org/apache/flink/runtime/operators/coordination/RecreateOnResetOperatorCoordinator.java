@@ -68,6 +68,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
     public void start() throws Exception {
         Preconditions.checkState(!started, "coordinator already started");
         started = true;
+        // 这里实际上是调用的SourceCoordinator的start方法
         coordinator.applyCall("start", OperatorCoordinator::start);
     }
 
