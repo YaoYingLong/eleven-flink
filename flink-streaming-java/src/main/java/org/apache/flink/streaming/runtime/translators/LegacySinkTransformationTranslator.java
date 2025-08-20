@@ -80,20 +80,13 @@ public class LegacySinkTransformationTranslator<IN>
         final Transformation<?> input = parentTransformations.get(0);
 
         streamGraph.addSink(
-                transformationId,
-                slotSharingGroup,
-                transformation.getCoLocationGroupKey(),
-                transformation.getOperatorFactory(),
-                input.getOutputType(),
-                null,
+                transformationId, slotSharingGroup, transformation.getCoLocationGroupKey(),
+                transformation.getOperatorFactory(), input.getOutputType(), null,
                 "Sink: " + transformation.getName());
 
-        final int parallelism =
-                transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
-                        ? transformation.getParallelism()
-                        : executionConfig.getParallelism();
-        streamGraph.setParallelism(
-                transformationId, parallelism, transformation.isParallelismConfigured());
+        final int parallelism = transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
+                        ? transformation.getParallelism() : executionConfig.getParallelism();
+        streamGraph.setParallelism(transformationId, parallelism, transformation.isParallelismConfigured());
         streamGraph.setMaxParallelism(transformationId, transformation.getMaxParallelism());
 
         streamGraph.setSupportsConcurrentExecutionAttempts(

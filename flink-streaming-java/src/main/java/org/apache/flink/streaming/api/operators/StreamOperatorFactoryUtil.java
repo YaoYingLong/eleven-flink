@@ -88,8 +88,8 @@ public class StreamOperatorFactoryUtil {
                 containingTask,  // 这里的containingTask是StreamTask
                 configuration,
                 output,
-                processingTimeService != null ?
-                        () -> processingTimeService : processingTimeServiceFactory,
+                processingTimeService != null ? () -> processingTimeService :
+                        processingTimeServiceFactory,
                 operatorEventDispatcher));
         return new Tuple2<>(op, Optional.ofNullable(processingTimeService));
     }

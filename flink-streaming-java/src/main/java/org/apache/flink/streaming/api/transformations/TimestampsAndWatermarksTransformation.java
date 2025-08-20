@@ -50,17 +50,14 @@ public class TimestampsAndWatermarksTransformation<IN> extends PhysicalTransform
      * Creates a new {@code Transformation} with the given name, output type and parallelism.
      *
      * @param name The name of the {@code Transformation}, this will be shown in Visualizations and
-     *     the Log
+     *         the Log
      * @param parallelism The parallelism of this {@code Transformation}
      * @param input The input transformation of this {@code Transformation}
      * @param watermarkStrategy The {@link WatermarkStrategy} to use
      */
     public TimestampsAndWatermarksTransformation(
-            String name,
-            int parallelism,
-            Transformation<IN> input,
-            WatermarkStrategy<IN> watermarkStrategy,
-            boolean parallelismConfigured) {
+            String name, int parallelism, Transformation<IN> input,
+            WatermarkStrategy<IN> watermarkStrategy, boolean parallelismConfigured) {
         super(name, input.getOutputType(), parallelism, parallelismConfigured);
         this.input = input;
         this.watermarkStrategy = watermarkStrategy;

@@ -262,6 +262,7 @@ public class TimeWindow extends Window {
      * @return window start
      */
     public static long getWindowStartWithOffset(long timestamp, long offset, long windowSize) {
+        // 这里的作用是将窗口时间转换为整点
         final long remainder = (timestamp - offset) % windowSize;
         // handle both positive and negative cases
         if (remainder < 0) {

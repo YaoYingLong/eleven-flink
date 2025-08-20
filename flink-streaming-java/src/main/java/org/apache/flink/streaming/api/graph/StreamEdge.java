@@ -96,37 +96,19 @@ public class StreamEdge implements Serializable {
     }
 
     public StreamEdge(
-            StreamNode sourceVertex,
-            StreamNode targetVertex,
-            int typeNumber,
-            StreamPartitioner<?> outputPartitioner,
-            OutputTag outputTag,
-            StreamExchangeMode exchangeMode,
-            int uniqueId,
-            IntermediateDataSetID intermediateDatasetId) {
+            StreamNode sourceVertex, StreamNode targetVertex, int typeNumber,
+            StreamPartitioner<?> outputPartitioner, OutputTag outputTag, StreamExchangeMode exchangeMode,
+            int uniqueId, IntermediateDataSetID intermediateDatasetId) {
 
         this(
-                sourceVertex,
-                targetVertex,
-                typeNumber,
-                sourceVertex.getBufferTimeout(),
-                outputPartitioner,
-                outputTag,
-                exchangeMode,
-                uniqueId,
-                intermediateDatasetId);
+                sourceVertex, targetVertex, typeNumber, sourceVertex.getBufferTimeout(),
+                outputPartitioner, outputTag, exchangeMode, uniqueId, intermediateDatasetId);
     }
 
     public StreamEdge(
-            StreamNode sourceVertex,
-            StreamNode targetVertex,
-            int typeNumber,
-            long bufferTimeout,
-            StreamPartitioner<?> outputPartitioner,
-            OutputTag outputTag,
-            StreamExchangeMode exchangeMode,
-            int uniqueId,
-            IntermediateDataSetID intermediateDatasetId) {
+            StreamNode sourceVertex, StreamNode targetVertex, int typeNumber, long bufferTimeout,
+            StreamPartitioner<?> outputPartitioner, OutputTag outputTag, StreamExchangeMode exchangeMode,
+            int uniqueId, IntermediateDataSetID intermediateDatasetId) {
 
         this.sourceId = sourceVertex.getId();
         this.targetId = targetVertex.getId();
@@ -139,16 +121,7 @@ public class StreamEdge implements Serializable {
         this.targetOperatorName = targetVertex.getOperatorName();
         this.exchangeMode = checkNotNull(exchangeMode);
         this.intermediateDatasetIdToProduce = intermediateDatasetId;
-        this.edgeId =
-                sourceVertex
-                        + "_"
-                        + targetVertex
-                        + "_"
-                        + typeNumber
-                        + "_"
-                        + outputPartitioner
-                        + "_"
-                        + uniqueId;
+        this.edgeId = sourceVertex + "_" + targetVertex + "_" + typeNumber + "_" + outputPartitioner + "_" + uniqueId;
     }
 
     public int getSourceId() {

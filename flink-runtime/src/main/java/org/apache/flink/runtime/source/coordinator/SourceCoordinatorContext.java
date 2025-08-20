@@ -558,7 +558,6 @@ public class SourceCoordinatorContext<SplitT extends SourceSplit>
         if (splits.isEmpty()) {
             return;
         }
-
         checkAttemptReaderReady(subtaskIndex, attemptNumber);
 
         final AddSplitEvent<SplitT> addSplitEvent;

@@ -66,6 +66,7 @@ public final class StreamGraphUtils {
         if (transformation.getBufferTimeout() >= 0) {
             streamGraph.setBufferTimeout(nodeId, transformation.getBufferTimeout());
         } else {
+            // defaultBufferTimeout默认值为100ms
             streamGraph.setBufferTimeout(nodeId, defaultBufferTimeout);
         }
     }

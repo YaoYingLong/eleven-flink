@@ -54,13 +54,12 @@ public class DataStreamSink<T> {
         StreamSink<T> sinkOperator = new StreamSink<>(sinkFunction);
         final StreamExecutionEnvironment executionEnvironment =
                 inputStream.getExecutionEnvironment();
-        PhysicalTransformation<T> transformation =
-                new LegacySinkTransformation<>(
-                        inputStream.getTransformation(),
-                        "Unnamed",
-                        sinkOperator,
-                        executionEnvironment.getParallelism(),
-                        false);
+        PhysicalTransformation<T> transformation = new LegacySinkTransformation<>(
+                inputStream.getTransformation(),
+                "Unnamed",
+                sinkOperator,
+                executionEnvironment.getParallelism(),
+                false);
         executionEnvironment.addOperator(transformation);
         return new DataStreamSink<>(transformation);
     }
@@ -129,6 +128,7 @@ public class DataStreamSink<T> {
      * Otherwise, job submission will fail.
      *
      * @param uid The unique user-specified ID of this transformation.
+     *
      * @return The operator with the specified ID.
      */
     @PublicEvolving
@@ -156,7 +156,8 @@ public class DataStreamSink<T> {
      * mapping from states to their target operator.
      *
      * @param uidHash The user provided hash for this operator. This will become the JobVertexID,
-     *     which is shown in the logs and web ui.
+     *         which is shown in the logs and web ui.
+     *
      * @return The operator with the user provided hash.
      */
     @PublicEvolving
@@ -173,6 +174,7 @@ public class DataStreamSink<T> {
      * Sets the parallelism for this sink. The degree must be higher than zero.
      *
      * @param parallelism The parallelism for this sink.
+     *
      * @return The sink with set parallelism.
      */
     public DataStreamSink<T> setParallelism(int parallelism) {
@@ -190,6 +192,7 @@ public class DataStreamSink<T> {
      * debugging.
      *
      * @param description The description for this sink.
+     *
      * @return The sink with new description.
      */
     @PublicEvolving
@@ -209,6 +212,7 @@ public class DataStreamSink<T> {
      *
      * @param minResources The minimum resources for this sink.
      * @param preferredResources The preferred resources for this sink
+     *
      * @return The sink with set minimum and preferred resources.
      */
     private DataStreamSink<T> setResources(
@@ -223,6 +227,7 @@ public class DataStreamSink<T> {
      * default.
      *
      * @param resources The resources for this sink.
+     *
      * @return The sink with set minimum and preferred resources.
      */
     private DataStreamSink<T> setResources(ResourceSpec resources) {

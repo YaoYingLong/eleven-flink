@@ -112,8 +112,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      */
     public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector) {
         this(
-                dataStream,
-                keySelector,
+                dataStream, keySelector,
                 TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()));
     }
 
@@ -146,7 +145,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *
      * @param stream Base stream of data
      * @param partitionTransformation Function that determines how the keys are distributed to
-     *     downstream operator(s)
+     *         downstream operator(s)
      * @param keySelector Function to extract keys from the base stream
      * @param keyType Defines the type of the extracted keys
      */
@@ -211,23 +210,24 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * can be used as a key in the {@code DataStream.keyBy()} operation.
      *
      * @param type The {@link TypeInformation} of the type to check.
+     *
      * @return {@code false} if:
-     *     <ol>
-     *       <li>it is a POJO type but does not override the {@link #hashCode()} method and relies
-     *           on the {@link Object#hashCode()} implementation.
-     *       <li>it is an array of any type (see {@link PrimitiveArrayTypeInfo}, {@link
-     *           BasicArrayTypeInfo}, {@link ObjectArrayTypeInfo}).
-     *       <li>it is enum type
-     *     </ol>
-     *     , {@code true} otherwise.
+     *         <ol>
+     *           <li>it is a POJO type but does not override the {@link #hashCode()} method and relies
+     *               on the {@link Object#hashCode()} implementation.
+     *           <li>it is an array of any type (see {@link PrimitiveArrayTypeInfo}, {@link
+     *               BasicArrayTypeInfo}, {@link ObjectArrayTypeInfo}).
+     *           <li>it is enum type
+     *         </ol>
+     *         , {@code true} otherwise.
      */
     private boolean validateKeyTypeIsHashable(TypeInformation<?> type) {
         try {
             return (type instanceof PojoTypeInfo)
                     ? !type.getTypeClass()
-                            .getMethod("hashCode")
-                            .getDeclaringClass()
-                            .equals(Object.class)
+                    .getMethod("hashCode")
+                    .getDeclaringClass()
+                    .equals(Object.class)
                     : !(isArrayType(type) || isEnumType(type));
         } catch (NoSuchMethodException ignored) {
             // this should never happen as we are just searching for the hashCode() method.
@@ -315,9 +315,11 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * timers the function can directly emit elements and/or register yet more timers.
      *
      * @param processFunction The {@link ProcessFunction} that is called for each element in the
-     *     stream.
+     *         stream.
      * @param <R> The type of elements emitted by the {@code ProcessFunction}.
+     *
      * @return The transformed {@link DataStream}.
+     *
      * @deprecated Use {@link KeyedStream#process(KeyedProcessFunction)}
      */
     @Deprecated
@@ -349,10 +351,12 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * timers the function can directly emit elements and/or register yet more timers.
      *
      * @param processFunction The {@link ProcessFunction} that is called for each element in the
-     *     stream.
+     *         stream.
      * @param outputType {@link TypeInformation} for the result type of the function.
      * @param <R> The type of elements emitted by the {@code ProcessFunction}.
+     *
      * @return The transformed {@link DataStream}.
+     *
      * @deprecated Use {@link KeyedStream#process(KeyedProcessFunction, TypeInformation)}
      */
     @Deprecated
@@ -377,8 +381,9 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * timers the function can directly emit elements and/or register yet more timers.
      *
      * @param keyedProcessFunction The {@link KeyedProcessFunction} that is called for each element
-     *     in the stream.
+     *         in the stream.
      * @param <R> The type of elements emitted by the {@code KeyedProcessFunction}.
+     *
      * @return The transformed {@link DataStream}.
      */
     @PublicEvolving
@@ -409,9 +414,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * timers the function can directly emit elements and/or register yet more timers.
      *
      * @param keyedProcessFunction The {@link KeyedProcessFunction} that is called for each element
-     *     in the stream.
+     *         in the stream.
      * @param outputType {@link TypeInformation} for the result type of the function.
      * @param <R> The type of elements emitted by the {@code KeyedProcessFunction}.
+     *
      * @return The transformed {@link DataStream}.
      */
     @Internal
@@ -433,6 +439,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *
      * @param otherStream The other keyed stream to join this keyed stream with
      * @param <T1> Type parameter of elements in the other stream
+     *
      * @return An instance of {@link IntervalJoin} with this keyed stream and the other keyed stream
      */
     @PublicEvolving
@@ -607,6 +614,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
          *
          * @param processJoinFunction The user-defined process join function.
          * @param <OUT> The output type.
+         *
          * @return The transformed {@link DataStream}.
          */
         @PublicEvolving
@@ -638,6 +646,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
          * @param processJoinFunction The user-defined process join function.
          * @param outputType The type information for the output type.
          * @param <OUT> The output type.
+         *
          * @return The transformed {@link DataStream}.
          */
         @PublicEvolving
@@ -681,9 +690,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * org.apache.flink.streaming.api.environment.StreamExecutionEnvironment#setStreamTimeCharacteristic(org.apache.flink.streaming.api.TimeCharacteristic)}
      *
      * @param size The size of the window.
+     *
      * @deprecated Please use {@link #window(WindowAssigner)} with either {@link
-     *     TumblingEventTimeWindows} or {@link TumblingProcessingTimeWindows}. For more information,
-     *     see the deprecation notice on {@link TimeCharacteristic}
+     *         TumblingEventTimeWindows} or {@link TumblingProcessingTimeWindows}. For more information,
+     *         see the deprecation notice on {@link TimeCharacteristic}
      */
     @Deprecated
     public WindowedStream<T, KEY, TimeWindow> timeWindow(Time size) {
@@ -703,9 +713,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * org.apache.flink.streaming.api.environment.StreamExecutionEnvironment#setStreamTimeCharacteristic(org.apache.flink.streaming.api.TimeCharacteristic)}
      *
      * @param size The size of the window.
+     *
      * @deprecated Please use {@link #window(WindowAssigner)} with either {@link
-     *     SlidingEventTimeWindows} or {@link SlidingProcessingTimeWindows}. For more information,
-     *     see the deprecation notice on {@link TimeCharacteristic}
+     *         SlidingEventTimeWindows} or {@link SlidingProcessingTimeWindows}. For more information,
+     *         see the deprecation notice on {@link TimeCharacteristic}
      */
     @Deprecated
     public WindowedStream<T, KEY, TimeWindow> timeWindow(Time size, Time slide) {
@@ -747,6 +758,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * Trigger} that is used if a {@code Trigger} is not specified.
      *
      * @param assigner The {@code WindowAssigner} that assigns elements to windows.
+     *
      * @return The trigger windows data stream.
      */
     @PublicEvolving
@@ -765,7 +777,8 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * input values with the same key will go to the same reducer.
      *
      * @param reducer The {@link ReduceFunction} that will be called for every element of the input
-     *     values with the same key.
+     *         values with the same key.
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> reduce(ReduceFunction<T> reducer) {
@@ -789,8 +802,9 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * grouped by the given key. An independent aggregate is kept per key.
      *
      * @param positionToSum The field position in the data points to sum. This is applicable to
-     *     Tuple types, basic and primitive array types, Scala case classes, and primitive types
-     *     (which is considered as having one field).
+     *         Tuple types, basic and primitive array types, Scala case classes, and primitive types
+     *         (which is considered as having one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> sum(int positionToSum) {
@@ -802,9 +816,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * the given key. An independent aggregate is kept per key.
      *
      * @param field In case of a POJO, Scala case class, or Tuple type, the name of the (public)
-     *     field on which to perform the aggregation. Additionally, a dot can be used to drill down
-     *     into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
-     *     case of a basic type (which is considered as having only one field).
+     *         field on which to perform the aggregation. Additionally, a dot can be used to drill down
+     *         into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
+     *         case of a basic type (which is considered as having only one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> sum(String field) {
@@ -816,8 +831,9 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * position by the given key. An independent aggregate is kept per key.
      *
      * @param positionToMin The field position in the data points to minimize. This is applicable to
-     *     Tuple types, Scala case classes, and primitive types (which is considered as having one
-     *     field).
+     *         Tuple types, Scala case classes, and primitive types (which is considered as having one
+     *         field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> min(int positionToMin) {
@@ -837,9 +853,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * "field1.fieldxy" }.
      *
      * @param field In case of a POJO, Scala case class, or Tuple type, the name of the (public)
-     *     field on which to perform the aggregation. Additionally, a dot can be used to drill down
-     *     into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
-     *     case of a basic type (which is considered as having only one field).
+     *         field on which to perform the aggregation. Additionally, a dot can be used to drill down
+     *         into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
+     *         case of a basic type (which is considered as having only one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> min(String field) {
@@ -857,8 +874,9 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * position by the given key. An independent aggregate is kept per key.
      *
      * @param positionToMax The field position in the data points to maximize. This is applicable to
-     *     Tuple types, Scala case classes, and primitive types (which is considered as having one
-     *     field).
+     *         Tuple types, Scala case classes, and primitive types (which is considered as having one
+     *         field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> max(int positionToMax) {
@@ -878,9 +896,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * "field1.fieldxy" }.
      *
      * @param field In case of a POJO, Scala case class, or Tuple type, the name of the (public)
-     *     field on which to perform the aggregation. Additionally, a dot can be used to drill down
-     *     into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
-     *     case of a basic type (which is considered as having only one field).
+     *         field on which to perform the aggregation. Additionally, a dot can be used to drill down
+     *         into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
+     *         case of a basic type (which is considered as having only one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> max(String field) {
@@ -901,10 +920,11 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * {@code "field1.fieldxy" }.
      *
      * @param field In case of a POJO, Scala case class, or Tuple type, the name of the (public)
-     *     field on which to perform the aggregation. Additionally, a dot can be used to drill down
-     *     into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
-     *     case of a basic type (which is considered as having only one field).
+     *         field on which to perform the aggregation. Additionally, a dot can be used to drill down
+     *         into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
+     *         case of a basic type (which is considered as having only one field).
      * @param first If True then in case of field equality the first object will be returned
+     *
      * @return The transformed DataStream.
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -926,10 +946,11 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * {@code "field1.fieldxy" }.
      *
      * @param field In case of a POJO, Scala case class, or Tuple type, the name of the (public)
-     *     field on which to perform the aggregation. Additionally, a dot can be used to drill down
-     *     into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
-     *     case of a basic type (which is considered as having only one field).
+     *         field on which to perform the aggregation. Additionally, a dot can be used to drill down
+     *         into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be specified in
+     *         case of a basic type (which is considered as having only one field).
      * @param first If True then in case of field equality the first object will be returned
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(String field, boolean first) {
@@ -948,8 +969,9 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * the minimum value at the given position, the operator returns the first one by default.
      *
      * @param positionToMinBy The field position in the data points to minimize. This is applicable
-     *     to Tuple types, Scala case classes, and primitive types (which is considered as having
-     *     one field).
+     *         to Tuple types, Scala case classes, and primitive types (which is considered as having
+     *         one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> minBy(int positionToMinBy) {
@@ -962,9 +984,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * the minimum value at the given position, the operator returns the first one by default.
      *
      * @param positionToMinBy In case of a POJO, Scala case class, or Tuple type, the name of the
-     *     (public) field on which to perform the aggregation. Additionally, a dot can be used to
-     *     drill down into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be
-     *     specified in case of a basic type (which is considered as having only one field).
+     *         (public) field on which to perform the aggregation. Additionally, a dot can be used to
+     *         drill down into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be
+     *         specified in case of a basic type (which is considered as having only one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> minBy(String positionToMinBy) {
@@ -978,10 +1001,11 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * depending on the parameter set.
      *
      * @param positionToMinBy The field position in the data points to minimize. This is applicable
-     *     to Tuple types, Scala case classes, and primitive types (which is considered as having
-     *     one field).
+     *         to Tuple types, Scala case classes, and primitive types (which is considered as having
+     *         one field).
      * @param first If true, then the operator return the first element with the minimal value,
-     *     otherwise returns the last
+     *         otherwise returns the last
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> minBy(int positionToMinBy, boolean first) {
@@ -1000,8 +1024,9 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * the maximum value at the given position, the operator returns the first one by default.
      *
      * @param positionToMaxBy The field position in the data points to minimize. This is applicable
-     *     to Tuple types, Scala case classes, and primitive types (which is considered as having
-     *     one field).
+     *         to Tuple types, Scala case classes, and primitive types (which is considered as having
+     *         one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(int positionToMaxBy) {
@@ -1014,9 +1039,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * the maximum value at the given position, the operator returns the first one by default.
      *
      * @param positionToMaxBy In case of a POJO, Scala case class, or Tuple type, the name of the
-     *     (public) field on which to perform the aggregation. Additionally, a dot can be used to
-     *     drill down into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be
-     *     specified in case of a basic type (which is considered as having only one field).
+     *         (public) field on which to perform the aggregation. Additionally, a dot can be used to
+     *         drill down into nested objects, as in {@code "field1.fieldxy" }. Furthermore "*" can be
+     *         specified in case of a basic type (which is considered as having only one field).
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(String positionToMaxBy) {
@@ -1030,10 +1056,11 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * depending on the parameter set.
      *
      * @param positionToMaxBy The field position in the data points to minimize. This is applicable
-     *     to Tuple types, Scala case classes, and primitive types (which is considered as having
-     *     one field).
+     *         to Tuple types, Scala case classes, and primitive types (which is considered as having
+     *         one field).
      * @param first If true, then the operator return the first element with the maximum value,
-     *     otherwise returns the last
+     *         otherwise returns the last
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(int positionToMaxBy, boolean first) {
@@ -1054,6 +1081,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * Publishes the keyed stream as queryable ValueState instance.
      *
      * @param queryableStateName Name under which to the publish the queryable state instance
+     *
      * @return Queryable state instance
      */
     @PublicEvolving
@@ -1069,6 +1097,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *
      * @param queryableStateName Name under which to the publish the queryable state instance
      * @param stateDescriptor State descriptor to create state instance from
+     *
      * @return Queryable state instance
      */
     @PublicEvolving
@@ -1093,6 +1122,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *
      * @param queryableStateName Name under which to the publish the queryable state instance
      * @param stateDescriptor State descriptor to create state instance from
+     *
      * @return Queryable state instance
      */
     @PublicEvolving

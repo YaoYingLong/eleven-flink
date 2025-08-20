@@ -349,25 +349,14 @@ public class StreamGraph implements Pipeline {
     }
 
     public <IN, OUT> void addSink(
-            Integer vertexID,
-            @Nullable String slotSharingGroup,
-            @Nullable String coLocationGroup,
-            StreamOperatorFactory<OUT> operatorFactory,
-            TypeInformation<IN> inTypeInfo,
-            TypeInformation<OUT> outTypeInfo,
-            String operatorName) {
+            Integer vertexID, @Nullable String slotSharingGroup, @Nullable String coLocationGroup,
+            StreamOperatorFactory<OUT> operatorFactory, TypeInformation<IN> inTypeInfo,
+            TypeInformation<OUT> outTypeInfo, String operatorName) {
         addOperator(
-                vertexID,
-                slotSharingGroup,
-                coLocationGroup,
-                operatorFactory,
-                inTypeInfo,
-                outTypeInfo,
-                operatorName);
+                vertexID, slotSharingGroup, coLocationGroup, operatorFactory,
+                inTypeInfo, outTypeInfo, operatorName);
         if (operatorFactory instanceof OutputFormatOperatorFactory) {
-            setOutputFormat(
-                    vertexID,
-                    ((OutputFormatOperatorFactory) operatorFactory).getOutputFormat());
+            setOutputFormat(vertexID, ((OutputFormatOperatorFactory) operatorFactory).getOutputFormat());
         }
         sinks.add(vertexID);
     }
@@ -529,22 +518,21 @@ public class StreamGraph implements Pipeline {
      */
     public void addVirtualSideOutputNode(
             Integer originalId, Integer virtualId, OutputTag outputTag) {
-
+        // 如果virtualId已经存在直接抛出异常
         if (virtualSideOutputNodes.containsKey(virtualId)) {
             throw new IllegalStateException("Already has virtual output node with id " + virtualId);
         }
 
         // verify that we don't already have a virtual node for the given originalId/outputTag
         // combination with a different TypeInformation. This would indicate that someone is trying
-        // to read a side output from an operation with a different type for the same side output
-        // id.
+        // to read a side output from an operation with a different type for the same side output id.
 
+        // 遍历virtualSideOutputNodes，其实就是校验是否存在同一个originalId，对应多个OutputTag的id相同但类型不同的情况
         for (Tuple2<Integer, OutputTag> tag : virtualSideOutputNodes.values()) {
             if (!tag.f0.equals(originalId)) {
                 // different source operator
                 continue;
             }
-
             if (tag.f1.getId().equals(outputTag.getId())
                     && !tag.f1.getTypeInfo().equals(outputTag.getTypeInfo())) {
                 throw new IllegalArgumentException(
@@ -553,7 +541,7 @@ public class StreamGraph implements Pipeline {
                                 + tag.f1.getId());
             }
         }
-
+        // 将outputTag和originalId映射关系添加到virtualSideOutputNodes
         virtualSideOutputNodes.put(virtualId, new Tuple2<>(originalId, outputTag));
     }
 
@@ -602,34 +590,22 @@ public class StreamGraph implements Pipeline {
     }
 
     public void addEdge(
-            Integer upStreamVertexID,
-            Integer downStreamVertexID,
-            int typeNumber,
+            Integer upStreamVertexID, Integer downStreamVertexID, int typeNumber,
             IntermediateDataSetID intermediateDataSetId) {
+        // intermediateDataSetId默认为null
         addEdgeInternal(
-                upStreamVertexID,
-                downStreamVertexID,
-                typeNumber,
-                null,
-                new ArrayList<String>(),
-                null,
-                null,
-                intermediateDataSetId);
+                upStreamVertexID, downStreamVertexID, typeNumber, null,
+                new ArrayList<String>(), null, null, intermediateDataSetId);
     }
 
     private void addEdgeInternal(
-            Integer upStreamVertexID,
-            Integer downStreamVertexID,
-            int typeNumber,
-            StreamPartitioner<?> partitioner,
-            List<String> outputNames,
-            OutputTag outputTag,
-            StreamExchangeMode exchangeMode,
-            IntermediateDataSetID intermediateDataSetId) {
-
+            Integer upStreamVertexID, Integer downStreamVertexID, int typeNumber,
+            StreamPartitioner<?> partitioner, List<String> outputNames, OutputTag outputTag,
+            StreamExchangeMode exchangeMode, IntermediateDataSetID intermediateDataSetId) {
         // 先判断是不是虚拟节点上的边，如果是，并不直接构建StreamEdge，而是找到虚拟节点上游对应的物理节点构建StreamEdge
         // 在两个物理节点之间添加边，并把对应的StreamPartitioner,或者OutputTag等补充信息添加到StreamEdge中
         if (virtualSideOutputNodes.containsKey(upStreamVertexID)) {
+            // 旁路输出的逻辑
             int virtualId = upStreamVertexID;
             upStreamVertexID = virtualSideOutputNodes.get(virtualId).f0;
             if (outputTag == null) {
@@ -637,14 +613,8 @@ public class StreamGraph implements Pipeline {
             }
             // 递归调用addEdgeInternal
             addEdgeInternal(
-                    upStreamVertexID,
-                    downStreamVertexID,
-                    typeNumber,
-                    partitioner,
-                    null,
-                    outputTag,
-                    exchangeMode,
-                    intermediateDataSetId);
+                    upStreamVertexID, downStreamVertexID, typeNumber, partitioner,
+                    null, outputTag, exchangeMode, intermediateDataSetId);
         } else if (virtualPartitionNodes.containsKey(upStreamVertexID)) {
             int virtualId = upStreamVertexID;
             upStreamVertexID = virtualPartitionNodes.get(virtualId).f0;
@@ -654,55 +624,35 @@ public class StreamGraph implements Pipeline {
             exchangeMode = virtualPartitionNodes.get(virtualId).f2;
             // 递归调用addEdgeInternal
             addEdgeInternal(
-                    upStreamVertexID,
-                    downStreamVertexID,
-                    typeNumber,
-                    partitioner,
-                    outputNames,
-                    outputTag,
-                    exchangeMode,
-                    intermediateDataSetId);
+                    upStreamVertexID, downStreamVertexID, typeNumber, partitioner, outputNames,
+                    outputTag, exchangeMode, intermediateDataSetId);
         } else {
             createActualEdge(
-                    upStreamVertexID,
-                    downStreamVertexID,
-                    typeNumber,
-                    partitioner,
-                    outputTag,
-                    exchangeMode,
-                    intermediateDataSetId);
+                    upStreamVertexID, downStreamVertexID, typeNumber, partitioner,
+                    outputTag, exchangeMode, intermediateDataSetId);
         }
     }
 
     private void createActualEdge(
-            Integer upStreamVertexID,
-            Integer downStreamVertexID,
-            int typeNumber,
-            StreamPartitioner<?> partitioner,
-            OutputTag outputTag,
-            StreamExchangeMode exchangeMode,
+            Integer upStreamVertexID, Integer downStreamVertexID, int typeNumber,
+            StreamPartitioner<?> partitioner, OutputTag outputTag, StreamExchangeMode exchangeMode,
             IntermediateDataSetID intermediateDataSetId) {
         StreamNode upstreamNode = getStreamNode(upStreamVertexID);
         StreamNode downstreamNode = getStreamNode(downStreamVertexID);
-
         // If no partitioner was specified and the parallelism of upstream and downstream
         // operator matches use forward partitioning, use rebalance otherwise.
         // 如果上游StreamNode和下游StreamNode的并行度一样，则使用：ForwardPartitioner数据分发策略
         // 如果上游StreamNode和下游StreamNode的并行度不一样，则使用：RebalancePartitioner数据分发策略
-        if (partitioner == null
-                && upstreamNode.getParallelism() == downstreamNode.getParallelism()) {
-            partitioner =
-                    dynamic ? new ForwardForUnspecifiedPartitioner<>() : new ForwardPartitioner<>();
+        if (partitioner == null && upstreamNode.getParallelism() == downstreamNode.getParallelism()) {
+            partitioner = dynamic ? new ForwardForUnspecifiedPartitioner<>() : new ForwardPartitioner<>();
         } else if (partitioner == null) {
             partitioner = new RebalancePartitioner<Object>();
         }
-
         if (partitioner instanceof ForwardPartitioner) {
             // 如果上游StreamNode和下游StreamNode的并行度不一样
             if (upstreamNode.getParallelism() != downstreamNode.getParallelism()) {
                 if (partitioner instanceof ForwardForConsecutiveHashPartitioner) {
-                    partitioner =
-                            ((ForwardForConsecutiveHashPartitioner<?>) partitioner).getHashPartitioner();
+                    partitioner = ((ForwardForConsecutiveHashPartitioner<?>) partitioner).getHashPartitioner();
                 } else {
                     throw new UnsupportedOperationException(
                             "Forward partitioning does not allow "
@@ -718,7 +668,6 @@ public class StreamGraph implements Pipeline {
                 }
             }
         }
-
         // 批处理还是流处理
         if (exchangeMode == null) {
             exchangeMode = StreamExchangeMode.UNDEFINED;
@@ -732,17 +681,10 @@ public class StreamGraph implements Pipeline {
          */
         // 遍历上游节点的所有出边，找到目标节点ID为targetId的边的个数
         int uniqueId = getStreamEdges(upstreamNode.getId(), downstreamNode.getId()).size();
-
         StreamEdge edge = new StreamEdge(
-                upstreamNode,
-                downstreamNode,
-                typeNumber,
+                upstreamNode, downstreamNode, typeNumber,
                 // 一般是ForwardPartitioner，若果是keyBy的话则是RebalancePartitioner
-                partitioner,
-                outputTag,
-                exchangeMode,
-                uniqueId,
-                intermediateDataSetId);
+                partitioner, outputTag, exchangeMode, uniqueId, intermediateDataSetId);
         // 给上游StreamNode设置出边
         getStreamNode(edge.getSourceId()).addOutEdge(edge);
         // 给下游StreamNode设置入边

@@ -894,11 +894,8 @@ public class DataStream<T> {
         final int inputParallelism = getTransformation().getParallelism();
         final TimestampsAndWatermarksTransformation<T> transformation =
                 new TimestampsAndWatermarksTransformation<>(
-                        "Timestamps/Watermarks",
-                        inputParallelism,
-                        getTransformation(),
-                        cleanedStrategy,
-                        false);
+                        "Timestamps/Watermarks", inputParallelism, getTransformation(),
+                        cleanedStrategy, false);
         getExecutionEnvironment().addOperator(transformation);
         return new SingleOutputStreamOperator<>(getExecutionEnvironment(), transformation);
     }

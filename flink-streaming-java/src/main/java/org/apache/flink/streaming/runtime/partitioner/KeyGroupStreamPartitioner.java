@@ -55,11 +55,13 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T>
     public int selectChannel(SerializationDelegate<StreamRecord<T>> record) {
         K key;
         try {
+            // 调用我们自定义的KeySelector的getKey方法返回的key
             key = keySelector.getKey(record.getInstance().getValue());
         } catch (Exception e) {
             throw new RuntimeException(
                     "Could not extract key from " + record.getInstance().getValue(), e);
         }
+        // 根据key的hash与parallelism取余数获取到分组
         return KeyGroupRangeAssignment.assignKeyToParallelOperator(
                 key, maxParallelism, numberOfChannels);
     }

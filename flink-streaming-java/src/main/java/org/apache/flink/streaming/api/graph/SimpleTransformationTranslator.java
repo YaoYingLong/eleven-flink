@@ -59,7 +59,6 @@ public abstract class SimpleTransformationTranslator<OUT, T extends Transformati
         checkNotNull(context);
         // 这里调用具体实现的的translateForStreamingInternal方法
         // 比如水位线的TimestampsAndWatermarksTransformationTranslator
-
         // 比如OneInputTransformation对应OneInputTransformationTranslator
         // 比如SourceTransformation对应SourceTransformationTranslator
         // 比如SideOutputTransformation对应SideOutputTransformationTranslator
@@ -104,7 +103,7 @@ public abstract class SimpleTransformationTranslator<OUT, T extends Transformati
     private void configure(final T transformation, final Context context) {
         final StreamGraph streamGraph = context.getStreamGraph();
         final int transformationId = transformation.getId();
-
+        // 调用streamGraph.setBufferTimeout
         StreamGraphUtils.configureBufferTimeout(
                 streamGraph, transformationId, transformation, context.getDefaultBufferTimeout());
 

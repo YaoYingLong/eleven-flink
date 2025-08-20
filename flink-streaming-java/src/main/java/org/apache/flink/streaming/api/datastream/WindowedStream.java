@@ -79,15 +79,13 @@ public class WindowedStream<T, K, W extends Window> {
     public WindowedStream(KeyedStream<T, K> input, WindowAssigner<? super T, W> windowAssigner) {
 
         this.input = input;
-
-        this.builder =
-                new WindowOperatorBuilder<>(
-                        windowAssigner,
-                        windowAssigner.getDefaultTrigger(input.getExecutionEnvironment()),
-                        input.getExecutionConfig(),
-                        input.getType(),
-                        input.getKeySelector(),
-                        input.getKeyType());
+        this.builder = new WindowOperatorBuilder<>(
+                windowAssigner,
+                windowAssigner.getDefaultTrigger(input.getExecutionEnvironment()),
+                input.getExecutionConfig(),
+                input.getType(),
+                input.getKeySelector(),
+                input.getKeyType());
     }
 
     /** Sets the {@code Trigger} that should be used to trigger window emission. */
@@ -156,6 +154,7 @@ public class WindowedStream<T, K, W extends Window> {
      * aggregation tree.
      *
      * @param function The reduce function.
+     *
      * @return The data stream that is the result of applying the reduce function to the window.
      */
     @SuppressWarnings("unchecked")
@@ -180,6 +179,7 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param reduceFunction The reduce function that is used for incremental aggregation.
      * @param function The window function.
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     public <R> SingleOutputStreamOperator<R> reduce(
@@ -200,6 +200,7 @@ public class WindowedStream<T, K, W extends Window> {
      * @param reduceFunction The reduce function that is used for incremental aggregation.
      * @param function The window function.
      * @param resultType Type information for the result type of the window function.
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     public <R> SingleOutputStreamOperator<R> reduce(
@@ -227,6 +228,7 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param reduceFunction The reduce function that is used for incremental aggregation.
      * @param function The window function.
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     @PublicEvolving
@@ -248,6 +250,7 @@ public class WindowedStream<T, K, W extends Window> {
      * @param reduceFunction The reduce function that is used for incremental aggregation.
      * @param function The window function.
      * @param resultType Type information for the result type of the window function
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     @Internal
@@ -276,10 +279,11 @@ public class WindowedStream<T, K, W extends Window> {
      * key and window.
      *
      * @param function The aggregation function.
-     * @return The data stream that is the result of applying the fold function to the window.
      * @param <ACC> The type of the AggregateFunction's accumulator
      * @param <R> The type of the elements in the resulting stream, equal to the AggregateFunction's
-     *     result type
+     *         result type
+     *
+     * @return The data stream that is the result of applying the fold function to the window.
      */
     @PublicEvolving
     public <ACC, R> SingleOutputStreamOperator<R> aggregate(AggregateFunction<T, ACC, R> function) {
@@ -290,13 +294,11 @@ public class WindowedStream<T, K, W extends Window> {
                     "This aggregation function cannot be a RichFunction.");
         }
 
-        TypeInformation<ACC> accumulatorType =
-                TypeExtractor.getAggregateFunctionAccumulatorType(
-                        function, input.getType(), null, false);
+        TypeInformation<ACC> accumulatorType = TypeExtractor.getAggregateFunctionAccumulatorType(
+                function, input.getType(), null, false);
 
-        TypeInformation<R> resultType =
-                TypeExtractor.getAggregateFunctionReturnType(
-                        function, input.getType(), null, false);
+        TypeInformation<R> resultType = TypeExtractor.getAggregateFunctionReturnType(
+                function, input.getType(), null, false);
 
         return aggregate(function, accumulatorType, resultType);
     }
@@ -307,11 +309,12 @@ public class WindowedStream<T, K, W extends Window> {
      * key and window.
      *
      * @param function The aggregation function.
-     * @return The data stream that is the result of applying the aggregation function to the
-     *     window.
      * @param <ACC> The type of the AggregateFunction's accumulator
      * @param <R> The type of the elements in the resulting stream, equal to the AggregateFunction's
-     *     result type
+     *         result type
+     *
+     * @return The data stream that is the result of applying the aggregation function to the
+     *         window.
      */
     @PublicEvolving
     public <ACC, R> SingleOutputStreamOperator<R> aggregate(
@@ -341,11 +344,12 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param aggFunction The aggregate function that is used for incremental aggregation.
      * @param windowFunction The window function.
-     * @return The data stream that is the result of applying the window function to the window.
      * @param <ACC> The type of the AggregateFunction's accumulator
      * @param <V> The type of AggregateFunction's result, and the WindowFunction's input
      * @param <R> The type of the elements in the resulting stream, equal to the WindowFunction's
-     *     result type
+     *         result type
+     *
+     * @return The data stream that is the result of applying the window function to the window.
      */
     @PublicEvolving
     public <ACC, V, R> SingleOutputStreamOperator<R> aggregate(
@@ -378,13 +382,14 @@ public class WindowedStream<T, K, W extends Window> {
      * @param aggregateFunction The aggregation function that is used for incremental aggregation.
      * @param windowFunction The window function.
      * @param accumulatorType Type information for the internal accumulator type of the aggregation
-     *     function
+     *         function
      * @param resultType Type information for the result type of the window function
-     * @return The data stream that is the result of applying the window function to the window.
      * @param <ACC> The type of the AggregateFunction's accumulator
      * @param <V> The type of AggregateFunction's result, and the WindowFunction's input
      * @param <R> The type of the elements in the resulting stream, equal to the WindowFunction's
-     *     result type
+     *         result type
+     *
+     * @return The data stream that is the result of applying the window function to the window.
      */
     @PublicEvolving
     public <ACC, V, R> SingleOutputStreamOperator<R> aggregate(
@@ -427,11 +432,12 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param aggFunction The aggregate function that is used for incremental aggregation.
      * @param windowFunction The window function.
-     * @return The data stream that is the result of applying the window function to the window.
      * @param <ACC> The type of the AggregateFunction's accumulator
      * @param <V> The type of AggregateFunction's result, and the WindowFunction's input
      * @param <R> The type of the elements in the resulting stream, equal to the WindowFunction's
-     *     result type
+     *         result type
+     *
+     * @return The data stream that is the result of applying the window function to the window.
      */
     @PublicEvolving
     public <ACC, V, R> SingleOutputStreamOperator<R> aggregate(
@@ -487,13 +493,14 @@ public class WindowedStream<T, K, W extends Window> {
      * @param aggregateFunction The aggregation function that is used for incremental aggregation.
      * @param windowFunction The window function.
      * @param accumulatorType Type information for the internal accumulator type of the aggregation
-     *     function
+     *         function
      * @param resultType Type information for the result type of the window function
-     * @return The data stream that is the result of applying the window function to the window.
      * @param <ACC> The type of the AggregateFunction's accumulator
      * @param <V> The type of AggregateFunction's result, and the WindowFunction's input
      * @param <R> The type of the elements in the resulting stream, equal to the WindowFunction's
-     *     result type
+     *         result type
+     *
+     * @return The data stream that is the result of applying the window function to the window.
      */
     @PublicEvolving
     public <ACC, V, R> SingleOutputStreamOperator<R> aggregate(
@@ -541,6 +548,7 @@ public class WindowedStream<T, K, W extends Window> {
      * is evaluated, as the function provides no means of incremental aggregation.
      *
      * @param function The window function.
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     public <R> SingleOutputStreamOperator<R> apply(WindowFunction<T, R, K, W> function) {
@@ -559,6 +567,7 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param function The window function.
      * @param resultType Type information for the result type of the window function
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     public <R> SingleOutputStreamOperator<R> apply(
@@ -581,6 +590,7 @@ public class WindowedStream<T, K, W extends Window> {
      * is evaluated, as the function provides no means of incremental aggregation.
      *
      * @param function The window function.
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     @PublicEvolving
@@ -601,6 +611,7 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param function The window function.
      * @param resultType Type information for the result type of the window function
+     *
      * @return The data stream that is the result of applying the window function to the window.
      */
     @Internal
@@ -625,7 +636,9 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param reduceFunction The reduce function that is used for incremental aggregation.
      * @param function The window function.
+     *
      * @return The data stream that is the result of applying the window function to the window.
+     *
      * @deprecated Use {@link #reduce(ReduceFunction, WindowFunction)} instead.
      */
     @Deprecated
@@ -647,7 +660,9 @@ public class WindowedStream<T, K, W extends Window> {
      * @param reduceFunction The reduce function that is used for incremental aggregation.
      * @param function The window function.
      * @param resultType Type information for the result type of the window function
+     *
      * @return The data stream that is the result of applying the window function to the window.
+     *
      * @deprecated Use {@link #reduce(ReduceFunction, WindowFunction, TypeInformation)} instead.
      */
     @Deprecated
@@ -675,6 +690,7 @@ public class WindowedStream<T, K, W extends Window> {
      * Applies an aggregation that sums every window of the data stream at the given position.
      *
      * @param positionToSum The position in the tuple/array to sum
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> sum(int positionToSum) {
@@ -691,6 +707,7 @@ public class WindowedStream<T, K, W extends Window> {
      * in {@code "field1.getInnerField2()" }.
      *
      * @param field The field to sum
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> sum(String field) {
@@ -702,6 +719,7 @@ public class WindowedStream<T, K, W extends Window> {
      * at the given position.
      *
      * @param positionToMin The position to minimize
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> min(int positionToMin) {
@@ -722,6 +740,7 @@ public class WindowedStream<T, K, W extends Window> {
      * objects, as in {@code "field1.getInnerField2()" }.
      *
      * @param field The field expression based on which the aggregation will be applied.
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> min(String field) {
@@ -740,6 +759,7 @@ public class WindowedStream<T, K, W extends Window> {
      * first element by default.
      *
      * @param positionToMinBy The position to minimize by
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> minBy(int positionToMinBy) {
@@ -752,6 +772,7 @@ public class WindowedStream<T, K, W extends Window> {
      * element by default.
      *
      * @param field The field to minimize by
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> minBy(String field) {
@@ -765,7 +786,8 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param positionToMinBy The position to minimize
      * @param first If true, then the operator return the first element with the minimum value,
-     *     otherwise returns the last
+     *         otherwise returns the last
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> minBy(int positionToMinBy, boolean first) {
@@ -786,6 +808,7 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param field The field expression based on which the aggregation will be applied.
      * @param first If True then in case of field equality the first object will be returned
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> minBy(String field, boolean first) {
@@ -803,6 +826,7 @@ public class WindowedStream<T, K, W extends Window> {
      * given position.
      *
      * @param positionToMax The position to maximize
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> max(int positionToMax) {
@@ -821,6 +845,7 @@ public class WindowedStream<T, K, W extends Window> {
      * can be used to drill down into objects, as in {@code "field1.getInnerField2()" }.
      *
      * @param field The field expression based on which the aggregation will be applied.
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> max(String field) {
@@ -839,6 +864,7 @@ public class WindowedStream<T, K, W extends Window> {
      * first by default.
      *
      * @param positionToMaxBy The position to maximize by
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(int positionToMaxBy) {
@@ -851,6 +877,7 @@ public class WindowedStream<T, K, W extends Window> {
      * by default.
      *
      * @param field The field to maximize by
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(String field) {
@@ -864,7 +891,8 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param positionToMaxBy The position to maximize by
      * @param first If true, then the operator return the first element with the maximum value,
-     *     otherwise returns the last
+     *         otherwise returns the last
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(int positionToMaxBy, boolean first) {
@@ -885,6 +913,7 @@ public class WindowedStream<T, K, W extends Window> {
      *
      * @param field The field expression based on which the aggregation will be applied.
      * @param first If True then in case of field equality the first object will be returned
+     *
      * @return The transformed DataStream.
      */
     public SingleOutputStreamOperator<T> maxBy(String field, boolean first) {

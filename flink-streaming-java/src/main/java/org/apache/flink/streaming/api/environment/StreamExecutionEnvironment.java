@@ -2131,16 +2131,13 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     @Internal
     public JobExecutionResult execute(StreamGraph streamGraph) throws Exception {
         final JobClient jobClient = executeAsync(streamGraph);
-
         try {
             final JobExecutionResult jobExecutionResult;
-
             if (configuration.getBoolean(DeploymentOptions.ATTACHED)) {
                 jobExecutionResult = jobClient.getJobExecutionResult().get();
             } else {
                 jobExecutionResult = new DetachedJobExecutionResult(jobClient.getJobID());
             }
-
             jobListeners.forEach(jobListener -> jobListener.onJobExecuted(
                 jobExecutionResult,
                 null));

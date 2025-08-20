@@ -81,11 +81,13 @@ public class WindowOperatorBuilder<T, K, W extends Window> {
 
     private Trigger<? super T, ? super W> trigger;
 
-    @Nullable private Evictor<? super T, ? super W> evictor;
+    @Nullable
+    private Evictor<? super T, ? super W> evictor;
 
     private long allowedLateness = 0L;
 
-    @Nullable private OutputTag<T> lateDataOutputTag;
+    @Nullable
+    private OutputTag<T> lateDataOutputTag;
 
     public WindowOperatorBuilder(
             WindowAssigner<? super T, W> windowAssigner,
@@ -199,11 +201,10 @@ public class WindowOperatorBuilder<T, K, W extends Window> {
                     new InternalIterableWindowFunction<>(
                             new AggregateApplyWindowFunction<>(aggregateFunction, windowFunction)));
         } else {
-            AggregatingStateDescriptor<T, ACC, V> stateDesc =
-                    new AggregatingStateDescriptor<>(
-                            WINDOW_STATE_NAME,
-                            aggregateFunction,
-                            accumulatorType.createSerializer(config));
+            AggregatingStateDescriptor<T, ACC, V> stateDesc = new AggregatingStateDescriptor<>(
+                    WINDOW_STATE_NAME,
+                    aggregateFunction,
+                    accumulatorType.createSerializer(config));
 
             return buildWindowOperator(
                     stateDesc, new InternalSingleValueWindowFunction<>(windowFunction));
@@ -228,11 +229,10 @@ public class WindowOperatorBuilder<T, K, W extends Window> {
                     new InternalAggregateProcessWindowFunction<>(
                             aggregateFunction, windowFunction));
         } else {
-            AggregatingStateDescriptor<T, ACC, V> stateDesc =
-                    new AggregatingStateDescriptor<>(
-                            WINDOW_STATE_NAME,
-                            aggregateFunction,
-                            accumulatorType.createSerializer(config));
+            AggregatingStateDescriptor<T, ACC, V> stateDesc = new AggregatingStateDescriptor<>(
+                    WINDOW_STATE_NAME,
+                    aggregateFunction,
+                    accumulatorType.createSerializer(config));
 
             return buildWindowOperator(
                     stateDesc, new InternalSingleValueProcessWindowFunction<>(windowFunction));
@@ -311,15 +311,15 @@ public class WindowOperatorBuilder<T, K, W extends Window> {
                 Class<?> functionSuperClass = functionClass.getSuperclass();
                 return functionSuperClass.getSimpleName()
                         + functionClass
-                                .getName()
-                                .substring(functionClass.getEnclosingClass().getName().length());
+                        .getName()
+                        .substring(functionClass.getEnclosingClass().getName().length());
             } else {
                 // implements a Function interface
                 Class<?> functionInterface = functionClass.getInterfaces()[0];
                 return functionInterface.getSimpleName()
                         + functionClass
-                                .getName()
-                                .substring(functionClass.getEnclosingClass().getName().length());
+                        .getName()
+                        .substring(functionClass.getEnclosingClass().getName().length());
             }
         } else {
             return functionClass.getSimpleName();

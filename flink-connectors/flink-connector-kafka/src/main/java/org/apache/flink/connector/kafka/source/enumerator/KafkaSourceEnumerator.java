@@ -166,8 +166,7 @@ public class KafkaSourceEnumerator
             LOG.info(
                     "Starting the KafkaSourceEnumerator for consumer group {} "
                             + "with partition discovery interval of {} ms.",
-                    consumerGroupId,
-                    partitionDiscoveryIntervalMs);
+                    consumerGroupId, partitionDiscoveryIntervalMs);
             context.callAsync(
                     // 获取订阅的Topic分区列表，放到单独的线程中执行
                     this::getSubscribedTopicPartitions,

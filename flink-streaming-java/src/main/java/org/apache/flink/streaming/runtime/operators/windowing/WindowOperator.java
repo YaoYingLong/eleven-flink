@@ -218,20 +218,18 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
         triggerContext = new Context(null, null);
         processContext = new WindowContext(null);
 
-        windowAssignerContext =
-                new WindowAssigner.WindowAssignerContext() {
-                    @Override
-                    public long getCurrentProcessingTime() {
-                        return internalTimerService.currentProcessingTime();
-                    }
-                };
+        windowAssignerContext = new WindowAssigner.WindowAssignerContext() {
+            @Override
+            public long getCurrentProcessingTime() {
+                return internalTimerService.currentProcessingTime();
+            }
+        };
 
         // create (or restore) the state that hold the actual window contents
         // NOTE - the state may be null in the case of the overriding evicting window operator
         if (windowStateDescriptor != null) {
-            windowState =
-                    (InternalAppendingState<K, W, IN, ACC, ACC>)
-                            getOrCreateKeyedState(windowSerializer, windowStateDescriptor);
+            windowState = (InternalAppendingState<K, W, IN, ACC, ACC>)
+                    getOrCreateKeyedState(windowSerializer, windowStateDescriptor);
         }
 
         // create the typed and helper states for merging windows
@@ -250,21 +248,19 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
             //						"The window uses a merging assigner, but the window state is not mergeable.");
             //			}
 
-            @SuppressWarnings("unchecked")
-            final Class<Tuple2<W, W>> typedTuple = (Class<Tuple2<W, W>>) (Class<?>) Tuple2.class;
+            @SuppressWarnings("unchecked") final Class<Tuple2<W, W>> typedTuple =
+                    (Class<Tuple2<W, W>>) (Class<?>) Tuple2.class;
 
-            final TupleSerializer<Tuple2<W, W>> tupleSerializer =
-                    new TupleSerializer<>(
-                            typedTuple, new TypeSerializer[] {windowSerializer, windowSerializer});
+            final TupleSerializer<Tuple2<W, W>> tupleSerializer = new TupleSerializer<>(
+                    typedTuple, new TypeSerializer[] {windowSerializer, windowSerializer});
 
             final ListStateDescriptor<Tuple2<W, W>> mergingSetsStateDescriptor =
                     new ListStateDescriptor<>("merging-window-set", tupleSerializer);
 
             // get the state that stores the merging sets
-            mergingSetsState =
-                    (InternalListState<K, VoidNamespace, Tuple2<W, W>>)
-                            getOrCreateKeyedState(
-                                    VoidNamespaceSerializer.INSTANCE, mergingSetsStateDescriptor);
+            mergingSetsState = (InternalListState<K, VoidNamespace, Tuple2<W, W>>)
+                    getOrCreateKeyedState(
+                            VoidNamespaceSerializer.INSTANCE, mergingSetsStateDescriptor);
             mergingSetsState.setCurrentNamespace(VoidNamespace.INSTANCE);
         }
     }
@@ -280,9 +276,10 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        final Collection<W> elementWindows =
-                windowAssigner.assignWindows(
-                        element.getValue(), element.getTimestamp(), windowAssignerContext);
+        // 这里是调用具体的TumblingEventTimeWindows、TumblingProcessingTimeWindows等的assignWindows方法
+        // 返回一个整点的窗口，比如窗口大小设置的60s，如果传入的时间戳并不是整分钟，这里返回的依然是一个整分钟的窗口
+        final Collection<W> elementWindows = windowAssigner.assignWindows(
+                element.getValue(), element.getTimestamp(), windowAssignerContext);
 
         // if element is handled by none of assigned elementWindows
         boolean isSkippedElement = true;
@@ -291,68 +288,65 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 
         if (windowAssigner instanceof MergingWindowAssigner) {
             MergingWindowSet<W> mergingWindows = getMergingWindowSet();
-
             for (W window : elementWindows) {
-
                 // adding the new window might result in a merge, in that case the actualWindow
                 // is the merged window and we work with that. If we don't merge then
                 // actualWindow == window
-                W actualWindow =
-                        mergingWindows.addWindow(
-                                window,
-                                new MergingWindowSet.MergeFunction<W>() {
-                                    @Override
-                                    public void merge(
-                                            W mergeResult,
-                                            Collection<W> mergedWindows,
-                                            W stateWindowResult,
-                                            Collection<W> mergedStateWindows)
-                                            throws Exception {
+                W actualWindow = mergingWindows.addWindow(
+                        window,
+                        new MergingWindowSet.MergeFunction<W>() {
+                            @Override
+                            public void merge(
+                                    W mergeResult,
+                                    Collection<W> mergedWindows,
+                                    W stateWindowResult,
+                                    Collection<W> mergedStateWindows)
+                                    throws Exception {
 
-                                        if ((windowAssigner.isEventTime()
-                                                && mergeResult.maxTimestamp() + allowedLateness
-                                                        <= internalTimerService
-                                                                .currentWatermark())) {
-                                            throw new UnsupportedOperationException(
-                                                    "The end timestamp of an "
-                                                            + "event-time window cannot become earlier than the current watermark "
-                                                            + "by merging. Current watermark: "
-                                                            + internalTimerService
-                                                                    .currentWatermark()
-                                                            + " window: "
-                                                            + mergeResult);
-                                        } else if (!windowAssigner.isEventTime()) {
-                                            long currentProcessingTime =
-                                                    internalTimerService.currentProcessingTime();
-                                            if (mergeResult.maxTimestamp()
-                                                    <= currentProcessingTime) {
-                                                throw new UnsupportedOperationException(
-                                                        "The end timestamp of a "
-                                                                + "processing-time window cannot become earlier than the current processing time "
-                                                                + "by merging. Current processing time: "
-                                                                + currentProcessingTime
-                                                                + " window: "
-                                                                + mergeResult);
-                                            }
-                                        }
-
-                                        triggerContext.key = key;
-                                        triggerContext.window = mergeResult;
-
-                                        triggerContext.onMerge(mergedWindows);
-
-                                        for (W m : mergedWindows) {
-                                            triggerContext.window = m;
-                                            triggerContext.clear();
-                                            deleteCleanupTimer(m);
-                                        }
-
-                                        // merge the merged state windows into the newly resulting
-                                        // state window
-                                        windowMergingState.mergeNamespaces(
-                                                stateWindowResult, mergedStateWindows);
+                                if ((windowAssigner.isEventTime()
+                                        && mergeResult.maxTimestamp() + allowedLateness
+                                        <= internalTimerService
+                                        .currentWatermark())) {
+                                    throw new UnsupportedOperationException(
+                                            "The end timestamp of an "
+                                                    + "event-time window cannot become earlier than the current watermark "
+                                                    + "by merging. Current watermark: "
+                                                    + internalTimerService
+                                                    .currentWatermark()
+                                                    + " window: "
+                                                    + mergeResult);
+                                } else if (!windowAssigner.isEventTime()) {
+                                    long currentProcessingTime =
+                                            internalTimerService.currentProcessingTime();
+                                    if (mergeResult.maxTimestamp()
+                                            <= currentProcessingTime) {
+                                        throw new UnsupportedOperationException(
+                                                "The end timestamp of a "
+                                                        + "processing-time window cannot become earlier than the current processing time "
+                                                        + "by merging. Current processing time: "
+                                                        + currentProcessingTime
+                                                        + " window: "
+                                                        + mergeResult);
                                     }
-                                });
+                                }
+
+                                triggerContext.key = key;
+                                triggerContext.window = mergeResult;
+
+                                triggerContext.onMerge(mergedWindows);
+
+                                for (W m : mergedWindows) {
+                                    triggerContext.window = m;
+                                    triggerContext.clear();
+                                    deleteCleanupTimer(m);
+                                }
+
+                                // merge the merged state windows into the newly resulting
+                                // state window
+                                windowMergingState.mergeNamespaces(
+                                        stateWindowResult, mergedStateWindows);
+                            }
+                        });
 
                 // drop if the window is already late
                 if (isWindowLate(actualWindow)) {
@@ -393,7 +387,6 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
             mergingWindows.persist();
         } else {
             for (W window : elementWindows) {
-
                 // drop if the window is already late
                 if (isWindowLate(window)) {
                     continue;
@@ -596,12 +589,13 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
      * Decide if a record is currently late, based on current watermark and allowed lateness.
      *
      * @param element The element to check
+     *
      * @return The element for which should be considered when sideoutputs
      */
     protected boolean isElementLate(StreamRecord<IN> element) {
         return (windowAssigner.isEventTime())
                 && (element.getTimestamp() + allowedLateness
-                        <= internalTimerService.currentWatermark());
+                <= internalTimerService.currentWatermark());
     }
 
     /**
@@ -754,7 +748,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
             this.windowState =
                     windowAssigner instanceof MergingWindowAssigner
                             ? new MergingWindowStateStore(
-                                    getKeyedStateBackend(), getExecutionConfig())
+                            getKeyedStateBackend(), getExecutionConfig())
                             : new PerWindowStateStore(getKeyedStateBackend(), getExecutionConfig());
         }
 

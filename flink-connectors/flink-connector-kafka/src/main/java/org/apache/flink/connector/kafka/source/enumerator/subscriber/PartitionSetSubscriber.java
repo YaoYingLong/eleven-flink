@@ -43,8 +43,7 @@ class PartitionSetSubscriber implements KafkaSubscriber {
 
     @Override
     public Set<TopicPartition> getSubscribedTopicPartitions(AdminClient adminClient) {
-        final Set<String> topicNames =
-                subscribedPartitions.stream()
+        final Set<String> topicNames = subscribedPartitions.stream()
                         .map(TopicPartition::topic)
                         .collect(Collectors.toSet());
 

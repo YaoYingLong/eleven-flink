@@ -49,6 +49,7 @@ public class TimestampsAndWatermarksTransformationTranslator<IN>
     @Override
     protected Collection<Integer> translateForStreamingInternal(
             final TimestampsAndWatermarksTransformation<IN> transformation, final Context context) {
+        // 要通过assignTimestampsAndWatermarks设置了TimestampsAndWatermarksTransformation才会调用此处
         return translateInternal(transformation, context, true /* emit progressive watermarks */);
     }
 
@@ -60,17 +61,12 @@ public class TimestampsAndWatermarksTransformationTranslator<IN>
         checkNotNull(context);
 
         // emitProgressiveWatermarks默认为true
-        // transformation猜测是数据源，比如kafka source
         TimestampsAndWatermarksOperator<IN> operator = new TimestampsAndWatermarksOperator<>(
                 transformation.getWatermarkStrategy(), emitProgressiveWatermarks);
         SimpleOperatorFactory<IN> operatorFactory = SimpleOperatorFactory.of(operator);
         operatorFactory.setChainingStrategy(transformation.getChainingStrategy());
         return translateInternal(
-                transformation,
-                operatorFactory,
-                transformation.getInputType(),
-                null,
-                null,
-                context);
+                transformation, operatorFactory, transformation.getInputType(),
+                null, null, context);
     }
 }

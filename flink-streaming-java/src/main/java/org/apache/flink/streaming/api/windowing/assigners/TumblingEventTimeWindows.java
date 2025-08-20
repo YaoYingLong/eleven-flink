@@ -60,7 +60,7 @@ public class TumblingEventTimeWindows extends WindowAssigner<Object, TimeWindow>
             throw new IllegalArgumentException(
                     "TumblingEventTimeWindows parameters must satisfy abs(offset) < size");
         }
-
+        // 我们设置的窗口大小
         this.size = size;
         this.globalOffset = offset;
         this.windowStagger = windowStagger;
@@ -71,13 +71,14 @@ public class TumblingEventTimeWindows extends WindowAssigner<Object, TimeWindow>
             Object element, long timestamp, WindowAssignerContext context) {
         if (timestamp > Long.MIN_VALUE) {
             if (staggerOffset == null) {
+                // 默认调用WindowStagger.ALIGNED的getStaggerOffset方法，默认是返回0，
                 staggerOffset =
                         windowStagger.getStaggerOffset(context.getCurrentProcessingTime(), size);
             }
             // Long.MIN_VALUE is currently assigned when no timestamp is present
-            long start =
-                    TimeWindow.getWindowStartWithOffset(
-                            timestamp, (globalOffset + staggerOffset) % size, size);
+            // 这里的作用是将窗口开始时间转换为整点
+            long start = TimeWindow.getWindowStartWithOffset(
+                    timestamp, (globalOffset + staggerOffset) % size, size);
             return Collections.singletonList(new TimeWindow(start, start + size));
         } else {
             throw new RuntimeException(
@@ -102,6 +103,7 @@ public class TumblingEventTimeWindows extends WindowAssigner<Object, TimeWindow>
      * to time windows based on the element timestamp.
      *
      * @param size The size of the generated windows.
+     *
      * @return The time policy.
      */
     public static TumblingEventTimeWindows of(Time size) {

@@ -69,9 +69,11 @@ public class SideOutputTransformationTranslator<OUT>
 
         final List<Integer> virtualResultIds = new ArrayList<>();
         final Transformation<?> parentTransformation = parentTransformations.get(0);
+        //获取输入Transformation的transformationId，与当前的transformationId添加一条边的关系
         for (int inputId : context.getStreamNodeIds(parentTransformation)) {
+            // 注意这里添加了一个生成了一个虚拟id
             final int virtualId = Transformation.getNewNodeId();
-            //
+            // 将outputTag和originalId映射关系添加到StreamGraph中的virtualSideOutputNodes集合
             streamGraph.addVirtualSideOutputNode(inputId, virtualId, transformation.getOutputTag());
             virtualResultIds.add(virtualId);
         }

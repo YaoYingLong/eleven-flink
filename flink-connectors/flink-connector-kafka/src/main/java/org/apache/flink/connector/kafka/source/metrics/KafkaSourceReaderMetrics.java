@@ -111,14 +111,14 @@ public class KafkaSourceReaderMetrics {
 
     public KafkaSourceReaderMetrics(SourceReaderMetricGroup sourceReaderMetricGroup) {
         this.sourceReaderMetricGroup = sourceReaderMetricGroup;
-        this.kafkaSourceReaderMetricGroup =
-                sourceReaderMetricGroup.addGroup(KAFKA_SOURCE_READER_METRIC_GROUP);
+        this.kafkaSourceReaderMetricGroup = sourceReaderMetricGroup
+                .addGroup(KAFKA_SOURCE_READER_METRIC_GROUP);
         // 提交消费offsets成功的
-        this.commitsSucceeded =
-                this.kafkaSourceReaderMetricGroup.counter(COMMITS_SUCCEEDED_METRIC_COUNTER);
+        this.commitsSucceeded = this.kafkaSourceReaderMetricGroup
+                .counter(COMMITS_SUCCEEDED_METRIC_COUNTER);
         // 提交消费offsets失败的
-        this.commitsFailed =
-                this.kafkaSourceReaderMetricGroup.counter(COMMITS_FAILED_METRIC_COUNTER);
+        this.commitsFailed = this.kafkaSourceReaderMetricGroup
+                .counter(COMMITS_FAILED_METRIC_COUNTER);
     }
 
     /**
@@ -137,9 +137,8 @@ public class KafkaSourceReaderMetrics {
         final MetricGroup kafkaConsumerMetricGroup =
                 kafkaSourceReaderMetricGroup.addGroup(KAFKA_CONSUMER_METRIC_GROUP);
 
-        kafkaConsumerMetrics.forEach(
-                (name, metric) ->
-                        kafkaConsumerMetricGroup.gauge(name.name(), () -> metric.metricValue()));
+        kafkaConsumerMetrics.forEach((name, metric) ->
+                kafkaConsumerMetricGroup.gauge(name.name(), () -> metric.metricValue()));
     }
 
     /**

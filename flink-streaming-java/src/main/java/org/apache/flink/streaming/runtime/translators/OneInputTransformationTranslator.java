@@ -63,6 +63,7 @@ public final class OneInputTransformationTranslator<IN, OUT>
     public Collection<Integer> translateForStreamingInternal(
             final OneInputTransformation<IN, OUT> transformation, final Context context) {
         // 调用的AbstractOneInputTransformationTranslator中的translateInternal方法
+        // 这里getOperatorFactory获取的一般都是
         return translateInternal(
                 transformation,
                 transformation.getOperatorFactory(),

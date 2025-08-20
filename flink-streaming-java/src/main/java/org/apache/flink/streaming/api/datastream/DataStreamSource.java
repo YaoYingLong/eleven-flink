@@ -90,21 +90,13 @@ public class DataStreamSource<T> extends SingleOutputStreamOperator<T> {
     /**
      * Constructor for new Sources (FLIP-27).
      */
-    public DataStreamSource(
-        StreamExecutionEnvironment environment,
-        Source<T, ?, ?> source,
-        WatermarkStrategy<T> watermarkStrategy,
-        TypeInformation<T> outTypeInfo,
-        String sourceName) {
+    public DataStreamSource(StreamExecutionEnvironment environment, Source<T, ?, ?> source, WatermarkStrategy<T> watermarkStrategy,
+        TypeInformation<T> outTypeInfo, String sourceName) {
         // 注意这里将KafkaSource封装成了SourceTransformation，其是一个Transformation
-        super(environment, new SourceTransformation<>(
-            sourceName,
-            source,
-            watermarkStrategy,
-            outTypeInfo,
+        super(environment, new SourceTransformation<>(sourceName,
+            source, watermarkStrategy, outTypeInfo,
             // 获取并发度，默认为1
-            environment.getParallelism(),
-            false));
+            environment.getParallelism(), false));
         this.isParallel = true;
     }
 

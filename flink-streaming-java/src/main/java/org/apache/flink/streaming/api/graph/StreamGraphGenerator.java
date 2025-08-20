@@ -182,9 +182,7 @@ public class StreamGraphGenerator {
     private boolean shouldExecuteInBatchMode;
 
     @SuppressWarnings("rawtypes")
-    private static final Map<
-            Class<? extends Transformation>,
-            TransformationTranslator<?, ? extends Transformation>>
+    private static final Map<Class<? extends Transformation>, TransformationTranslator<?, ? extends Transformation>>
             translatorMap;
 
     static {
@@ -379,9 +377,13 @@ public class StreamGraphGenerator {
         graph.setChaining(chaining);
         graph.setUserArtifacts(userArtifacts);
         graph.setTimeCharacteristic(timeCharacteristic);
+        // 默认是VertexDescriptionMode.TREE
         graph.setVertexDescriptionMode(configuration.get(PipelineOptions.VERTEX_DESCRIPTION_MODE));
+        // 默认false
         graph.setVertexNameIncludeIndexPrefix(configuration.get(PipelineOptions.VERTEX_NAME_INCLUDE_INDEX_PREFIX));
+        // 默认true
         graph.setAutoParallelismEnabled(configuration.get(BatchExecutionOptions.ADAPTIVE_AUTO_PARALLELISM_ENABLED));
+        // 默认true
         graph.setEnableCheckpointsAfterTasksFinish(
                 configuration.get(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH));
         setDynamic(graph);

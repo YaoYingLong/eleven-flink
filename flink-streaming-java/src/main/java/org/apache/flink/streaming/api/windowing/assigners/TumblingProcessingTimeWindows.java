@@ -73,9 +73,8 @@ public class TumblingProcessingTimeWindows extends WindowAssigner<Object, TimeWi
             staggerOffset =
                     windowStagger.getStaggerOffset(context.getCurrentProcessingTime(), size);
         }
-        long start =
-                TimeWindow.getWindowStartWithOffset(
-                        now, (globalOffset + staggerOffset) % size, size);
+        long start = TimeWindow.getWindowStartWithOffset(
+                now, (globalOffset + staggerOffset) % size, size);
         return Collections.singletonList(new TimeWindow(start, start + size));
     }
 
@@ -98,6 +97,7 @@ public class TumblingProcessingTimeWindows extends WindowAssigner<Object, TimeWi
      * elements to time windows based on the element timestamp.
      *
      * @param size The size of the generated windows.
+     *
      * @return The time policy.
      */
     public static TumblingProcessingTimeWindows of(Time size) {
@@ -120,6 +120,7 @@ public class TumblingProcessingTimeWindows extends WindowAssigner<Object, TimeWi
      *
      * @param size The size of the generated windows.
      * @param offset The offset which window start would be shifted by.
+     *
      * @return The time policy.
      */
     public static TumblingProcessingTimeWindows of(Time size, Time offset) {
@@ -135,6 +136,7 @@ public class TumblingProcessingTimeWindows extends WindowAssigner<Object, TimeWi
      * @param size The size of the generated windows.
      * @param offset The offset which window start would be shifted by.
      * @param windowStagger The utility that produces staggering offset in runtime.
+     *
      * @return The time policy.
      */
     @PublicEvolving
